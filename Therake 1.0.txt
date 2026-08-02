@@ -1,0 +1,595 @@
+-- Load Rayfield UI Library
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Create Main Window
+local Window = Rayfield:CreateWindow({
+   Name = "The Rake Remastered Script",
+   LoadingTitle = "⏳Loading The script",
+   LoadingSubtitle = "👤Made By: Jepry_Jago112",
+   ConfigurationSaving = {
+      Enabled = false,
+      FolderName = nil,
+      FileName = "TheRakeHub"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false,
+})
+
+-- Create Tabs
+local MainTab = Window:CreateTab("Main Tab", 4483362458)
+local TeleportTab = Window:CreateTab("Teleport", 4483362458)
+
+-- Table to store Toggle states and Values
+local Toggles = {
+    RakeESP = false,
+    PlayerESP = false,
+    ScrapESP = false,
+    BuildingESP = false,
+    FlareGunESP = false,
+    SupplyESP = false,
+    AutoSupply = false,
+    NoFog = false,
+    NoDark = false,
+    InfStamina = false,
+    SpeedEnabled = false,
+    InfoHUD = false,
+    InfStunStick = false,
+    InstaKillRake = false,
+    ChairBypass = false
+}
+local SpeedValue = 16
+
+-- Folder to store ESP objects cleanly
+local CoreGui = game:GetService("CoreGui")
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "RakeESPFolder"
+ESPFolder.Parent = CoreGui
+
+-- ==========================================
+-- DRAGGABLE INFO HUD (DAY/NIGHT & POWER)
+-- ==========================================
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+
+local HUDGui = Instance.new("ScreenGui")
+HUDGui.Name = "RakeInfoHUD"
+HUDGui.Parent = CoreGui
+HUDGui.Enabled = false
+
+local HUDFrame = Instance.new("Frame")
+HUDFrame.Size = UDim2.new(0, 230, 0, 120)
+HUDFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+HUDFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+HUDFrame.BackgroundTransparency = 0.2
+HUDFrame.BorderSizePixel = 0
+HUDFrame.Active = true
+HUDFrame.Parent = HUDGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = HUDFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 170, 255)
+UIStroke.Thickness = 2
+UIStroke.Parent = HUDFrame
+
+-- Title Bar (Draggable Area)
+local TitleBar = Instance.new("TextLabel")
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TitleBar.BackgroundTransparency = 0.1
+TitleBar.Text = " 📊 The Rake Status HUD (Drag me)"
+TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleBar.TextSize = 13
+TitleBar.Font = Enum.Font.GothamBold
+TitleBar.TextXAlignment = Enum.TextXAlignment.Left
+TitleBar.Parent = HUDFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+-- Status Texts
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, -10, 1, -35)
+StatusText.Position = UDim2.new(0, 5, 0, 35)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "Loading status..."
+StatusText.TextColor3 = Color3.fromRGB(220, 220, 220)
+StatusText.TextSize = 12
+StatusText.Font = Enum.Font.Gotham
+StatusText.TextXAlignment = Enum.TextXAlignment.Left
+StatusText.TextYAlignment = Enum.TextYAlignment.Top
+StatusText.TextWrapped = true
+StatusText.Parent = HUDFrame
+
+-- Make HUD Draggable
+local dragging, dragInput, dragStart, startPos
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = HUDFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        HUDFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- ==========================================
+-- UTILITY FUNCTIONS
+-- ==========================================
+
+local function GetPosition(obj)
+    if obj:IsA("BasePart") then
+        return obj.Position
+    elseif obj:IsA("Model") then
+        local part = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
+        if part then return part.Position end
+    end
+    return nil
+end
+
+local function CreateESP(instance, baseName, color, distance)
+    if not instance or not instance.Parent then return end
+    if ESPFolder:FindFirstChild(instance.Name .. "_ESP") then return end
+
+    local ESPGroup = Instance.new("Folder")
+    ESPGroup.Name = instance.Name .. "_ESP"
+    ESPGroup.Parent = ESPFolder
+
+    local Highlight = Instance.new("Highlight")
+    Highlight.Parent = ESPGroup
+    Highlight.Adornee = instance
+    Highlight.FillColor = color
+    Highlight.FillTransparency = 0.5
+    Highlight.OutlineColor = Color3.new(1, 1, 1)
+    Highlight.OutlineTransparency = 0
+
+    local Billboard = Instance.new("BillboardGui")
+    Billboard.Parent = ESPGroup
+    Billboard.Adornee = instance
+    Billboard.Size = UDim2.new(0, 150, 0, 30)
+    Billboard.StudsOffset = Vector3.new(0, 3, 0)
+    Billboard.AlwaysOnTop = true
+
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Parent = Billboard
+    TextLabel.Size = UDim2.new(1, 0, 1, 0)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.Text = string.format("%s [%d Studs]", baseName, distance)
+    TextLabel.TextColor3 = color
+    TextLabel.TextStrokeTransparency = 0
+    TextLabel.Font = Enum.Font.GothamBold
+    TextLabel.TextSize = 14
+
+    instance.AncestryChanged:Connect(function(_, parent)
+        if not parent then ESPGroup:Destroy() end
+    end)
+end
+
+local function ClearESP()
+    for _, child in pairs(ESPFolder:GetChildren()) do
+        child:Destroy()
+    end
+end
+
+-- Teleport Helper Function
+local function TeleportTo(targetPosition)
+    local char = game.Players.LocalPlayer.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
+    end
+end
+
+-- ==========================================
+-- MAIN LOOPS (ESP, HUD, LIGHTING, PLAYER, WEAPONS)
+-- ==========================================
+
+local LocalPlayer = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- ESP & Status HUD Update Loop
+task.spawn(function()
+    while task.wait(0.5) do
+        -- Update Info HUD Data
+        if Toggles.InfoHUD then
+            HUDGui.Enabled = true
+            
+            local clockTime = Lighting.ClockTime
+            local timeState = ""
+            local timeDetails = ""
+            
+            if clockTime >= 6 and clockTime < 18 then
+                timeState = "☀️ DAYTIME"
+                local hoursLeft = 18 - clockTime
+                timeDetails = string.format("Night starts in: ~%.1f hours", hoursLeft)
+            else
+                timeState = "🌙 NIGHTTIME"
+                local hoursLeft = (clockTime >= 18) and (24 - clockTime + 6) or (6 - clockTime)
+                timeDetails = string.format("Day starts in: ~%.1f hours", hoursLeft)
+            end
+            
+            local powerStatus = "Power Status: Unknown"
+            for _, obj in pairs(workspace:GetDescendants()) do
+                local name = string.lower(obj.Name)
+                if string.find(name, "powerstation") or string.find(name, "generator") then
+                    for _, val in pairs(obj:GetDescendants()) do
+                        if (val:IsA("IntValue") or val:IsA("NumberValue")) and (string.find(string.lower(val.Name), "power") or string.find(string.lower(val.Name), "fuel") or string.find(string.lower(val.Name), "energy")) then
+                            powerStatus = string.format("⚡ Power/Fuel: %s", tostring(val.Value))
+                            break
+                        end
+                    end
+                end
+            end
+            
+            StatusText.Text = string.format("%s (%02.0f:00)\n%s\n%s", timeState, clockTime, timeDetails, powerStatus)
+        else
+            HUDGui.Enabled = false
+        end
+
+        -- ESP Refresh Logic
+        ClearESP()
+        local lpChar = LocalPlayer.Character
+        local lpRoot = lpChar and lpChar:FindFirstChild("HumanoidRootPart")
+
+        if lpRoot then
+            if Toggles.PlayerESP then
+                for _, player in pairs(game.Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        local targetPos = GetPosition(player.Character)
+                        if targetPos then
+                            local dist = math.floor((lpRoot.Position - targetPos).Magnitude)
+                            CreateESP(player.Character, player.Name, Color3.fromRGB(0, 255, 0), dist)
+                        end
+                    end
+                end
+            end
+
+            for _, obj in pairs(workspace:GetDescendants()) do
+                local objName = string.lower(obj.Name)
+                local targetPos = GetPosition(obj)
+                
+                if targetPos then
+                    local dist = math.floor((lpRoot.Position - targetPos).Magnitude)
+
+                    if Toggles.RakeESP and (objName == "rake" or objName == "therake") and obj:IsA("Model") then
+                        CreateESP(obj, "⚠️ THE RAKE", Color3.fromRGB(255, 0, 0), dist)
+                    elseif Toggles.ScrapESP and string.find(objName, "scrap") and (obj:IsA("Model") or obj:IsA("BasePart")) then
+                        CreateESP(obj, "⚙️ Scrap", Color3.fromRGB(255, 255, 0), dist)
+                    elseif Toggles.BuildingESP and (string.find(objName, "safehouse") or string.find(objName, "powerstation") or string.find(objName, "base")) and obj:IsA("Model") then
+                        CreateESP(obj, "🏠 " .. obj.Name, Color3.fromRGB(0, 150, 255), dist)
+                    elseif Toggles.FlareGunESP and (string.find(objName, "flare") or string.find(objName, "flaregun")) and (obj:IsA("Tool") or obj:IsA("Model")) then
+                        CreateESP(obj, "🔫 Flare Gun", Color3.fromRGB(255, 128, 0), dist)
+                    elseif Toggles.SupplyESP and (string.find(objName, "supply") or string.find(objName, "crate")) and (obj:IsA("Model") or obj:IsA("BasePart")) then
+                        CreateESP(obj, "📦 Supply Drop", Color3.fromRGB(150, 0, 255), dist)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Auto Open Supply Loop
+task.spawn(function()
+    while task.wait(0.5) do
+        if Toggles.AutoSupply then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                local objName = string.lower(obj.Name)
+                if string.find(objName, "supply") or string.find(objName, "crate") then
+                    for _, item in pairs(obj:GetDescendants()) do
+                        if item:IsA("ProximityPrompt") then
+                            fireproximityprompt(item, 1, true)
+                        elseif item:IsA("ClickDetector") then
+                            fireclickdetector(item)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Fast Loop (RenderStepped) for World, Player Mods, Stun Stick, Insta Kill, and Chair Bypass
+RunService.RenderStepped:Connect(function()
+    -- World Mods
+    if Toggles.NoFog then
+        Lighting.FogEnd = 100000
+        if Lighting:FindFirstChildWhichIsA("Atmosphere") then
+            Lighting:FindFirstChildWhichIsA("Atmosphere").Density = 0
+        end
+    end
+    
+    if Toggles.NoDark then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+    end
+
+    -- Player Mods
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        local humanoid = LocalPlayer.Character.Humanoid
+        
+        if Toggles.SpeedEnabled then
+            humanoid.WalkSpeed = SpeedValue
+        end
+
+        if Toggles.InfStamina then
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                if v:IsA("IntValue") or v:IsA("NumberValue") then
+                    if string.match(string.lower(v.Name), "stamina") or string.match(string.lower(v.Name), "energy") then
+                        v.Value = 100 
+                    end
+                end
+            end
+        end
+        
+        -- ==========================================
+        -- INFINITE STUN STICK LOGIC
+        -- ==========================================
+        if Toggles.InfStunStick then
+            local stunStick = LocalPlayer.Character:FindFirstChild("Stun Stick") or LocalPlayer.Backpack:FindFirstChild("Stun Stick")
+            if stunStick then
+                for _, v in pairs(stunStick:GetDescendants()) do
+                    if v:IsA("IntValue") or v:IsA("NumberValue") then
+                        local vName = string.lower(v.Name)
+                        if string.find(vName, "charge") or string.find(vName, "battery") or string.find(vName, "energy") then
+                            v.Value = 100
+                        end
+                        if string.find(vName, "cooldown") or string.find(vName, "wait") or string.find(vName, "delay") then
+                            v.Value = 0
+                        end
+                    end
+                end
+            end
+        end
+
+        -- ==========================================
+        -- INSTA KILL RAKE LOGIC
+        -- ==========================================
+        if Toggles.InstaKillRake then
+            local hasStunStick = LocalPlayer.Character:FindFirstChild("Stun Stick") ~= nil
+            if hasStunStick then
+                local lpRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if lpRoot then
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        local objName = string.lower(obj.Name)
+                        if (objName == "rake" or objName == "therake") and obj:IsA("Model") then
+                            local rakeRoot = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
+                            local rakeHum = obj:FindFirstChildOfClass("Humanoid")
+                            if rakeRoot and rakeHum then
+                                local dist = (lpRoot.Position - rakeRoot.Position).Magnitude
+                                if dist <= 30 then -- Jika Rake mendekat dalam jarak 30 stud
+                                    rakeHum.Health = 0 -- Auto kill Rake!
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- ==========================================
+    -- CHAIR BYPASS LOGIC (WHEELCHAIR / CAMP CHAIR)
+    -- ==========================================
+    if Toggles.ChairBypass then
+        for _, obj in pairs(workspace:GetDescendants()) do
+            local name = string.lower(obj.Name)
+            if string.find(name, "chair") or string.find(name, "wheelchair") or string.find(name, "seat") then
+                if obj:IsA("BasePart") then
+                    obj.CanCollide = false
+                elseif obj:IsA("Model") then
+                    for _, part in pairs(obj:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- RAYFIELD UI MENU
+-- ==========================================
+
+MainTab:CreateSection("🖥️ HUD & Info Overlay")
+MainTab:CreateToggle({ 
+   Name = "Enable Status HUD (Draggable)", 
+   CurrentValue = false, 
+   Flag = "InfoHUD", 
+   Callback = function(Value) 
+      Toggles.InfoHUD = Value 
+      HUDGui.Enabled = Value
+   end 
+})
+
+MainTab:CreateSection("👁️ ESP Settings")
+MainTab:CreateToggle({ Name = "Rake ESP (w/ Studs)", CurrentValue = false, Flag = "RakeESP", Callback = function(Value) Toggles.RakeESP = Value end })
+MainTab:CreateToggle({ Name = "Player ESP (w/ Studs)", CurrentValue = false, Flag = "PlayerESP", Callback = function(Value) Toggles.PlayerESP = Value end })
+MainTab:CreateToggle({ Name = "Scrap ESP (w/ Studs)", CurrentValue = false, Flag = "ScrapESP", Callback = function(Value) Toggles.ScrapESP = Value end })
+MainTab:CreateToggle({ Name = "Building ESP (w/ Studs)", CurrentValue = false, Flag = "BuildingESP", Callback = function(Value) Toggles.BuildingESP = Value end })
+MainTab:CreateToggle({ Name = "Flare Gun ESP (w/ Studs)", CurrentValue = false, Flag = "FlareGunESP", Callback = function(Value) Toggles.FlareGunESP = Value end })
+MainTab:CreateToggle({ Name = "Supply Drop ESP (w/ Studs)", CurrentValue = false, Flag = "SupplyESP", Callback = function(Value) Toggles.SupplyESP = Value end })
+
+MainTab:CreateSection("📦 Supply Settings")
+MainTab:CreateToggle({ Name = "Auto Open Supply Drops", CurrentValue = false, Flag = "AutoSupply", Callback = function(Value) Toggles.AutoSupply = Value end })
+
+MainTab:CreateSection("🗡️ Weapon Settings")
+MainTab:CreateToggle({ 
+   Name = "Infinite Stun Stick (No Delay & Full Battery)", 
+   CurrentValue = false, 
+   Flag = "InfStunStick", 
+   Callback = function(Value) 
+      Toggles.InfStunStick = Value 
+   end 
+})
+MainTab:CreateToggle({ 
+   Name = "Insta Kill Rake (When holding Stun Stick)", 
+   CurrentValue = false, 
+   Flag = "InstaKillRake", 
+   Callback = function(Value) 
+      Toggles.InstaKillRake = Value 
+   end 
+})
+
+MainTab:CreateSection("🌍 World Settings")
+MainTab:CreateToggle({ Name = "No Fog", CurrentValue = false, Flag = "NoFog", Callback = function(Value) Toggles.NoFog = Value end })
+MainTab:CreateToggle({ Name = "No Dark (Fullbright)", CurrentValue = false, Flag = "NoDark", Callback = function(Value) Toggles.NoDark = Value end })
+
+MainTab:CreateSection("🏃 Player Settings")
+MainTab:CreateToggle({ Name = "Infinite Stamina", CurrentValue = false, Flag = "InfStamina", Callback = function(Value) Toggles.InfStamina = Value end })
+MainTab:CreateToggle({ Name = "Enable Custom WalkSpeed", CurrentValue = false, Flag = "SpeedEnabled", Callback = function(Value) Toggles.SpeedEnabled = Value end })
+MainTab:CreateSlider({ Name = "WalkSpeed Amount", Range = {16, 100}, Increment = 1, Suffix = "Speed", CurrentValue = 16, Flag = "WalkSpeedSlider", Callback = function(Value) SpeedValue = Value end })
+
+MainTab:CreateSection("🚪 Utility (Anti-Troll & Bypass)")
+MainTab:CreateToggle({ 
+   Name = "Chair Bypass (Walk/Run on Wheelchair & Tent Chairs)", 
+   CurrentValue = false, 
+   Flag = "ChairBypass", 
+   Callback = function(Value) 
+      Toggles.ChairBypass = Value 
+   end 
+})
+
+MainTab:CreateButton({
+   Name = "Bypass Safe House Door",
+   Callback = function()
+        local doorBypassed = false
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if string.find(string.lower(obj.Name), "safehouse") then
+                for _, item in pairs(obj:GetDescendants()) do
+                    if item:IsA("ProximityPrompt") then
+                        fireproximityprompt(item, 1, true)
+                    elseif item:IsA("ClickDetector") then
+                        fireclickdetector(item)
+                    end
+                end
+                for _, part in pairs(obj:GetDescendants()) do
+                    if part:IsA("BasePart") and string.find(string.lower(part.Name), "door") then
+                        part.CanCollide = false
+                        part.Transparency = 0.5
+                        doorBypassed = true
+                    end
+                end
+            end
+        end
+
+        if doorBypassed then
+            Rayfield:Notify({
+                Title = "Anti-Troll Activated!",
+                Content = "Safe House doors are now uncollidable, walk right through!",
+                Duration = 4,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Failed",
+                Content = "Could not find any Safe House doors on this map.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+   end,
+})
+
+-- ==========================================
+-- TELEPORT TAB
+-- ==========================================
+TeleportTab:CreateSection("📍 Location Teleports")
+
+TeleportTab:CreateButton({
+   Name = "Teleport to Safe House",
+   Callback = function()
+       for _, obj in pairs(workspace:GetDescendants()) do
+           if string.find(string.lower(obj.Name), "safehouse") then
+               local pos = GetPosition(obj)
+               if pos then
+                   TeleportTo(pos)
+                   Rayfield:Notify({ Title = "Teleported", Content = "Moved to Safe House!", Duration = 3, Image = 4483362458 })
+                   return
+               end
+           end
+       end
+       Rayfield:Notify({ Title = "Failed", Content = "Safe House not found.", Duration = 3, Image = 4483362458 })
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "Teleport to Watchtower",
+   Callback = function()
+       for _, obj in pairs(workspace:GetDescendants()) do
+           local name = string.lower(obj.Name)
+           if string.find(name, "tower") or string.find(name, "watchtower") then
+               local pos = GetPosition(obj)
+               if pos then
+                   TeleportTo(pos)
+                   Rayfield:Notify({ Title = "Teleported", Content = "Moved to Watchtower!", Duration = 3, Image = 4483362458 })
+                   return
+               end
+           end
+       end
+       Rayfield:Notify({ Title = "Failed", Content = "Watchtower not found.", Duration = 3, Image = 4483362458 })
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "Teleport to Tents / Campsite",
+   Callback = function()
+       for _, obj in pairs(workspace:GetDescendants()) do
+           local name = string.lower(obj.Name)
+           if string.find(name, "tent") or string.find(name, "camp") then
+               local pos = GetPosition(obj)
+               if pos then
+                   TeleportTo(pos)
+                   Rayfield:Notify({ Title = "Teleported", Content = "Moved to Tents/Campsite!", Duration = 3, Image = 4483362458 })
+                   return
+               end
+           end
+       end
+       Rayfield:Notify({ Title = "Failed", Content = "Tents not found.", Duration = 3, Image = 4483362458 })
+   end,
+})
+
+TeleportTab:CreateButton({
+   Name = "Teleport to Power Station",
+   Callback = function()
+       for _, obj in pairs(workspace:GetDescendants()) do
+           local name = string.lower(obj.Name)
+           if string.find(name, "powerstation") or string.find(name, "generator") then
+               local pos = GetPosition(obj)
+               if pos then
+                   TeleportTo(pos)
+                   Rayfield:Notify({ Title = "Teleported", Content = "Moved to Power Station!", Duration = 3, Image = 4483362458 })
+                   return
+               end
+           end
+       end
+       Rayfield:Notify({ Title = "Failed", Content = "Power Station not found.", Duration = 3, Image = 4483362458 })
+   end,
+})
+
+-- Notification when the script loads successfully
+Rayfield:Notify({
+   Title = "Success!",
+   Content = "The Rake Remastered script executed successfully with new features.",
+   Duration = 5,
+   Image = 4483362458,
+})
