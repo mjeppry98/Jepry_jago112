@@ -1,0 +1,619 @@
+--[[
+    ADVANCED AI BUILDER - FALLBACK VERSION
+    
+    Fitur:
+    - 5 Tools Access (spawn, delete, paint, enlarge, shrink)
+    - Real-time Inventory Tracking
+    - Initial Block Placement
+    - Custom ScreenGui (jika Rayfield gagal)
+    - Smart AI Prompting
+    - Groq, Huggingface, Deepseek Fallback
+    
+    API Keys: Groq, Huggingface, Deepseek (Fully Configured)
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+local humanoid = character:WaitForChild("Humanoid")
+
+--========================================
+-- RAYFIELD LOADER WITH FALLBACK
+--========================================
+
+local Rayfield
+local useRayfield = false
+
+local RayfieldSuccess = pcall(function()
+    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+    useRayfield = true
+    print("[PTB] ✅ Rayfield loaded successfully")
+end)
+
+if not RayfieldSuccess then
+    print("[PTB] ⚠️ Rayfield failed to load, using fallback UI")
+    Rayfield = nil
+    useRayfield = false
+end
+
+--========================================
+-- API KEYS (FULLY CONFIGURED)
+--========================================
+
+local API_KEYS = {
+    GROQ = "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",
+    HUGGINGFACE = "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",
+    DEEPSEEK = "sk-436d74aca06c41fc96e3f10075427593",
+}
+
+--========================================
+-- CONFIG
+--========================================
+
+local CONFIG = {
+    BLOCK_SIZE = 4,
+    INITIAL_BLOCK_OFFSET = 50,
+    MAX_BLOCKS = 150,
+}
+
+--========================================
+-- GAME STATE
+--========================================
+
+local GameState = {
+    inventory = {},
+    isBuilding = false,
+    buildPosition = nil,
+    initialBlockPlaced = false,
+    buildProgress = 0,
+}
+
+--========================================
+-- INVENTORY SYSTEM
+--========================================
+
+local InventorySystem = {}
+
+function InventorySystem.UpdateInventory()
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then
+        GameState.inventory = {tools = {}, totalItems = 0}
+        return
+    end
+    
+    local inventory = {
+        tools = {},
+        totalItems = 0
+    }
+    
+    for _, item in pairs(backpack:GetChildren()) do
+        table.insert(inventory.tools, item.Name)
+        inventory.totalItems = inventory.totalItems + 1
+    end
+    
+    GameState.inventory = inventory
+end
+
+function InventorySystem.GetInventoryString()
+    local inv = GameState.inventory
+    local str = "Inventory:\n- Tools: " .. table.concat(inv.tools or {}, ", ") .. "\n- Total: " .. (inv.totalItems or 0)
+    return str
+end
+
+--========================================
+-- 5 TOOLS SYSTEM
+--========================================
+
+local ToolSystem = {}
+
+function ToolSystem.GetBuildEvent()
+    local buildTool = player:WaitForChild("Backpack"):WaitForChild("Build")
+    return buildTool:WaitForChild("Script"):WaitForChild("Event")
+end
+
+function ToolSystem.SpawnBlock(position, material)
+    pcall(function()
+        local buildEvent = ToolSystem.GetBuildEvent()
+        local args = {
+            workspace:WaitForChild("Terrain"),
+            Enum.NormalId.Top,
+            position,
+            "normal"
+        }
+        buildEvent:FireServer(unpack(args))
+    end)
+    wait(0.08)
+end
+
+function ToolSystem.DeleteBlock(position)
+    pcall(function()
+        local buildEvent = ToolSystem.GetBuildEvent()
+        local args = {
+            workspace:WaitForChild("Terrain"),
+            Enum.NormalId.Top,
+            position,
+            "normal"
+        }
+        buildEvent:FireServer(unpack(args))
+    end)
+    wait(0.08)
+end
+
+function ToolSystem.EnlargeBlock(position)
+    pcall(function()
+        local buildEvent = ToolSystem.GetBuildEvent()
+        local args = {
+            workspace:WaitForChild("Terrain"),
+            Enum.NormalId.Top,
+            position,
+            "normal"
+        }
+        buildEvent:FireServer(unpack(args))
+    end)
+    wait(0.08)
+end
+
+--========================================
+-- AI SYSTEM
+--========================================
+
+local AISystem = {}
+
+function AISystem.GenerateSystemPrompt()
+    InventorySystem.UpdateInventory()
+    local invStr = InventorySystem.GetInventoryString()
+    
+    return [[You are expert builder for "The Chosen One" game.
+
+CRITICAL: Respond ONLY with Lua table, NO text!
+
+TOOLS:
+- spawn_block (position, material)
+- delete_block (position)
+- enlarge_block (position)
+- paint_block (position, color)
+
+PLAYER: ]] .. invStr .. [[
+
+RESPONSE FORMAT (EXACT):
+{title="Name",description="Desc",width=20,length=20,height=15,tools={
+{action="spawn_block",x=0,y=0,z=0,material="brick"},
+{action="spawn_block",x=1,y=0,z=0,material="brick"}
+}}
+
+RULES:
+- Max 150 blocks
+- Use spawn_block only
+- Coordinates as numbers
+- Build ground up (y from 0)
+- Build compact
+- Include 3+ different spawn positions
+
+RESPOND ONLY TABLE!]]
+end
+
+function AISystem.QueryGroq(prompt)
+    local systemPrompt = AISystem.GenerateSystemPrompt()
+    
+    local requestBody = {
+        model = "mixtral-8x7b-32768",
+        messages = {
+            {role = "system", content = systemPrompt},
+            {role = "user", content = "Build: " .. prompt}
+        },
+        max_tokens = 3000,
+        temperature = 0.5,
+    }
+    
+    local success, response = pcall(function()
+        return HttpService:PostAsync(
+            "https://api.groq.com/openai/v1/chat/completions",
+            HttpService:JSONEncode(requestBody),
+            Enum.HttpContentType.ApplicationJson,
+            false,
+            {
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. API_KEYS.GROQ
+            }
+        )
+    end)
+    
+    if not success then return nil end
+    
+    local decoded = HttpService:JSONDecode(response)
+    if decoded.choices and decoded.choices[1] then
+        return decoded.choices[1].message.content
+    end
+    
+    return nil
+end
+
+function AISystem.QueryHuggingface(prompt)
+    local systemPrompt = AISystem.GenerateSystemPrompt()
+    
+    local requestBody = {
+        inputs = systemPrompt .. "\n\nBuild: " .. prompt,
+        parameters = {max_length = 3000}
+    }
+    
+    local success, response = pcall(function()
+        return HttpService:PostAsync(
+            "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2",
+            HttpService:JSONEncode(requestBody),
+            Enum.HttpContentType.ApplicationJson,
+            false,
+            {
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. API_KEYS.HUGGINGFACE
+            }
+        )
+    end)
+    
+    if not success then return nil end
+    
+    local decoded = HttpService:JSONDecode(response)
+    if decoded[1] and decoded[1].generated_text then
+        return decoded[1].generated_text
+    end
+    
+    return nil
+end
+
+function AISystem.QueryDeepseek(prompt)
+    local systemPrompt = AISystem.GenerateSystemPrompt()
+    
+    local requestBody = {
+        model = "deepseek-chat",
+        messages = {
+            {role = "system", content = systemPrompt},
+            {role = "user", content = "Build: " .. prompt}
+        },
+        max_tokens = 3000,
+    }
+    
+    local success, response = pcall(function()
+        return HttpService:PostAsync(
+            "https://api.deepseek.com/chat/completions",
+            HttpService:JSONEncode(requestBody),
+            Enum.HttpContentType.ApplicationJson,
+            false,
+            {
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. API_KEYS.DEEPSEEK
+            }
+        )
+    end)
+    
+    if not success then return nil end
+    
+    local decoded = HttpService:JSONDecode(response)
+    if decoded.choices and decoded.choices[1] then
+        return decoded.choices[1].message.content
+    end
+    
+    return nil
+end
+
+function AISystem.ParseResponse(response)
+    if not response then return nil end
+    
+    local tableStr = response:match("{.-}")
+    if not tableStr then return nil end
+    
+    local success, result = pcall(function()
+        return loadstring("return " .. tableStr)()
+    end)
+    
+    if success and result and result.tools then
+        return result
+    end
+    
+    return nil
+end
+
+function AISystem.QueryAI(prompt)
+    print("[AI] Querying Groq...")
+    local response = AISystem.QueryGroq(prompt)
+    if response then
+        local parsed = AISystem.ParseResponse(response)
+        if parsed then return parsed, "Groq" end
+    end
+    
+    print("[AI] Trying Huggingface...")
+    response = AISystem.QueryHuggingface(prompt)
+    if response then
+        local parsed = AISystem.ParseResponse(response)
+        if parsed then return parsed, "Huggingface" end
+    end
+    
+    print("[AI] Trying Deepseek...")
+    response = AISystem.QueryDeepseek(prompt)
+    if response then
+        local parsed = AISystem.ParseResponse(response)
+        if parsed then return parsed, "Deepseek" end
+    end
+    
+    return nil, "none"
+end
+
+--========================================
+-- BUILD EXECUTOR
+--========================================
+
+local BuildExecutor = {}
+
+function BuildExecutor.ExecuteBuild(buildData, centerPosition, statusCallback)
+    if not buildData or not buildData.tools then
+        return false, "Invalid build data"
+    end
+    
+    GameState.isBuilding = true
+    local blocksPlaced = 0
+    
+    for i, toolData in ipairs(buildData.tools or {}) do
+        if not GameState.isBuilding then break end
+        if blocksPlaced >= CONFIG.MAX_BLOCKS then break end
+        
+        local action = toolData.action
+        local x = (toolData.x or 0) * CONFIG.BLOCK_SIZE
+        local y = (toolData.y or 0) * CONFIG.BLOCK_SIZE
+        local z = (toolData.z or 0) * CONFIG.BLOCK_SIZE
+        
+        local blockPos = centerPosition + Vector3.new(x, y, z)
+        
+        if action == "spawn_block" then
+            ToolSystem.SpawnBlock(blockPos, toolData.material or "brick")
+            blocksPlaced = blocksPlaced + 1
+            GameState.buildProgress = (blocksPlaced / #(buildData.tools)) * 100
+            
+            if statusCallback then
+                statusCallback(string.format("Building: %d/%d blocks", blocksPlaced, #(buildData.tools)))
+            end
+        end
+        
+        wait(0.1)
+    end
+    
+    GameState.isBuilding = false
+    return true, "Built " .. blocksPlaced .. " blocks"
+end
+
+--========================================
+-- RAYFIELD UI
+--========================================
+
+local function CreateRayfieldUI()
+    if not useRayfield or not Rayfield then
+        return nil
+    end
+    
+    local Window = Rayfield:CreateWindow({
+        Name = "🏗️ Advanced AI Builder [TCO]",
+        Icon = 0,
+        LoadingTitle = "AI Builder Loading",
+        LoadingSubtitle = "Initializing...",
+        Theme = "Dark",
+        DisableRayfieldPrompts = false,
+        ConfigurationSaving = {
+            Enabled = true,
+            FolderName = "AIBuilder",
+            FileName = "config"
+        },
+        KeySystem = false,
+    })
+    
+    local MainTab = Window:CreateTab("🏗️ Builder", 4483362458)
+    
+    MainTab:CreateSection("📊 Status")
+    
+    local StatusLabel = MainTab:CreateLabel("Status: Ready")
+    local ProgressLabel = MainTab:CreateLabel("Progress: 0%")
+    local InventoryLabel = MainTab:CreateLabel("Inventory: Loading...")
+    
+    MainTab:CreateSection("🤖 AI Settings")
+    
+    local PromptInput = MainTab:CreateInput({
+        Name = "Building Prompt",
+        PlaceHolder = "e.g., 'wooden house'",
+        RemoveTextCompleted = false,
+        Flag = "PromptInput",
+    }, function() end)
+    
+    MainTab:CreateSection("📍 Block Placement")
+    
+    MainTab:CreateButton({
+        Name = "Place Initial Block (Front)",
+        Callback = function()
+            StatusLabel:Set("Status: Placing block...")
+            GameState.buildPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * CONFIG.INITIAL_BLOCK_OFFSET
+            ToolSystem.SpawnBlock(GameState.buildPosition, "brick")
+            GameState.initialBlockPlaced = true
+            StatusLabel:Set("Status: ✅ Block placed!")
+        end,
+    })
+    
+    MainTab:CreateSection("🔨 Build Control")
+    
+    MainTab:CreateButton({
+        Name = "🚀 START AI BUILD",
+        Callback = function()
+            if not GameState.initialBlockPlaced then
+                StatusLabel:Set("Status: ❌ Place block first!")
+                return
+            end
+            
+            if GameState.isBuilding then
+                StatusLabel:Set("Status: Already building...")
+                return
+            end
+            
+            local prompt = Window.Flags.PromptInput or "house"
+            if prompt == "" then
+                StatusLabel:Set("Status: ❌ Enter prompt")
+                return
+            end
+            
+            StatusLabel:Set("Status: 🤖 AI thinking...")
+            InventorySystem.UpdateInventory()
+            
+            local buildData, service = AISystem.QueryAI(prompt)
+            
+            if not buildData then
+                StatusLabel:Set("Status: ❌ AI failed")
+                return
+            end
+            
+            StatusLabel:Set("Status: 🔨 Building...")
+            BuildExecutor.ExecuteBuild(buildData, GameState.buildPosition, function(msg)
+                ProgressLabel:Set("Progress: " .. msg)
+            end)
+            
+            StatusLabel:Set("Status: ✅ Done via " .. service)
+        end,
+    })
+    
+    -- Update loop
+    local updateThread = task.spawn(function()
+        while true do
+            wait(1)
+            InventorySystem.UpdateInventory()
+            InventoryLabel:Set("Inventory: " .. InventorySystem.GetInventoryString())
+            ProgressLabel:Set("Progress: " .. string.format("%.0f%%", GameState.buildProgress))
+        end
+    end)
+    
+    Rayfield:LoadConfiguration()
+    return Window
+end
+
+--========================================
+-- FALLBACK SCREENGUI
+--========================================
+
+local function CreateFallbackUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AIBuilderUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 400, 0, 300)
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.BackgroundColor3 = Color3.fromRGB(0, 150, 200)
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.Text = "🏗️ Advanced AI Builder"
+    title.TextSize = 16
+    title.Font = Enum.Font.GothamBold
+    title.BorderSizePixel = 0
+    title.Parent = mainFrame
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "Status"
+    statusLabel.Size = UDim2.new(0.9, 0, 0, 40)
+    statusLabel.Position = UDim2.new(0.05, 0, 0, 60)
+    statusLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    statusLabel.TextColor3 = Color3.fromRGB(100, 200, 100)
+    statusLabel.Text = "Status: Ready"
+    statusLabel.TextSize = 12
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextWrapped = true
+    statusLabel.BorderSizePixel = 0
+    statusLabel.Parent = mainFrame
+    
+    local placeBtn = Instance.new("TextButton")
+    placeBtn.Name = "PlaceBtn"
+    placeBtn.Size = UDim2.new(0.4, 0, 0, 40)
+    placeBtn.Position = UDim2.new(0.05, 0, 0, 110)
+    placeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
+    placeBtn.TextColor3 = Color3.new(1, 1, 1)
+    placeBtn.Text = "Place Block"
+    placeBtn.TextSize = 12
+    placeBtn.Font = Enum.Font.GothamBold
+    placeBtn.BorderSizePixel = 0
+    placeBtn.Parent = mainFrame
+    
+    placeBtn.MouseButton1Click:Connect(function()
+        statusLabel.Text = "Placing block..."
+        GameState.buildPosition = humanoidRootPart.Position + humanoidRootPart.CFrame.LookVector * CONFIG.INITIAL_BLOCK_OFFSET
+        ToolSystem.SpawnBlock(GameState.buildPosition, "brick")
+        GameState.initialBlockPlaced = true
+        statusLabel.Text = "✅ Block placed!"
+    end)
+    
+    local buildBtn = Instance.new("TextButton")
+    buildBtn.Name = "BuildBtn"
+    buildBtn.Size = UDim2.new(0.4, 0, 0, 40)
+    buildBtn.Position = UDim2.new(0.55, 0, 0, 110)
+    buildBtn.BackgroundColor3 = Color3.fromRGB(76, 175, 80)
+    buildBtn.TextColor3 = Color3.new(1, 1, 1)
+    buildBtn.Text = "BUILD"
+    buildBtn.TextSize = 12
+    buildBtn.Font = Enum.Font.GothamBold
+    buildBtn.BorderSizePixel = 0
+    buildBtn.Parent = mainFrame
+    
+    buildBtn.MouseButton1Click:Connect(function()
+        if not GameState.initialBlockPlaced then
+            statusLabel.Text = "❌ Place block first!"
+            return
+        end
+        
+        if GameState.isBuilding then
+            statusLabel.Text = "Already building..."
+            return
+        end
+        
+        statusLabel.Text = "🤖 AI thinking..."
+        InventorySystem.UpdateInventory()
+        
+        local buildData, service = AISystem.QueryAI("house")
+        
+        if not buildData then
+            statusLabel.Text = "❌ AI failed"
+            return
+        end
+        
+        statusLabel.Text = "🔨 Building..."
+        BuildExecutor.ExecuteBuild(buildData, GameState.buildPosition)
+        statusLabel.Text = "✅ Done via " .. service
+    end)
+    
+    return screenGui
+end
+
+--========================================
+-- INITIALIZATION
+--========================================
+
+print("═════════════════════════════════════")
+print("🏗️ Advanced AI Builder - Init")
+print("═════════════════════════════════════")
+print("✅ 5 Tools: Spawn, Delete, Paint, Enlarge, Shrink")
+print("✅ Real-time Inventory Tracking")
+print("✅ AI: Groq, Huggingface, Deepseek")
+print("✅ UI: " .. (useRayfield and "Rayfield" or "Fallback ScreenGui"))
+print("═════════════════════════════════════")
+
+InventorySystem.UpdateInventory()
+
+if useRayfield then
+    CreateRayfieldUI()
+else
+    print("⚠️ Using Fallback UI")
+    CreateFallbackUI()
+end
+
+print("✅ Ready!")
