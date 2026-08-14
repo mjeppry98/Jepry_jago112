@@ -246,9 +246,153 @@ local Backdrop = newFrame(ScreenGui, {
     ZIndex                 = 1,
 })
 
--- ── MAIN WINDOW ───────────────────────────────────────────────────────────────
-local WIN_W = 420
-local WIN_H = 620
+-- ── LOADING SCREEN (Rayfield-style: 450×260) ─────────────────────────────────
+local LOAD_W, LOAD_H = 450, 260
+
+local LoadShadow = newFrame(ScreenGui, {
+    Name                   = "LoadShadow",
+    Size                   = UDim2.new(0, LOAD_W + 20, 0, LOAD_H + 20),
+    Position               = UDim2.new(0.5, -(LOAD_W+20)/2, 0.5, -(LOAD_H+20)/2 + 8),
+    BackgroundColor3       = Color3.fromRGB(0, 0, 0),
+    BackgroundTransparency = 0.5,
+    ZIndex                 = 98,
+})
+corner(LoadShadow, 18)
+
+local LoadScreen = newFrame(ScreenGui, {
+    Name             = "LoadScreen",
+    Size             = UDim2.new(0, LOAD_W, 0, LOAD_H),
+    Position         = UDim2.new(0.5, -LOAD_W/2, 0.5, -LOAD_H/2),
+    BackgroundColor3 = C.SURFACE,
+    ZIndex           = 99,
+    ClipsDescendants = true,
+})
+corner(LoadScreen, 14)
+stroke(LoadScreen, C.BORDER, 1)
+
+-- Gold accent bar atas loading screen
+newFrame(LoadScreen, {
+    Size             = UDim2.new(1, 0, 0, 3),
+    Position         = UDim2.new(0, 0, 0, 0),
+    BackgroundColor3 = C.GOLD,
+    ZIndex           = 100,
+})
+
+-- Piano emoji besar
+newLabel(LoadScreen, {
+    Text     = "🎹",
+    Size     = UDim2.new(1, 0, 0, 64),
+    Position = UDim2.new(0, 0, 0, 28),
+    Font     = Enum.Font.Gotham,
+    TextSize = 48,
+    ZIndex   = 100,
+})
+
+-- Judul loading
+newLabel(LoadScreen, {
+    Text       = "Auto Piano Player",
+    Size       = UDim2.new(1, 0, 0, 28),
+    Position   = UDim2.new(0, 0, 0, 98),
+    Font       = Enum.Font.GothamBold,
+    TextSize   = 20,
+    TextColor3 = C.IVORY,
+    ZIndex     = 100,
+})
+
+-- Subtitle
+newLabel(LoadScreen, {
+    Text       = "Sky Music  ·  Mobile & PC",
+    Size       = UDim2.new(1, 0, 0, 18),
+    Position   = UDim2.new(0, 0, 0, 130),
+    Font       = Enum.Font.Gotham,
+    TextSize   = 12,
+    TextColor3 = C.TEXT_DIM,
+    ZIndex     = 100,
+})
+
+-- Loading bar background
+local LoadBarBG = newFrame(LoadScreen, {
+    Size             = UDim2.new(0, LOAD_W - 80, 0, 5),
+    Position         = UDim2.new(0, 40, 0, 168),
+    BackgroundColor3 = C.BORDER,
+    ZIndex           = 100,
+})
+corner(LoadBarBG, 3)
+
+local LoadBarFill = newFrame(LoadBarBG, {
+    Size             = UDim2.new(0, 0, 1, 0),
+    BackgroundColor3 = C.GOLD,
+    ZIndex           = 101,
+})
+corner(LoadBarFill, 3)
+
+-- Status teks loading
+local LoadStatusLbl = newLabel(LoadScreen, {
+    Text       = "⏳ Loading the script...",
+    Size       = UDim2.new(1, 0, 0, 16),
+    Position   = UDim2.new(0, 0, 0, 182),
+    Font       = Enum.Font.Gotham,
+    TextSize   = 11,
+    TextColor3 = C.TEXT_DIM,
+    ZIndex     = 100,
+})
+
+-- Credit
+newLabel(LoadScreen, {
+    Text       = "👤 Made by: Jepry_Jago112",
+    Size       = UDim2.new(1, 0, 0, 16),
+    Position   = UDim2.new(0, 0, 0, 228),
+    Font       = Enum.Font.Gotham,
+    TextSize   = 10,
+    TextColor3 = C.GOLD_DIM,
+    ZIndex     = 100,
+})
+
+-- Animasi loading bar & fade out
+task.spawn(function()
+    local steps = 40
+    local msgs = {
+        [10] = "⚙ Initializing parser...",
+        [22] = "🎵 Loading key mappings...",
+        [34] = "🖥 Building UI elements...",
+        [40] = "✅ Ready!",
+    }
+    for i = 1, steps do
+        task.wait(0.045)
+        local pct = i / steps
+        tween(LoadBarFill, { Size = UDim2.new(pct, 0, 1, 0) }, 0.04)
+        if msgs[i] then
+            LoadStatusLbl.Text = msgs[i]
+        end
+    end
+    task.wait(0.3)
+    -- Fade out loading screen
+    local fadeSteps = 12
+    for i = 1, fadeSteps do
+        task.wait(0.025)
+        local tr = i / fadeSteps
+        LoadScreen.BackgroundTransparency  = tr
+        LoadShadow.BackgroundTransparency  = 0.5 + tr * 0.5
+        for _, child in ipairs(LoadScreen:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("Frame") then
+                pcall(function()
+                    if child:IsA("TextLabel") then
+                        child.TextTransparency = tr
+                    end
+                    child.BackgroundTransparency = math.min(
+                        child.BackgroundTransparency + (tr / fadeSteps), 1
+                    )
+                end)
+            end
+        end
+    end
+    LoadScreen:Destroy()
+    LoadShadow:Destroy()
+end)
+
+-- ── MAIN WINDOW (Rayfield standard: 720×460) ──────────────────────────────────
+local WIN_W = 720
+local WIN_H = 460
 
 local Window = newFrame(ScreenGui, {
     Name             = "Window",
@@ -479,16 +623,27 @@ ToggleBtn.InputBegan:Connect(function(inp)
 end)
 
 -- ── CONTENT SCROLL ────────────────────────────────────────────────────────────
+-- ScrollingFrame memenuhi sisa window di bawah TitleBar.
+-- ScrollBarInset = ScrollBar → scrollbar tidak menimpa konten.
+-- ElasticBehavior = WhenScrollable → bouncing hanya saat konten > frame.
+-- BottomImage/TopImage = "" → hilangkan ikon panah bawaan Roblox agar bersih.
 local ScrollFrame = newInst("ScrollingFrame", {
     Name                   = "Content",
     Parent                 = Window,
     Size                   = UDim2.new(1, 0, 1, -48),
     Position               = UDim2.new(0, 0, 0, 48),
     BackgroundTransparency = 1,
-    ScrollBarThickness     = 3,
-    ScrollBarImageColor3   = C.BORDER,
+    ScrollBarThickness     = 4,
+    ScrollBarImageColor3   = C.GOLD_DIM,
+    BottomImage            = "",
+    TopImage               = "",
+    MidImage               = "",
     CanvasSize             = UDim2.new(0, 0, 0, 0),
     AutomaticCanvasSize    = Enum.AutomaticSize.Y,
+    ScrollingEnabled       = true,
+    ScrollingDirection     = Enum.ScrollingDirection.Y,
+    VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
+    ElasticBehavior        = Enum.ElasticBehavior.WhenScrollable,
     ZIndex                 = 11,
 })
 
@@ -500,7 +655,17 @@ local ContentPad = newFrame(ScrollFrame, {
     ZIndex                 = 11,
 })
 listLayout(ContentPad, 10)
-padding(ContentPad, 14)
+
+-- UIPadding dengan bottom lebih besar agar elemen terakhir tidak terpotong
+-- dan scroll bisa mentok sampai bawah dengan nyaman
+do
+    local p = Instance.new("UIPadding")
+    p.PaddingLeft   = UDim.new(0, 14)
+    p.PaddingRight  = UDim.new(0, 14)
+    p.PaddingTop    = UDim.new(0, 14)
+    p.PaddingBottom = UDim.new(0, 20)   -- extra 20px agar mentok bawah
+    p.Parent        = ContentPad
+end
 
 -- ── HELPER: SECTION HEADER ────────────────────────────────────────────────────
 local function sectionLabel(parent, text, order)
@@ -1266,12 +1431,14 @@ PlayBtn.MouseButton1Click:Connect(function()
     local raw = SheetBox.Text
     if not raw or raw == "" then
         addLog("Sheet is empty! Paste a sheet first 🎼", "warn")
+        notify("Sheet Empty", "Paste a sheet first 🎼", 3, "warn")
         return
     end
 
     tokens = parseSheet(raw)
     if #tokens == 0 then
         addLog("No notes detected. Please check the sheet format.", "warn")
+        notify("Parse Error", "No notes detected. Check sheet format.", 3, "error")
         return
     end
 
@@ -1324,8 +1491,10 @@ PlayBtn.MouseButton1Click:Connect(function()
 
         if not stopFlag then
             addLog("✅ Done! Sheet played completely.", "info")
+            notify("Playback Complete", "Sheet played successfully ✅", 3, "success")
         else
             addLog("⏹ Stopped.", "warn")
+            notify("Stopped", "Playback was stopped.", 2, "warn")
         end
 
         resetPlayUI(false)
@@ -1383,8 +1552,166 @@ task.spawn(function()
     end
 end)
 
+-- ╔══════════════════════════════════════════════════════════════════════════════
+-- ║   NOTIFICATION SYSTEM  (Rayfield-style: 300px lebar)                       ║
+-- ║   showNotif(title, body, duration, notifType)                               ║
+-- ║     notifType: "info" | "success" | "warn" | "error"                       ║
+-- ╚══════════════════════════════════════════════════════════════════════════════
+local NOTIF_W = 300
+local notifQueue = {}
+local notifActive = false
+
+local NOTIF_ICON = {
+    info    = "🔵",
+    success = "✅",
+    warn    = "⚠️",
+    error   = "❌",
+}
+local NOTIF_ACCENT = {
+    info    = C.BLUE,
+    success = C.GREEN,
+    warn    = Color3.fromRGB(224, 160, 60),
+    error   = C.RED,
+}
+
+local function showNotif(title, body, duration, notifType)
+    notifType = notifType or "info"
+    table.insert(notifQueue, {
+        title    = title    or "Notification",
+        body     = body     or "",
+        duration = duration or 3,
+        nType    = notifType,
+    })
+end
+
+local function processNotifQueue()
+    if notifActive then return end
+    if #notifQueue == 0 then return end
+    notifActive = true
+
+    local data     = table.remove(notifQueue, 1)
+    local accent   = NOTIF_ACCENT[data.nType] or C.BLUE
+    local icon     = NOTIF_ICON[data.nType]   or "🔵"
+    local bodyH    = data.body ~= "" and 28 or 0
+    local totalH   = 44 + bodyH
+
+    -- Shadow
+    local ns = newFrame(ScreenGui, {
+        Size                   = UDim2.new(0, NOTIF_W + 12, 0, totalH + 12),
+        Position               = UDim2.new(1, -(NOTIF_W + 22), 1, -(totalH + 82)),
+        BackgroundColor3       = Color3.fromRGB(0,0,0),
+        BackgroundTransparency = 0.5,
+        ZIndex                 = 194,
+    })
+    corner(ns, 12)
+
+    -- Notif frame
+    local nf = newFrame(ScreenGui, {
+        Size             = UDim2.new(0, NOTIF_W, 0, totalH),
+        Position         = UDim2.new(1, -(NOTIF_W + 16), 1, -(totalH + 76)),
+        BackgroundColor3 = C.SURFACE2,
+        ZIndex           = 195,
+        ClipsDescendants = true,
+    })
+    corner(nf, 10)
+    stroke(nf, C.BORDER, 1)
+
+    -- Accent bar kiri
+    newFrame(nf, {
+        Size             = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = accent,
+        ZIndex           = 196,
+    })
+
+    -- Icon
+    newLabel(nf, {
+        Text     = icon,
+        Size     = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(0, 10, 0, 8),
+        Font     = Enum.Font.Gotham,
+        TextSize = 16,
+        ZIndex   = 196,
+    })
+
+    -- Title
+    newLabel(nf, {
+        Text           = data.title,
+        Size           = UDim2.new(1, -50, 0, 20),
+        Position       = UDim2.new(0, 42, 0, 7),
+        Font           = Enum.Font.GothamBold,
+        TextSize       = 11,
+        TextColor3     = C.IVORY,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate   = Enum.TextTruncate.AtEnd,
+        ZIndex         = 196,
+    })
+
+    -- Body
+    if data.body ~= "" then
+        newLabel(nf, {
+            Text           = data.body,
+            Size           = UDim2.new(1, -50, 0, 20),
+            Position       = UDim2.new(0, 42, 0, 26),
+            Font           = Enum.Font.Gotham,
+            TextSize       = 9,
+            TextColor3     = C.TEXT_DIM,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate   = Enum.TextTruncate.AtEnd,
+            ZIndex         = 196,
+        })
+    end
+
+    -- Progress bar bawah notif
+    local npBG = newFrame(nf, {
+        Size             = UDim2.new(1, 0, 0, 2),
+        Position         = UDim2.new(0, 0, 1, -2),
+        BackgroundColor3 = C.BORDER,
+        ZIndex           = 196,
+    })
+    local npFill = newFrame(npBG, {
+        Size             = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = accent,
+        ZIndex           = 197,
+    })
+
+    -- Slide in dari kanan
+    local slideInTarget = UDim2.new(1, -(NOTIF_W + 16), 1, -(totalH + 76))
+    nf.Position  = UDim2.new(1, 16, 1, -(totalH + 76))   -- mulai dari luar kanan
+    ns.Position  = UDim2.new(1, 22, 1, -(totalH + 82))
+    tween(nf, { Position = slideInTarget }, 0.25)
+    tween(ns, { Position = UDim2.new(1, -(NOTIF_W + 22), 1, -(totalH + 82)) }, 0.25)
+
+    -- Progress bar countdown
+    tween(npFill, { Size = UDim2.new(0, 0, 1, 0) }, data.duration)
+
+    task.wait(data.duration)
+
+    -- Slide out
+    tween(nf, { Position = UDim2.new(1, 16, 1, -(totalH + 76)) }, 0.2)
+    tween(ns, { Position = UDim2.new(1, 22, 1, -(totalH + 82)) }, 0.2)
+    task.wait(0.22)
+
+    nf:Destroy()
+    ns:Destroy()
+    notifActive = false
+
+    -- Proses antrian berikutnya
+    task.defer(processNotifQueue)
+end
+
+-- Wrapper yang langsung spawn proses
+local function notify(title, body, duration, notifType)
+    showNotif(title, body, duration, notifType)
+    task.spawn(processNotifQueue)
+end
+
 -- ── STARTUP LOG ───────────────────────────────────────────────────────────────
 addLog("Auto Piano Player v2.0 ready ✓", "info")
 addLog("Sky Music format supported · Mobile & PC", "info")
 addLog("Tap 🎹 button to hide/show UI · Drag it anywhere!", "info")
 addLog("by Jepry_Jago112", "default")
+
+-- Notifikasi sambutan setelah loading selesai (~2.1 detik)
+task.delay(2.1, function()
+    notify("Auto Piano Player", "Script ready · Sky Music format supported!", 4, "success")
+end)
