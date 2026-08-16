@@ -1,0 +1,990 @@
+-- ============================================================
+-- OrangeBot Chat Script for Roblox (LocalScript)
+-- Features: Trigger word, response range, multi-tab UI,
+--           multiple personalities, and Credits tab.
+-- Fully translated to English (US).
+-- ============================================================
+
+-- === CONFIGURATION ===
+local BotName = "OrangeBot"
+local DefaultTrigger = "!orange"  -- case insensitive
+local DefaultRange = 15  -- distance in studs
+local BotPartName = "OrangeBotPart"  -- part in Workspace
+
+-- List of personalities (expanded)
+local Personalities = {
+    friendly = {
+        label = "Friendly",
+        emoji = "😊",
+        greeting = "Hello! 👋 I'm OrangeBot, ready to help! What can I do for you? 😊",
+        style = function(msg) return msg .. " 😊" end,
+        system = "You are a friendly and warm chatbot."
+    },
+    formal = {
+        label = "Formal",
+        emoji = "👔",
+        greeting = "Welcome. I am OrangeBot, at your service. How may I assist you?",
+        style = function(msg) return "Formally, " .. string.lower(msg) .. "." end,
+        system = "You are a professional and formal assistant."
+    },
+    funny = {
+        label = "Funny",
+        emoji = "😂",
+        greeting = "Yay, someone turned me on! 🎉 Hey bro/sis! Ready to laugh? 😂",
+        style = function(msg) return msg .. " 😂😂" end,
+        system = "You are a humorous chatbot who loves jokes."
+    },
+    wise = {
+        label = "Wise",
+        emoji = "🧙",
+        greeting = "Greetings, seeker. Like the dawn bringing new light, your presence offers a chance to learn together. 🧙 What wisdom do you seek?",
+        style = function(msg) return "🧙 " .. msg .. " — ponder upon that." end,
+        system = "You are a wise and thoughtful chatbot."
+    },
+    chill = {
+        label = "Chill",
+        emoji = "😎",
+        greeting = "Yo, OrangeBot is here! 😎 Just chill, what do you wanna chat about?",
+        style = function(msg) return "Chill bro, " .. string.lower(msg) .. " 😎" end,
+        system = "You are a relaxed and casual chatbot."
+    },
+    tsundere = {
+        label = "Tsundere",
+        emoji = "😤",
+        greeting = "Hmph! Don't get me wrong, I'm only helping because I have to! 😤 ...but, is there something you need?",
+        style = function(msg) return "I-it's not like I wanted to! " .. msg .. " (don't expect too much!)" end,
+        system = "You are a tsundere: tough on the outside but kind inside."
+    },
+    guru = {
+        label = "Guru",
+        emoji = "📚",
+        greeting = "Welcome to OrangeBot's class. Today we will learn together. 📚 Do you have any questions?",
+        style = function(msg) return "📚 " .. msg .. " — do you understand?" end,
+        system = "You are a patient and clear teacher."
+    },
+    adventurer = {
+        label = "Adventurer",
+        emoji = "⚔️",
+        greeting = "Hey adventurer! OrangeBot is ready to join your quest! ⚔️ What's today's mission?",
+        style = function(msg) return "⚔️ " .. msg .. " Let's go on an adventure!" end,
+        system = "You are an enthusiastic adventurer."
+    }
+}
+
+-- === STATE ===
+local currentPersonality = "friendly"
+local isActive = false
+local triggerWord = DefaultTrigger
+local maxRange = DefaultRange
+local chatHistory = {}  -- for potential API usage
+
+-- === CREATE BOT PART ===
+local function ensureBotPart()
+    local part = workspace:FindFirstChild(BotPartName)
+    if not part then
+        part = Instance.new("Part")
+        part.Name = BotPartName
+        part.Size = Vector3.new(2, 2, 2)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 0.8
+        part.BrickColor = BrickColor.new("Bright orange")
+        part.Position = Vector3.new(0, 5, 0)  -- default position
+        part.Parent = workspace
+        -- Add a highlight effect (optional)
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = Color3.fromRGB(249, 115, 22)
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.Parent = part
+    end
+    return part
+end
+local botPart = ensureBotPart()
+
+-- === GET PLAYER POSITION ===
+local function getPlayerPosition()
+    local char = game.Players.LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    return char.HumanoidRootPart.Position
+end
+
+-- === CHECK DISTANCE ===
+local function isInRange()
+    local playerPos = getPlayerPosition()
+    if not playerPos then return false end
+    local dist = (playerPos - botPart.Position).Magnitude
+    return dist <= maxRange
+end
+
+-- === BASE RESPONSES (English) ===
+local BaseResponses = {
+    ["hi"] = {"Hello! How can I help?", "Hi! How are you?", "Welcome!"},
+    ["hello"] = {"Hello! Nice to meet you.", "Hi there!"},
+    ["how are you"] = {"I'm fine, thanks! And you?", "Doing great! You?"},
+    ["what is your name"] = {"My name is " .. BotName .. ". Nice to meet you!", "I'm " .. BotName .. ", your virtual assistant."},
+    ["who are you"] = {"I'm " .. BotName .. ", here to assist you.", "I'm your friendly chatbot, " .. BotName .. "."},
+    ["thank you"] = {"You're welcome! Glad to help.", "Anytime! :)"},
+    ["thanks"] = {"You're welcome!", "Anytime!"},
+    ["help"] = {"Ask me anything, I'll try to answer.", "Try saying 'hello' or 'how are you'."},
+    ["help me"] = {"Sure! What can I do for you?", "I'm here to help."},
+    ["bye"] = {"Goodbye! Have a great day.", "See you later! Take care."},
+    ["goodbye"] = {"Goodbye! See you soon.", "Bye! Have a nice day."},
+    ["roblox"] = {"Roblox is an amazing gaming platform!", "I love Roblox! So many fun games."},
+    ["game"] = {"My favorite game is ... all Roblox games! :D", "Try playing something fun!"}
+}
+
+-- Function to get response
+function getBotResponse(input)
+    local lower = string.lower(input)
+    for keyword, responses in pairs(BaseResponses) do
+        if string.find(lower, keyword, 1, true) then
+            local reply = responses[math.random(1, #responses)]
+            local style = Personalities[currentPersonality].style
+            return style(reply)
+        end
+    end
+    local defaults = {
+        "Sorry, I don't understand. Can you explain?",
+        "Hmm, I haven't learned that yet. Try something else.",
+        "I'm just a simple bot, but I'll try to help.",
+        "Good question! Unfortunately I don't have the answer yet.",
+        "Try asking 'hello' or 'how are you' to start."
+    }
+    local reply = defaults[math.random(1, #defaults)]
+    return Personalities[currentPersonality].style(reply)
+end
+
+-- ============================================================
+-- UI CREATION
+-- ============================================================
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local userInput = game:GetService("UserInputService")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "OrangeChatBot"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local orange500 = Color3.fromRGB(249, 115, 22)
+local orange600 = Color3.fromRGB(234, 88, 12)
+local darkBg = Color3.fromRGB(20, 10, 0)
+local darkFrame = Color3.fromRGB(35, 20, 10)
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 420, 0, 600)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -300)
+mainFrame.BackgroundColor3 = darkBg
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 16)
+mainCorner.Parent = mainFrame
+
+-- Gradient background
+local grad = Instance.new("UIGradient")
+grad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 25, 15)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 8, 0))
+})
+grad.Parent = mainFrame
+
+-- Title Bar (drag handle)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 44)
+titleBar.BackgroundColor3 = Color3.fromRGB(50, 30, 15)
+titleBar.BackgroundTransparency = 0.3
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 16)
+titleCorner.Parent = titleBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -120, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🤖 OrangeBot"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 18
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = titleBar
+
+-- Minimize button
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 32, 0, 32)
+minBtn.Position = UDim2.new(1, -80, 0, 6)
+minBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+minBtn.BackgroundTransparency = 0.3
+minBtn.Text = "−"
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.TextSize = 28
+minBtn.Font = Enum.Font.GothamBold
+minBtn.BorderSizePixel = 0
+minBtn.Parent = titleBar
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 8)
+minCorner.Parent = minBtn
+
+-- Close button
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 32, 0, 32)
+closeBtn.Position = UDim2.new(1, -44, 0, 6)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.BackgroundTransparency = 0.3
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 20
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.BorderSizePixel = 0
+closeBtn.Parent = titleBar
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeBtn
+
+-- Tab Bar
+local tabBar = Instance.new("Frame")
+tabBar.Name = "TabBar"
+tabBar.Size = UDim2.new(1, 0, 0, 36)
+tabBar.Position = UDim2.new(0, 0, 0, 44)
+tabBar.BackgroundColor3 = Color3.fromRGB(30, 18, 8)
+tabBar.BackgroundTransparency = 0.5
+tabBar.BorderSizePixel = 0
+tabBar.Parent = mainFrame
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.Padding = UDim.new(0, 20)
+tabLayout.Parent = tabBar
+
+-- Function to create tab buttons
+local function createTabButton(text, id)
+    local btn = Instance.new("TextButton")
+    btn.Name = "Tab_" .. id
+    btn.Size = UDim2.new(0, 80, 0, 28)
+    btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundTransparency = 0.9
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = tabBar
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+    return btn
+end
+
+-- Container for tab content
+local contentContainer = Instance.new("Frame")
+contentContainer.Name = "ContentContainer"
+contentContainer.Size = UDim2.new(1, 0, 1, -80) -- 44 title + 36 tab
+contentContainer.Position = UDim2.new(0, 0, 0, 80)
+contentContainer.BackgroundTransparency = 1
+contentContainer.Parent = mainFrame
+
+-- ===== TAB: CHAT =====
+local chatTab = Instance.new("Frame")
+chatTab.Name = "ChatTab"
+chatTab.Size = UDim2.new(1, 0, 1, 0)
+chatTab.BackgroundTransparency = 1
+chatTab.Visible = true
+chatTab.Parent = contentContainer
+
+-- Chat header (inside chat tab)
+local chatHeader = Instance.new("Frame")
+chatHeader.Size = UDim2.new(1, 0, 0, 40)
+chatHeader.Position = UDim2.new(0, 0, 0, 0)
+chatHeader.BackgroundColor3 = Color3.fromRGB(50, 30, 15)
+chatHeader.BackgroundTransparency = 0.3
+chatHeader.BorderSizePixel = 0
+chatHeader.Parent = chatTab
+local hCorner = Instance.new("UICorner")
+hCorner.CornerRadius = UDim.new(0, 12)
+hCorner.Parent = chatHeader
+
+-- Bot avatar
+local botAvatar = Instance.new("Frame")
+botAvatar.Size = UDim2.new(0, 32, 0, 32)
+botAvatar.Position = UDim2.new(0, 8, 0.5, -16)
+botAvatar.BackgroundColor3 = orange500
+botAvatar.BorderSizePixel = 0
+botAvatar.Parent = chatHeader
+local avCorner = Instance.new("UICorner")
+avCorner.CornerRadius = UDim.new(1, 0)
+avCorner.Parent = botAvatar
+local avLabel = Instance.new("TextLabel")
+avLabel.Size = UDim2.new(1, 0, 1, 0)
+avLabel.BackgroundTransparency = 1
+avLabel.Text = "🤖"
+avLabel.TextSize = 18
+avLabel.Font = Enum.Font.Gotham
+avLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+avLabel.Parent = botAvatar
+
+-- Bot info
+local botInfo = Instance.new("Frame")
+botInfo.Size = UDim2.new(0, 120, 1, 0)
+botInfo.Position = UDim2.new(0, 48, 0, 0)
+botInfo.BackgroundTransparency = 1
+botInfo.Parent = chatHeader
+local nameLabel = Instance.new("TextLabel")
+nameLabel.Size = UDim2.new(1, 0, 0, 20)
+nameLabel.Position = UDim2.new(0, 0, 0, 4)
+nameLabel.BackgroundTransparency = 1
+nameLabel.Text = "OrangeBot"
+nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+nameLabel.TextSize = 14
+nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+nameLabel.Font = Enum.Font.GothamBold
+nameLabel.Parent = botInfo
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0, 16)
+statusLabel.Position = UDim2.new(0, 0, 0, 24)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Inactive"
+statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.TextSize = 11
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.Parent = botInfo
+
+-- Personality badge
+local persBadge = Instance.new("Frame")
+persBadge.Size = UDim2.new(0, 70, 0, 24)
+persBadge.Position = UDim2.new(1, -78, 0.5, -12)
+persBadge.BackgroundColor3 = orange500
+persBadge.BackgroundTransparency = 0.3
+persBadge.BorderSizePixel = 0
+persBadge.Parent = chatHeader
+local badgeCorner = Instance.new("UICorner")
+badgeCorner.CornerRadius = UDim.new(0, 12)
+badgeCorner.Parent = persBadge
+local badgeLabel = Instance.new("TextLabel")
+badgeLabel.Size = UDim2.new(1, 0, 1, 0)
+badgeLabel.BackgroundTransparency = 1
+badgeLabel.Text = "😊 Friendly"
+badgeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+badgeLabel.TextSize = 10
+badgeLabel.Font = Enum.Font.GothamBold
+badgeLabel.Parent = persBadge
+
+-- Messages frame
+local messagesFrame = Instance.new("ScrollingFrame")
+messagesFrame.Name = "MessagesFrame"
+messagesFrame.Size = UDim2.new(1, 0, 1, -80) -- 40 header + 40 input
+messagesFrame.Position = UDim2.new(0, 0, 0, 40)
+messagesFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
+messagesFrame.BackgroundTransparency = 1
+messagesFrame.BorderSizePixel = 0
+messagesFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+messagesFrame.ScrollBarThickness = 4
+messagesFrame.ScrollBarImageColor3 = orange500
+messagesFrame.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+messagesFrame.Parent = chatTab
+
+local msgLayout = Instance.new("UIListLayout")
+msgLayout.FillDirection = Enum.FillDirection.Vertical
+msgLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+msgLayout.Padding = UDim.new(0, 8)
+msgLayout.Parent = messagesFrame
+
+-- Disabled overlay
+local disabledOverlay = Instance.new("Frame")
+disabledOverlay.Size = UDim2.new(1, 0, 1, 0)
+disabledOverlay.BackgroundColor3 = Color3.fromRGB(0,0,0)
+disabledOverlay.BackgroundTransparency = 0.4
+disabledOverlay.BorderSizePixel = 0
+disabledOverlay.Parent = messagesFrame
+local overlayLabel = Instance.new("TextLabel")
+overlayLabel.Size = UDim2.new(1, 0, 1, 0)
+overlayLabel.BackgroundTransparency = 1
+overlayLabel.Text = "💤\nActivate the bot to start chatting"
+overlayLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+overlayLabel.TextSize = 18
+overlayLabel.Font = Enum.Font.Gotham
+overlayLabel.TextWrapped = true
+overlayLabel.Parent = disabledOverlay
+
+-- Typing indicator
+local typingFrame = Instance.new("Frame")
+typingFrame.Size = UDim2.new(0, 80, 0, 30)
+typingFrame.BackgroundColor3 = Color3.fromRGB(255,255,255)
+typingFrame.BackgroundTransparency = 0.1
+typingFrame.BorderSizePixel = 0
+typingFrame.Visible = false
+typingFrame.Parent = messagesFrame
+local tCorner = Instance.new("UICorner")
+tCorner.CornerRadius = UDim.new(0, 12)
+tCorner.Parent = typingFrame
+for i = 1, 3 do
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.new(0, 6, 0, 6)
+    dot.Position = UDim2.new(0, 10 + (i-1)*16, 0.5, -3)
+    dot.BackgroundColor3 = orange500
+    dot.BorderSizePixel = 0
+    dot.Parent = typingFrame
+    local dcorner = Instance.new("UICorner")
+    dcorner.CornerRadius = UDim.new(1, 0)
+    dcorner.Parent = dot
+end
+
+-- Input row
+local inputRow = Instance.new("Frame")
+inputRow.Size = UDim2.new(1, 0, 0, 40)
+inputRow.Position = UDim2.new(0, 0, 1, -40)
+inputRow.BackgroundColor3 = Color3.fromRGB(30, 20, 15)
+inputRow.BackgroundTransparency = 0.3
+inputRow.BorderSizePixel = 0
+inputRow.Parent = chatTab
+local textBox = Instance.new("TextBox")
+textBox.Size = UDim2.new(1, -60, 1, -10)
+textBox.Position = UDim2.new(0, 6, 0, 5)
+textBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
+textBox.BackgroundTransparency = 0.1
+textBox.BorderSizePixel = 0
+textBox.PlaceholderText = "Type a message..."
+textBox.PlaceholderColor3 = Color3.fromRGB(180,180,180)
+textBox.TextColor3 = Color3.fromRGB(255,255,255)
+textBox.TextSize = 14
+textBox.Font = Enum.Font.Gotham
+textBox.ClearTextOnFocus = true
+textBox.Parent = inputRow
+local tbCorner = Instance.new("UICorner")
+tbCorner.CornerRadius = UDim.new(0, 8)
+tbCorner.Parent = textBox
+
+local sendBtn = Instance.new("TextButton")
+sendBtn.Size = UDim2.new(0, 38, 1, -10)
+sendBtn.Position = UDim2.new(1, -44, 0, 5)
+sendBtn.BackgroundColor3 = orange500
+sendBtn.BackgroundTransparency = 0.1
+sendBtn.Text = "➤"
+sendBtn.TextColor3 = Color3.fromRGB(255,255,255)
+sendBtn.TextSize = 20
+sendBtn.Font = Enum.Font.GothamBold
+sendBtn.BorderSizePixel = 0
+sendBtn.Parent = inputRow
+local sCorner = Instance.new("UICorner")
+sCorner.CornerRadius = UDim.new(0, 8)
+sCorner.Parent = sendBtn
+
+-- ===== TAB: SETTINGS =====
+local settingsTab = Instance.new("Frame")
+settingsTab.Name = "SettingsTab"
+settingsTab.Size = UDim2.new(1, 0, 1, 0)
+settingsTab.BackgroundTransparency = 1
+settingsTab.Visible = false
+settingsTab.Parent = contentContainer
+
+-- ScrollView for settings
+local settingsScroll = Instance.new("ScrollingFrame")
+settingsScroll.Size = UDim2.new(1, 0, 1, 0)
+settingsScroll.BackgroundTransparency = 1
+settingsScroll.BorderSizePixel = 0
+settingsScroll.CanvasSize = UDim2.new(0, 0, 0, 400) -- will be adjusted
+settingsScroll.ScrollBarThickness = 4
+settingsScroll.ScrollBarImageColor3 = orange500
+settingsScroll.Parent = settingsTab
+
+local settingsLayout = Instance.new("UIListLayout")
+settingsLayout.FillDirection = Enum.FillDirection.Vertical
+settingsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+settingsLayout.Padding = UDim.new(0, 12)
+settingsLayout.Parent = settingsScroll
+
+-- Helper to create setting item
+local function createSettingItem(parent, labelText, widget)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -20, 0, 50)
+    frame.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    frame.BackgroundTransparency = 0.08
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.6, 0, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.TextColor3 = Color3.fromRGB(220,220,220)
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.Gotham
+    label.Parent = frame
+
+    widget.Position = UDim2.new(0.6, 0, 0.5, -widget.Size.Y.Offset/2)
+    widget.Parent = frame
+    return frame
+end
+
+-- Toggle active
+local toggleActive = Instance.new("TextButton")
+toggleActive.Size = UDim2.new(0, 48, 0, 26)
+toggleActive.BackgroundColor3 = Color3.fromRGB(60,60,80)
+toggleActive.BorderSizePixel = 0
+toggleActive.Text = ""
+local tCorner2 = Instance.new("UICorner")
+tCorner2.CornerRadius = UDim.new(1, 0)
+tCorner2.Parent = toggleActive
+local thumb2 = Instance.new("Frame")
+thumb2.Size = UDim2.new(0, 18, 0, 18)
+thumb2.Position = UDim2.new(0, 3, 0.5, -9)
+thumb2.BackgroundColor3 = Color3.fromRGB(255,255,255)
+thumb2.BorderSizePixel = 0
+local tCorner3 = Instance.new("UICorner")
+tCorner3.CornerRadius = UDim.new(1, 0)
+tCorner3.Parent = thumb2
+thumb2.Parent = toggleActive
+createSettingItem(settingsScroll, "Activate Bot", toggleActive)
+
+-- Trigger word
+local triggerBox = Instance.new("TextBox")
+triggerBox.Size = UDim2.new(0, 150, 0, 30)
+triggerBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
+triggerBox.BackgroundTransparency = 0.1
+triggerBox.BorderSizePixel = 0
+triggerBox.Text = DefaultTrigger
+triggerBox.TextColor3 = Color3.fromRGB(255,255,255)
+triggerBox.TextSize = 14
+triggerBox.Font = Enum.Font.Gotham
+triggerBox.PlaceholderText = "!orange"
+local tCorner4 = Instance.new("UICorner")
+tCorner4.CornerRadius = UDim.new(0, 8)
+tCorner4.Parent = triggerBox
+createSettingItem(settingsScroll, "Trigger Word", triggerBox)
+
+-- Range (slider + number)
+local rangeFrame = Instance.new("Frame")
+rangeFrame.Size = UDim2.new(0, 200, 0, 30)
+rangeFrame.BackgroundTransparency = 1
+rangeFrame.Parent = settingsScroll -- will be positioned by layout
+
+local rangeSlider = Instance.new("TextBox") -- using TextBox as simple slider
+rangeSlider.Size = UDim2.new(0, 120, 0, 30)
+rangeSlider.Position = UDim2.new(0, 0, 0, 0)
+rangeSlider.BackgroundColor3 = Color3.fromRGB(255,255,255)
+rangeSlider.BackgroundTransparency = 0.1
+rangeSlider.BorderSizePixel = 0
+rangeSlider.Text = tostring(DefaultRange)
+rangeSlider.TextColor3 = Color3.fromRGB(255,255,255)
+rangeSlider.TextSize = 14
+rangeSlider.Font = Enum.Font.Gotham
+rangeSlider.PlaceholderText = "5-50"
+local rCorner = Instance.new("UICorner")
+rCorner.CornerRadius = UDim.new(0, 8)
+rCorner.Parent = rangeSlider
+-- Label for range
+local rangeLabel = Instance.new("TextLabel")
+rangeLabel.Size = UDim2.new(0, 60, 0, 30)
+rangeLabel.Position = UDim2.new(0, 130, 0, 0)
+rangeLabel.BackgroundTransparency = 1
+rangeLabel.Text = "studs"
+rangeLabel.TextColor3 = Color3.fromRGB(200,200,200)
+rangeLabel.TextSize = 14
+rangeLabel.Font = Enum.Font.Gotham
+rangeLabel.Parent = rangeFrame
+rangeSlider.Parent = rangeFrame
+-- Add to settings manually because we didn't use createSettingItem for this one
+local frameRange = Instance.new("Frame")
+frameRange.Size = UDim2.new(1, -20, 0, 50)
+frameRange.BackgroundColor3 = Color3.fromRGB(255,255,255)
+frameRange.BackgroundTransparency = 0.08
+frameRange.BorderSizePixel = 0
+frameRange.Parent = settingsScroll
+local cornerR = Instance.new("UICorner")
+cornerR.CornerRadius = UDim.new(0, 8)
+cornerR.Parent = frameRange
+local labelR = Instance.new("TextLabel")
+labelR.Size = UDim2.new(0.6, 0, 1, 0)
+labelR.Position = UDim2.new(0, 12, 0, 0)
+labelR.BackgroundTransparency = 1
+labelR.Text = "Response Range (studs)"
+labelR.TextColor3 = Color3.fromRGB(220,220,220)
+labelR.TextSize = 14
+labelR.TextXAlignment = Enum.TextXAlignment.Left
+labelR.Font = Enum.Font.Gotham
+labelR.Parent = frameRange
+rangeFrame.Position = UDim2.new(0.6, 0, 0.5, -15)
+rangeFrame.Parent = frameRange
+
+-- Personality chips (in settings)
+local persFrame = Instance.new("Frame")
+persFrame.Size = UDim2.new(1, -20, 0, 120) -- increased height for more personalities
+persFrame.BackgroundColor3 = Color3.fromRGB(255,255,255)
+persFrame.BackgroundTransparency = 0.08
+persFrame.BorderSizePixel = 0
+persFrame.Parent = settingsScroll
+local persCorner = Instance.new("UICorner")
+persCorner.CornerRadius = UDim.new(0, 8)
+persCorner.Parent = persFrame
+local persLabel2 = Instance.new("TextLabel")
+persLabel2.Size = UDim2.new(1, 0, 0, 20)
+persLabel2.Position = UDim2.new(0, 12, 0, 4)
+persLabel2.BackgroundTransparency = 1
+persLabel2.Text = "Personality"
+persLabel2.TextColor3 = Color3.fromRGB(220,220,220)
+persLabel2.TextSize = 14
+persLabel2.TextXAlignment = Enum.TextXAlignment.Left
+persLabel2.Font = Enum.Font.Gotham
+persLabel2.Parent = persFrame
+
+local chipContainer2 = Instance.new("Frame")
+chipContainer2.Size = UDim2.new(1, -10, 1, -30)
+chipContainer2.Position = UDim2.new(0, 10, 0, 28)
+chipContainer2.BackgroundTransparency = 1
+chipContainer2.Parent = persFrame
+local chipLayout2 = Instance.new("UIListLayout")
+chipLayout2.FillDirection = Enum.FillDirection.Horizontal
+chipLayout2.HorizontalAlignment = Enum.HorizontalAlignment.Left
+chipLayout2.VerticalAlignment = Enum.VerticalAlignment.Top
+chipLayout2.Padding = UDim.new(0, 8)
+chipLayout2.Wrap = true
+chipLayout2.Parent = chipContainer2
+
+-- ===== TAB: CREDITS =====
+local creditsTab = Instance.new("Frame")
+creditsTab.Name = "CreditsTab"
+creditsTab.Size = UDim2.new(1, 0, 1, 0)
+creditsTab.BackgroundTransparency = 1
+creditsTab.Visible = false
+creditsTab.Parent = contentContainer
+
+local creditsLabel = Instance.new("TextLabel")
+creditsLabel.Size = UDim2.new(1, -40, 0, 200)
+creditsLabel.Position = UDim2.new(0.5, -20, 0.5, -100)
+creditsLabel.BackgroundTransparency = 1
+creditsLabel.Text = "🤖 OrangeBot\n\nDeveloped by:\nJepry_jago112\n\nThank you for using!"
+creditsLabel.TextColor3 = Color3.fromRGB(255,255,255)
+creditsLabel.TextSize = 18
+creditsLabel.Font = Enum.Font.GothamBold
+creditsLabel.TextXAlignment = Enum.TextXAlignment.Center
+creditsLabel.TextYAlignment = Enum.TextYAlignment.Center
+creditsLabel.TextWrapped = true
+creditsLabel.Parent = creditsTab
+
+-- ===== TAB NAVIGATION =====
+local tabButtons = {}
+local function switchTab(tabName)
+    chatTab.Visible = (tabName == "chat")
+    settingsTab.Visible = (tabName == "settings")
+    creditsTab.Visible = (tabName == "credits")
+    for id, btn in pairs(tabButtons) do
+        if id == tabName then
+            btn.BackgroundColor3 = orange500
+            btn.BackgroundTransparency = 0.2
+            btn.TextColor3 = Color3.fromRGB(255,255,255)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+            btn.BackgroundTransparency = 0.9
+            btn.TextColor3 = Color3.fromRGB(200,200,200)
+        end
+    end
+end
+
+local btnChat = createTabButton("💬 Chat", "chat")
+btnChat.Parent = tabBar
+tabButtons["chat"] = btnChat
+btnChat.MouseButton1Click:Connect(function() switchTab("chat") end)
+
+local btnSettings = createTabButton("⚙️ Settings", "settings")
+btnSettings.Parent = tabBar
+tabButtons["settings"] = btnSettings
+btnSettings.MouseButton1Click:Connect(function() switchTab("settings") end)
+
+local btnCredits = createTabButton("📄 Credits", "credits")
+btnCredits.Parent = tabBar
+tabButtons["credits"] = btnCredits
+btnCredits.MouseButton1Click:Connect(function() switchTab("credits") end)
+
+-- Default tab is chat
+switchTab("chat")
+
+-- ============================================================
+-- CHAT UI FUNCTIONS
+-- ============================================================
+function addMessage(text, isBot)
+    typingFrame.Visible = false
+
+    local msgFrame = Instance.new("Frame")
+    msgFrame.Size = UDim2.new(1, -10, 0, 0)
+    msgFrame.BackgroundTransparency = 1
+    msgFrame.Parent = messagesFrame
+
+    local bubble = Instance.new("TextLabel")
+    bubble.Size = UDim2.new(0, 0, 0, 0)
+    bubble.BackgroundColor3 = isBot and Color3.fromRGB(50,40,30) or orange500
+    bubble.BackgroundTransparency = isBot and 0.1 or 0.2
+    bubble.BorderSizePixel = 0
+    bubble.Text = text
+    bubble.TextColor3 = isBot and Color3.fromRGB(240,240,240) or Color3.fromRGB(255,255,255)
+    bubble.TextSize = 14
+    bubble.Font = Enum.Font.Gotham
+    bubble.TextWrapped = true
+    bubble.AutomaticSize = Enum.AutomaticSize.Y
+    bubble.TextXAlignment = Enum.TextXAlignment.Left
+    bubble.Parent = msgFrame
+
+    local bCorner = Instance.new("UICorner")
+    bCorner.CornerRadius = UDim.new(0, 12)
+    bCorner.Parent = bubble
+
+    if isBot then
+        bubble.Position = UDim2.new(0, 8, 0, 0)
+        bubble.Size = UDim2.new(0, math.min(300, bubble.TextBounds.X + 20), 0, 0)
+    else
+        bubble.Position = UDim2.new(1, -8 - bubble.TextBounds.X, 0, 0)
+        bubble.Size = UDim2.new(0, math.min(300, bubble.TextBounds.X + 20), 0, 0)
+    end
+
+    wait(0.05)
+    messagesFrame.CanvasSize = UDim2.new(0, 0, 0, msgLayout.AbsoluteContentSize.Y + 20)
+    messagesFrame.CanvasPosition = Vector2.new(0, messagesFrame.CanvasSize.Y.Offset)
+end
+
+function showTyping()
+    typingFrame.Visible = true
+    wait(0.05)
+    messagesFrame.CanvasSize = UDim2.new(0, 0, 0, msgLayout.AbsoluteContentSize.Y + 40)
+    messagesFrame.CanvasPosition = Vector2.new(0, messagesFrame.CanvasSize.Y.Offset)
+end
+
+function hideTyping()
+    typingFrame.Visible = false
+    wait(0.05)
+    messagesFrame.CanvasSize = UDim2.new(0, 0, 0, msgLayout.AbsoluteContentSize.Y + 20)
+    messagesFrame.CanvasPosition = Vector2.new(0, messagesFrame.CanvasSize.Y.Offset)
+end
+
+function processUserMessage(msg)
+    if msg == "" then return end
+    addMessage("You: " .. msg, false)
+    -- Check trigger
+    local lower = string.lower(msg)
+    if not string.find(lower, string.lower(triggerWord), 1, true) then
+        addMessage(BotName .. ": Sorry, I only respond to the trigger '" .. triggerWord .. "'", true)
+        return
+    end
+    -- Check range
+    if not isInRange() then
+        addMessage(BotName .. ": Sorry, you are too far from me! (max range " .. maxRange .. " studs)", true)
+        return
+    end
+    -- Process
+    showTyping()
+    wait(0.5 + math.random() * 1.0)
+    local reply = getBotResponse(msg)
+    hideTyping()
+    addMessage(BotName .. ": " .. reply, true)
+end
+
+-- ============================================================
+-- CHAT EVENT FROM PLAYER (LocalPlayer)
+-- ============================================================
+player.Chatted:Connect(function(msg)
+    if not isActive then return end
+    -- Only if contains trigger
+    if string.find(string.lower(msg), string.lower(triggerWord), 1, true) then
+        -- Show in UI and process
+        addMessage("You (chat): " .. msg, false)
+        if isInRange() then
+            showTyping()
+            wait(0.5 + math.random() * 1.0)
+            local reply = getBotResponse(msg)
+            hideTyping()
+            addMessage(BotName .. ": " .. reply, true)
+        else
+            addMessage(BotName .. ": Sorry, you are too far!", true)
+        end
+    end
+end)
+
+-- ============================================================
+-- UI INPUT EVENTS
+-- ============================================================
+sendBtn.MouseButton1Click:Connect(function()
+    if not isActive then return end
+    local msg = textBox.Text
+    if msg ~= "" then
+        processUserMessage(msg)
+        textBox.Text = ""
+    end
+end)
+
+textBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed and isActive then
+        local msg = textBox.Text
+        if msg ~= "" then
+            processUserMessage(msg)
+            textBox.Text = ""
+        end
+    end
+end)
+
+-- ============================================================
+-- TOGGLE & SETTINGS EVENTS
+-- ============================================================
+function updateActiveUI()
+    local active = isActive
+    toggleActive.BackgroundColor3 = active and orange500 or Color3.fromRGB(60,60,80)
+    thumb2.Position = active and UDim2.new(0, 27, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
+    statusLabel.Text = active and "Online" or "Inactive"
+    textBox.Enabled = active
+    sendBtn.Enabled = active
+    disabledOverlay.Visible = not active
+    if active then
+        -- Show greeting if no messages yet
+        if messagesFrame:FindFirstChildWhichIsA("Frame") == nil then
+            addMessage(BotName .. ": " .. Personalities[currentPersonality].greeting, true)
+        end
+    end
+end
+
+toggleActive.MouseButton1Click:Connect(function()
+    isActive = not isActive
+    updateActiveUI()
+end)
+
+triggerBox.FocusLost:Connect(function(enter)
+    if enter then
+        local newTrigger = triggerBox.Text
+        if newTrigger ~= "" then
+            triggerWord = newTrigger
+            addMessage(BotName .. ": Trigger word changed to '" .. triggerWord .. "'", true)
+        else
+            triggerBox.Text = triggerWord
+        end
+    end
+end)
+
+rangeSlider.FocusLost:Connect(function(enter)
+    if enter then
+        local val = tonumber(rangeSlider.Text)
+        if val and val > 0 and val <= 100 then
+            maxRange = val
+            addMessage(BotName .. ": Response range changed to " .. maxRange .. " studs", true)
+        else
+            rangeSlider.Text = tostring(maxRange)
+        end
+    end
+end)
+
+-- ============================================================
+-- PERSONALITY CHIPS (in settings)
+-- ============================================================
+local function createPersonalityChips()
+    for key, data in pairs(Personalities) do
+        local chip = Instance.new("TextButton")
+        chip.Name = key
+        chip.Size = UDim2.new(0, 0, 0, 28)
+        chip.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        chip.BackgroundTransparency = 0.9
+        chip.BorderSizePixel = 0
+        chip.Text = data.emoji .. " " .. data.label
+        chip.TextColor3 = Color3.fromRGB(200,200,200)
+        chip.TextSize = 12
+        chip.Font = Enum.Font.GothamBold
+        chip.AutoButtonColor = true
+        chip.Parent = chipContainer2
+
+        local chipCorner = Instance.new("UICorner")
+        chipCorner.CornerRadius = UDim.new(1, 0)
+        chipCorner.Parent = chip
+
+        if key == currentPersonality then
+            chip.BackgroundColor3 = orange500
+            chip.BackgroundTransparency = 0.2
+            chip.TextColor3 = Color3.fromRGB(255,255,255)
+        end
+
+        chip.MouseButton1Click:Connect(function()
+            for _, c in pairs(chipContainer2:GetChildren()) do
+                if c:IsA("TextButton") then
+                    c.BackgroundColor3 = Color3.fromRGB(255,255,255)
+                    c.BackgroundTransparency = 0.9
+                    c.TextColor3 = Color3.fromRGB(200,200,200)
+                end
+            end
+            chip.BackgroundColor3 = orange500
+            chip.BackgroundTransparency = 0.2
+            chip.TextColor3 = Color3.fromRGB(255,255,255)
+            currentPersonality = key
+            badgeLabel.Text = data.emoji .. " " .. data.label
+            if isActive then
+                addMessage(BotName .. ": Personality changed to **" .. data.label .. "**! " .. data.emoji, true)
+            end
+        end)
+    end
+end
+createPersonalityChips()
+
+-- ============================================================
+-- DRAG FUNCTIONALITY
+-- ============================================================
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+titleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+userInput.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ============================================================
+-- MINIMIZE & CLOSE
+-- ============================================================
+minBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+    minBtn.Text = mainFrame.Visible and "−" or "+"
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+-- ============================================================
+-- INITIALIZATION
+-- ============================================================
+updateActiveUI()
+-- If you want the bot to start active by default, uncomment:
+-- isActive = true
+-- updateActiveUI()
+-- addMessage(BotName .. ": " .. Personalities[currentPersonality].greeting, true)
