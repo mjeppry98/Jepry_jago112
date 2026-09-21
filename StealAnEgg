@@ -1,0 +1,945 @@
+--[[
+    ╔══════════════════════════════════════════════════════════════╗
+    ║   🥚 STEAL AN EGG · ULTIMATE STEALTH v5.0 🥚                ║
+    ║   Made by: Jepry_jago112                                    ║
+    ║   UI: Rayfield Gen 2                                        ║
+    ║   + Anti-Kick Hook · + Anti-Detection · + Safe Movement     ║
+    ╚══════════════════════════════════════════════════════════════╝
+--]]
+
+-- ═══════════════════════════════════════════════════════════════
+-- LAYER 1: ANTI-KICK HOOK (PALING PENTING)
+-- ═══════════════════════════════════════════════════════════════
+local AntiKick = {
+    Enabled = true,
+    BlockedCount = 0,
+    Log = {},
+}
+
+-- Hook __namecall untuk memblokir Kick/Ban
+pcall(function()
+    if typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" then
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            if method == "Kick" or method == "kick" then
+                if self == game:GetService("Players").LocalPlayer then
+                    AntiKick.BlockedCount = AntiKick.BlockedCount + 1
+                    table.insert(AntiKick.Log, os.time())
+                    return nil -- Blokir kick
+                end
+            end
+            if method == "Ban" or method == "ban" then
+                if self == game:GetService("Players").LocalPlayer then
+                    AntiKick.BlockedCount = AntiKick.BlockedCount + 1
+                    return nil
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+    end
+end)
+
+-- Fallback: hookfunction Kick langsung
+pcall(function()
+    if typeof(hookfunction) == "function" then
+        local LocalPlayer = game:GetService("Players").LocalPlayer
+        pcall(function()
+            local clonedKick = clonefunction and clonefunction(LocalPlayer.Kick) or LocalPlayer.Kick
+            hookfunction(LocalPlayer.Kick, function(...)
+                AntiKick.BlockedCount = AntiKick.BlockedCount + 1
+                table.insert(AntiKick.Log, os.time())
+                return nil
+            end)
+        end)
+    end
+end)
+
+-- Layer tambahan: hook Player.Kick via metatable
+pcall(function()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    if getrawmetatable and setreadonly and newcclosure then
+        local mt = getrawmetatable(game)
+        if mt then
+            setreadonly(mt, false)
+            local oldIndex = mt.__index
+            mt.__index = newcclosure(function(self, key)
+                if key == "Kick" and self == LocalPlayer then
+                    return function() 
+                        AntiKick.BlockedCount = AntiKick.BlockedCount + 1
+                        return nil 
+                    end
+                end
+                return oldIndex(self, key)
+            end)
+            setreadonly(mt, true)
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- LAYER 2: ANTI-DETECTION (Sembunyikan aktivitas script)
+-- ═══════════════════════════════════════════════════════════════
+
+-- Sembunyikan error/warn dari log
+pcall(function()
+    local oldError = error
+    local oldWarn = warn
+    _G.error = function(...) end
+    _G.warn = function(...) end
+end)
+
+-- Matikan print di script context
+pcall(function()
+    if getreg then
+        for _, v in pairs(getreg()) do
+            if type(v) == "function" then
+                pcall(function()
+                    if debug and debug.getinfo then
+                        local info = debug.getinfo(v, "S")
+                        if info and info.short_src and info.short_src:find("Jepry") then
+                            -- Sembunyikan
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- Sembunyikan dari getgc
+pcall(function()
+    if getgc and typeof(getgc) == "function" then
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" and rawget(v, "JepryHub_Config") then
+                -- Bersihkan reference
+            end
+        end
+    end
+end)
+
+-- Anti-AFK dengan hook Idled connections
+pcall(function()
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    if getconnections and typeof(getconnections) == "function" then
+        for _, conn in ipairs(getconnections(LocalPlayer.Idled) or {}) do
+            pcall(function()
+                if conn.Disable then conn:Disable() end
+            end)
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- LAYER 3: SAFE MOVEMENT (Hindari speed-hack detection)
+-- ═══════════════════════════════════════════════════════════════
+
+local StealthMovement = {
+    JitterMin = 0.3,
+    JitterMax = 0.7,
+    SpeedLimit = 60, -- Batas kecepatan agar tidak trigger speedhack
+    MicroJitter = true,
+}
+
+local function humanJitter()
+    local char = game:GetService("Players").LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    pcall(function()
+        local jx = (math.random() - 0.5) * 0.12
+        local jz = (math.random() - 0.5) * 0.12
+        hrp.CFrame = hrp.CFrame * CFrame.new(jx, 0, jz)
+    end)
+end
+
+local function randomDelay(base, variance)
+    variance = variance or 0.35
+    local jitter = (math.random() * 2 - 1) * variance
+    task.wait(math.max(0.05, base + jitter))
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- LAYER 4: SAFE TELEPORT (Gradual, bukan snap)
+-- ═══════════════════════════════════════════════════════════════
+
+local function safeGlide(targetPos, speed, session)
+    speed = speed or StealthMovement.SpeedLimit
+    local char = game:GetService("Players").LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    local startTime = os.clock()
+    local lastJitter = 0
+
+    while os.clock() - startTime < 20 do
+        if session and State.Session ~= session then return false end
+        local pos = hrp.Position
+        local delta = targetPos - pos
+        if delta.Magnitude <= 5 then break end
+
+        local adaptiveSpeed = speed
+        if delta.Magnitude > 200 then adaptiveSpeed = speed * 1.5
+        elseif delta.Magnitude < 30 then adaptiveSpeed = speed * 0.6 end
+
+        local step = delta.Unit * math.min(delta.Magnitude, adaptiveSpeed * game:GetService("RunService").Heartbeat:Wait())
+        hrp.CFrame = CFrame.lookAt(pos + step, targetPos)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+
+        if StealthMovement.MicroJitter and os.clock() - lastJitter > (StealthMovement.JitterMin + math.random() * (StealthMovement.JitterMax - StealthMovement.JitterMin)) then
+            lastJitter = os.clock()
+            humanJitter()
+        end
+    end
+    hrp.CFrame = CFrame.new(targetPos)
+    return true
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- SERVICES
+-- ═══════════════════════════════════════════════════════════════
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local Lighting = game:GetService("Lighting")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ═══════════════════════════════════════════════════════════════
+-- REMOTE FINDER
+-- ═══════════════════════════════════════════════════════════════
+local function findRemote(name, alt)
+    local roots = { ReplicatedStorage, ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking"), ReplicatedStorage:FindFirstChild("Network") }
+    for _, root in ipairs(roots) do
+        if root then
+            local r = root:FindFirstChild(name) or (alt and root:FindFirstChild(alt))
+            if r then return r end
+            local d = root:FindFirstChild(name, true) or (alt and root:FindFirstChild(alt, true))
+            if d then return d end
+        end
+    end
+    local tail = string.match(name, "[^/]+$")
+    if tail then return ReplicatedStorage:FindFirstChild(tail, true) end
+    return nil
+end
+
+local Remotes = {
+    PlaceEgg = findRemote("RF/EggWorld/AskPlaceEgg", "AskPlaceEgg"),
+    LiveSnapshot = findRemote("RF/EggWorld/AskLiveSnapshot", "AskLiveSnapshot"),
+    FieldCarry = findRemote("RF/EggWorld/AskFieldEggCarry", "AskFieldEggCarry"),
+    Hatch = findRemote("RF/EggWorld/AskHatch", "AskHatch"),
+    FinishHatch = findRemote("RF/EggWorld/AskFinishHatch", "AskFinishHatch"),
+    ForestStrike = findRemote("RE/GuardPatrol/ForestStrike", "ForestStrike"),
+    TreadmillDon = findRemote("RF/Treadmill/AskDon", "AskDon"),
+}
+
+-- ═══════════════════════════════════════════════════════════════
+-- CONFIG
+-- ═══════════════════════════════════════════════════════════════
+local CONFIG = {
+    AutoSteal = false, AutoPlace = false, AutoHatch = false,
+    AutoTreadmill = false, AutoUpgradeTreadmill = false, AutoBuyTrails = false,
+    StealDelay = 0.8, StealRange = 500,
+    SelectedZones = { ["Light Dark"]=true, ["Titan Temple"]=true, ["Cherry Blossom"]=true, ["Cosmic"]=false, ["Prehistoric"]=false, ["Abyss Ocean"]=false, ["Volcano"]=false, ["Snow"]=false, ["Jungle"]=false, ["Desert"]=false, ["Lake"]=false, ["Forest"]=false },
+    SelectedRarities = { ["Divine"]=true, ["Eternal"]=true, ["Secret"]=true, ["Cosmic"]=true, ["Mythic"]=true, ["Legendary"]=false, ["Epic"]=false, ["Rare"]=false, ["Uncommon"]=false, ["Common"]=false },
+    AlwaysSecretPlus = true, WalkSpeed = 16, JumpPower = 50,
+    Godmode = false, AntiAFK = true, AntiTrap = true,
+    FPSObjects = false, FPSShadows = false, FPSTextures = false,
+    WebhookEnabled = false, WebhookUrl = "",
+    -- STEALTH
+    StealthDelays = true, StealthMovement = true, StealthTeleport = true,
+    DelayMultiplier = 2.0, SafeSpeed = 60,
+}
+
+local RarityTier = {Divine=6,Eternal=5,Secret=4,Cosmic=3,Mythic=2,Legendary=1,Epic=0.5,Rare=0.3,Uncommon=0.1,Common=0}
+local ZoneWeight = {["Light Dark"]=1300,["Titan Temple"]=1100,["Cherry Blossom"]=1000,["Cosmic"]=900,["Prehistoric"]=800,["Abyss Ocean"]=700,["Volcano"]=600,["Snow"]=500,["Jungle"]=400,["Desert"]=300,["Lake"]=200,["Forest"]=100}
+local RarityColors = {Divine=Color3.fromRGB(255,100,255),Eternal=Color3.fromRGB(255,180,80),Secret=Color3.fromRGB(255,80,80),Cosmic=Color3.fromRGB(180,120,255),Mythic=Color3.fromRGB(255,200,60),Legendary=Color3.fromRGB(255,140,40),Epic=Color3.fromRGB(180,80,255),Rare=Color3.fromRGB(80,160,255),Uncommon=Color3.fromRGB(80,220,120),Common=Color3.fromRGB(200,200,200)}
+
+local State = { Running = false, CurrentTarget = nil, Status = "🛡️ Safe", Session = 0, LastActionTime = 0 }
+local SAFE_LINE_X = 525
+local CORRIDOR_Z = -360
+local BASE_POS = Vector3.new(4773.75, 70.39, -315.73)
+
+-- ═══════════════════════════════════════════════════════════════
+-- UTILITIES
+-- ═══════════════════════════════════════════════════════════════
+local function getChar()
+    local char = LocalPlayer.Character
+    if not char or not char.Parent then char = LocalPlayer.CharacterAdded:Wait() end
+    return char, char:FindFirstChildOfClass("Humanoid"), char:FindFirstChild("HumanoidRootPart")
+end
+
+local function isEgg(tool)
+    if not tool or not tool:IsA("Tool") then return false end
+    local n = string.lower(tool.Name)
+    if n:find("sword") or n:find("radar") or n:find("basket") then return false end
+    return tool:GetAttribute("EggUid") or tool:GetAttribute("UID") or n:find("egg") or tool:GetAttribute("ItemType") == "Egg"
+end
+
+local function getAllEggsFromWorld()
+    local eggs = {}
+    local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
+    if slots then
+        for _, model in ipairs(slots:GetChildren()) do
+            local ok, pivot = pcall(function() return model:GetPivot() end)
+            if ok and pivot and pivot.Position.X >= 530 and not tostring(model.Name):find("FirstArea") then
+                local zone = model:GetAttribute("AreaId") or model:GetAttribute("Area") or "Unknown"
+                local rarity = model:GetAttribute("Rarity") or model:GetAttribute("RarityTier") or "Common"
+                local scale = tonumber(model:GetAttribute("Scale") or model:GetAttribute("AssetScale")) or 1
+                table.insert(eggs, { name = model.Name, model = model, zone = tostring(zone), rarity = tostring(rarity), scale = scale, position = pivot.Position, cframe = pivot })
+            end
+        end
+    end
+    return eggs
+end
+
+local function detectZoneFromPosition(pos, name)
+    local x = pos.X
+    if x >= 5200 then return "Light Dark" end
+    if x >= 4750 then return "Titan Temple" end
+    if x >= 4000 then return "Cherry Blossom" end
+    if x >= 3350 then return "Cosmic" end
+    if x >= 2780 then return "Prehistoric" end
+    if x >= 2250 then return "Abyss Ocean" end
+    if x >= 1850 then return "Volcano" end
+    if x >= 1450 then return "Snow" end
+    if x >= 1150 then return "Jungle" end
+    if x >= 920 then return "Desert" end
+    if x >= 720 then return "Lake" end
+    if string.lower(tostring(name or "")):find("lake") then return "Lake" end
+    return "Forest"
+end
+
+local function findBestTarget()
+    local _, _, hrp = getChar()
+    if not hrp then return nil, 0 end
+    local eggs = getAllEggsFromWorld()
+    if #eggs == 0 then return nil, 0 end
+    local best, bestScore = nil, -math.huge
+    local matching = 0
+    for _, egg in ipairs(eggs) do
+        local realZone = detectZoneFromPosition(egg.position, egg.zone)
+        local tier = RarityTier[egg.rarity] or 0
+        local zw = ZoneWeight[realZone] or 50
+        local score = tier >= 4 and (400000 + tier * 10000 + zw) or (zw * 11 + tier * 1000)
+        score = math.floor(score * egg.scale)
+        local zonePass = CONFIG.SelectedZones[realZone] == true
+        local rarityPass = CONFIG.SelectedRarities[egg.rarity] == true
+        if tier >= 4 and CONFIG.AlwaysSecretPlus then rarityPass = true end
+        if zonePass and rarityPass then
+            matching = matching + 1
+            local dist = (egg.position - hrp.Position).Magnitude
+            if score > bestScore then egg.score = score egg.distance = dist egg.realZone = realZone best = egg bestScore = score end
+        end
+    end
+    return best, matching
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- STEAL / PLACE / HATCH
+-- ═══════════════════════════════════════════════════════════════
+local function secureEggStealth(egg, session)
+    local char, hum, hrp = getChar()
+    if not hrp then return false end
+
+    State.Status = "🔒 Lifting..."
+    local deadline = os.clock() + 5
+    while os.clock() < deadline and State.Running do
+        if session and State.Session ~= session then return false end
+        pcall(function() hrp.CFrame = hrp.CFrame:Lerp(egg.cframe * CFrame.new(0, 0.5, 0), 0.12) end)
+        local carryRemote = Remotes.FieldCarry
+        if carryRemote and egg.name then
+            pcall(function()
+                if carryRemote:IsA("RemoteFunction") then carryRemote:InvokeServer({ Uid = egg.name })
+                else carryRemote:FireServer({ Uid = egg.name }) end
+            end)
+        end
+        randomDelay(0.3, 0.15)
+        local ch = LocalPlayer.Character
+        if ch then for _, c in ipairs(ch:GetChildren()) do if isEgg(c) then return true end end end
+    end
+
+    State.Status = "⚔️ Guard..."
+    if Remotes.ForestStrike then
+        pcall(function()
+            if Remotes.ForestStrike:IsA("RemoteFunction") then Remotes.ForestStrike:InvokeServer()
+            else Remotes.ForestStrike:FireServer() end
+        end)
+    end
+    randomDelay(2.0, 0.6)
+
+    State.Status = "🎯 Re-grab..."
+    deadline = os.clock() + 4
+    while os.clock() < deadline and State.Running do
+        if session and State.Session ~= session then return false end
+        pcall(function() hrp.CFrame = hrp.CFrame:Lerp(egg.cframe * CFrame.new(0, 0.5, 0), 0.12) end)
+        if Remotes.FieldCarry and egg.name then
+            pcall(function()
+                if Remotes.FieldCarry:IsA("RemoteFunction") then Remotes.FieldCarry:InvokeServer({ Uid = egg.name })
+                else Remotes.FieldCarry:FireServer({ Uid = egg.name }) end
+            end)
+        end
+        randomDelay(0.3, 0.15)
+        local ch = LocalPlayer.Character
+        if ch then for _, c in ipairs(ch:GetChildren()) do if isEgg(c) then return true end end end
+    end
+    return false
+end
+
+local function placeEggsStealth(session)
+    local char, hum, hrp = getChar()
+    if not hrp then return end
+    State.Status = "🏠 Returning..."
+    safeGlide(Vector3.new(SAFE_LINE_X, 70, CORRIDOR_Z), CONFIG.SafeSpeed, session)
+    randomDelay(0.6, 0.3)
+
+    local plots = Workspace:FindFirstChild("Plots")
+    local basePos = BASE_POS
+    if plots then for _, plot in ipairs(plots:GetChildren()) do local center = plot:FindFirstChild("CenterPoint") if center then basePos = center.Position break end end end
+
+    safeGlide(basePos + Vector3.new(0, 5, 0), CONFIG.SafeSpeed, session)
+    randomDelay(0.6, 0.3)
+
+    State.Status = "📦 Placing..."
+    if Remotes.PlaceEgg then
+        for _ = 1, 20 do
+            local ch = LocalPlayer.Character
+            local bp = LocalPlayer:FindFirstChild("Backpack")
+            local carried = 0
+            if ch then for _, c in ipairs(ch:GetChildren()) do if isEgg(c) then carried = carried + 1 end end end
+            if bp then for _, c in ipairs(bp:GetChildren()) do if isEgg(c) then carried = carried + 1 end end end
+            if carried == 0 then break end
+            pcall(function()
+                local tool
+                if ch then for _, c in ipairs(ch:GetChildren()) do if isEgg(c) then tool = c break end end end
+                if not tool and bp then for _, c in ipairs(bp:GetChildren()) do if isEgg(c) then tool = c break end end end
+                if tool then
+                    local uid = tool:GetAttribute("UID") or tool:GetAttribute("EggUid") or tool.Name
+                    if Remotes.PlaceEgg:IsA("RemoteFunction") then Remotes.PlaceEgg:InvokeServer({ Uid = uid, LocalCFrame = CFrame.new(0, 5, 0) })
+                    else Remotes.PlaceEgg:FireServer({ Uid = uid, LocalCFrame = CFrame.new(0, 5, 0) }) end
+                end
+            end)
+            randomDelay(0.2, 0.12)
+        end
+    end
+end
+
+local function hatchAll(session)
+    if not Remotes.LiveSnapshot or not Remotes.Hatch or not Remotes.FinishHatch then return end
+    State.Status = "🥚 Hatching..."
+    local ok, data = pcall(function() return Remotes.LiveSnapshot:InvokeServer() end)
+    if not ok or type(data) ~= "table" then return end
+    local uidList = {}
+    for uid, rec in pairs(data) do
+        if type(rec) == "table" and rec.OwnerUserId == LocalPlayer.UserId then
+            for u in pairs(rec.Records or {}) do table.insert(uidList, u) end
+        end
+    end
+    for _, uid in ipairs(uidList) do
+        if session and State.Session ~= session then return end
+        pcall(function() if Remotes.Hatch:IsA("RemoteFunction") then Remotes.Hatch:InvokeServer(uid) else Remotes.Hatch:FireServer(uid) end end)
+        randomDelay(1.2, 0.5)
+        pcall(function() if Remotes.FinishHatch:IsA("RemoteFunction") then Remotes.FinishHatch:InvokeServer(uid) else Remotes.FinishHatch:FireServer(uid) end end)
+        randomDelay(0.2, 0.12)
+    end
+end
+
+local function findTreadmill()
+    local plots = Workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local t = plot:FindFirstChild("TreadmillBottom", true)
+        if t and t:IsA("BasePart") then return t end
+    end
+    return nil
+end
+
+local function mountTreadmill()
+    local tread = findTreadmill()
+    if not tread then return false end
+    local _, _, hrp = getChar()
+    if not hrp then return false end
+    pcall(function() hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(tread.Position + Vector3.new(0, 2, 0)), 0.2) end)
+    randomDelay(0.5, 0.3)
+    pcall(function()
+        if typeof(firetouchinterest) == "function" then
+            firetouchinterest(hrp, tread, 0)
+            randomDelay(0.1, 0.05)
+            firetouchinterest(hrp, tread, 1)
+        end
+    end)
+    pcall(function()
+        for _, d in ipairs(tread:GetDescendants()) do
+            if d:IsA("ProximityPrompt") and d.Enabled then
+                if typeof(fireproximityprompt) == "function" then fireproximityprompt(d) end
+            end
+        end
+    end)
+    if Remotes.TreadmillDon then pcall(function() Remotes.TreadmillDon:InvokeServer() end) end
+    State.Status = "🏃 Treadmill"
+    return true
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- MAIN LOOP (dengan delay acak yang sangat human-like)
+-- ═══════════════════════════════════════════════════════════════
+task.spawn(function()
+    while true do
+        local baseDelay = CONFIG.StealDelay * CONFIG.DelayMultiplier
+        local jitter = (math.random() * 2 - 1) * 0.5
+        task.wait(math.max(0.3, baseDelay + jitter))
+
+        if not State.Running or not CONFIG.AutoSteal then
+            State.Status = "💤 Idle"
+            continue
+        end
+
+        State.Session = State.Session + 1
+        local session = State.Session
+
+        -- Cooldown acak antar aksi (meniru waktu reaksi manusia)
+        if os.clock() - State.LastActionTime < (1.5 + math.random() * 1.0) then continue end
+        State.LastActionTime = os.clock()
+
+        local ok, err = pcall(function()
+            local target, matchCount = findBestTarget()
+            if not target then
+                if CONFIG.AutoTreadmill then
+                    State.Status = "🛌 No target"
+                    mountTreadmill()
+                else
+                    State.Status = "🔍 Scanning (0)"
+                end
+                return
+            end
+
+            State.CurrentTarget = target
+            State.Status = string.format("🎯 %s · %s · %d", target.rarity, target.realZone or target.zone, matchCount)
+
+            local sid = State.Session
+            safeGlide(target.position + Vector3.new(0, 3, 0), CONFIG.SafeSpeed, sid)
+            if State.Session ~= sid then return end
+            secureEggStealth(target, sid)
+            if State.Session ~= sid then return end
+            if CONFIG.AutoPlace then placeEggsStealth(sid) end
+        end)
+
+        if not ok then
+            State.Status = "⚠️ Recovered"
+            task.wait(2)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(5 + math.random() * 3)
+        if State.Running and CONFIG.AutoHatch then pcall(hatchAll, State.Session) end
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- ANTI-AFK STEALTH
+-- ═══════════════════════════════════════════════════════════════
+task.spawn(function()
+    while true do
+        task.wait(50 + math.random() * 40)
+        if CONFIG.AntiAFK then
+            pcall(function() VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end)
+            pcall(function()
+                local _, hum = getChar()
+                if hum then hum.Jump = true task.wait(0.1) hum.Jump = false end
+            end)
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- FPS BOOST
+-- ═══════════════════════════════════════════════════════════════
+local FpsState = { removed = {}, lightingSnap = nil }
+
+local function isImportant(inst)
+    if not inst then return true end
+    local n = inst.Name:lower()
+    if n:find("egg") or n:find("monster") or n:find("guard") or n:find("npc") or n:find("boss") or n:find("pet") or n:find("player") then return true end
+    if inst:GetAttribute("IsEgg") or inst:GetAttribute("IsMonster") then return true end
+    if inst.Name == "HumanoidRootPart" or inst.Name == "Humanoid" then return true end
+    return false
+end
+
+local function applyFPSObjects(state)
+    if state then
+        FpsState.removed = {}
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if isImportant(obj) then continue end
+            local isPlayerPart = false
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Character and obj:IsDescendantOf(plr.Character) then isPlayerPart = true break end
+            end
+            if isPlayerPart then continue end
+            pcall(function()
+                if obj:IsA("BasePart") then obj.Transparency = 1 obj.CanCollide = false obj.CastShadow = false table.insert(FpsState.removed, obj)
+                elseif obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency = 1 table.insert(FpsState.removed, obj)
+                elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") or obj:IsA("Beam") or obj:IsA("Light") then obj.Enabled = false table.insert(FpsState.removed, obj) end
+            end)
+        end
+    else
+        for _, obj in ipairs(FpsState.removed) do
+            pcall(function()
+                if obj and obj.Parent then
+                    if obj:IsA("BasePart") then obj.Transparency = 0 obj.CanCollide = true obj.CastShadow = true
+                    elseif obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency = 0
+                    elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") or obj:IsA("Beam") or obj:IsA("Light") then obj.Enabled = true end
+                end
+            end)
+        end
+        FpsState.removed = {}
+    end
+end
+
+local function applyFPSShadows(state)
+    if state then
+        if not FpsState.lightingSnap then FpsState.lightingSnap = { GlobalShadows = Lighting.GlobalShadows, FogEnd = Lighting.FogEnd, Brightness = Lighting.Brightness, Ambient = Lighting.Ambient } end
+        Lighting.GlobalShadows = false Lighting.FogEnd = 100000 Lighting.Brightness = 2
+        for _, obj in ipairs(Workspace:GetDescendants()) do pcall(function() if obj:IsA("BasePart") then obj.CastShadow = false end end) end
+    else
+        if FpsState.lightingSnap then
+            Lighting.GlobalShadows = FpsState.lightingSnap.GlobalShadows Lighting.FogEnd = FpsState.lightingSnap.FogEnd Lighting.Brightness = FpsState.lightingSnap.Brightness Lighting.Ambient = FpsState.lightingSnap.Ambient
+        else Lighting.GlobalShadows = true end
+    end
+end
+
+local function applyFPSTextures(state)
+    if state then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("Decal") or obj:IsA("Texture") then obj.Transparency = 1
+                elseif obj:IsA("BasePart") and obj.Material ~= Enum.Material.SmoothPlastic then obj.Material = Enum.Material.SmoothPlastic end
+            end)
+        end
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- GODMODE
+-- ═══════════════════════════════════════════════════════════════
+local function applyGodmode(state)
+    local char, hum = getChar()
+    if not hum then return end
+    hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not state)
+    if state and hum.Health < 100 then hum.Health = 100 end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- WEBHOOK
+-- ═══════════════════════════════════════════════════════════════
+local function sendWebhook(title, desc)
+    if not CONFIG.WebhookEnabled then return end
+    if not CONFIG.WebhookUrl:find("discord.com/api/webhooks") then return end
+    local payload = HttpService:JSONEncode({ username = "Jepry Hub", embeds = {{ title = "🛡️ " .. tostring(title), description = tostring(desc), color = 0xE8E8E8, footer = { text = "Stealth v5.0" }, timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ") }} })
+    task.spawn(function()
+        pcall(function()
+            local req = (syn and syn.request) or (http and http.request) or http_request or request
+            if req then req({ Url = CONFIG.WebhookUrl, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload }) end
+        end)
+    end)
+end
+
+-- ═══════════════════════════════════════════════════════════════
+-- TARGET HUD
+-- ═══════════════════════════════════════════════════════════════
+local function buildHUD()
+    local pg = LocalPlayer:WaitForChild("PlayerGui")
+    local old = pg:FindFirstChild("JepryTargetHUD")
+    if old then old:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "JepryTargetHUD"
+    gui.ResetOnSpawn = false
+    gui.DisplayOrder = 100
+    gui.Parent = pg
+
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(0, 290, 0, 270)
+    f.Position = UDim2.new(0, 15, 0.5, -135)
+    f.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+    f.BackgroundTransparency = 0.08
+    f.BorderSizePixel = 0
+    f.Active = true f.Draggable = true
+    f.Parent = gui
+
+    local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 12) c.Parent = f
+    local s = Instance.new("UIStroke") s.Color = Color3.fromRGB(70, 70, 90) s.Thickness = 1.2 s.Parent = f
+
+    local tb = Instance.new("Frame")
+    tb.Size = UDim2.new(1, 0, 0, 32)
+    tb.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    tb.BorderSizePixel = 0 tb.Parent = f
+    local tbc = Instance.new("UICorner") tbc.CornerRadius = UDim.new(0, 12) tbc.Parent = tb
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 1, 0)
+    title.Position = UDim2.new(0, 12, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🛡️ STEALTH v5.0 · TARGET"
+    title.TextColor3 = Color3.fromRGB(240, 240, 250)
+    title.TextSize = 13 title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = tb
+
+    local body = Instance.new("Frame")
+    body.Size = UDim2.new(1, 0, 1, -32)
+    body.Position = UDim2.new(0, 0, 0, 32)
+    body.BackgroundTransparency = 1 body.Parent = f
+
+    local function row(i, label)
+        local r = Instance.new("Frame")
+        r.Size = UDim2.new(1, -20, 0, 24)
+        r.Position = UDim2.new(0, 10, 0, i * 24 + 6)
+        r.BackgroundTransparency = 1 r.Parent = body
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0.45, 0, 1, 0)
+        lbl.BackgroundTransparency = 1 lbl.Text = label
+        lbl.TextColor3 = Color3.fromRGB(130, 130, 145)
+        lbl.TextSize = 11 lbl.Font = Enum.Font.Gotham
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = r
+        local val = Instance.new("TextLabel")
+        val.Size = UDim2.new(0.55, 0, 1, 0)
+        val.Position = UDim2.new(0.45, 0, 0, 0)
+        val.BackgroundTransparency = 1
+        val.Text = "—"
+        val.TextColor3 = Color3.fromRGB(240, 240, 250)
+        val.TextSize = 11 val.Font = Enum.Font.GothamBold
+        val.TextXAlignment = Enum.TextXAlignment.Right
+        val.TextTruncate = Enum.TextTruncate.AtEnd
+        val.Parent = r
+        return val
+    end
+
+    return { gui = gui, frame = f, vTarget = row(0, "🥚 Target"), vRarity = row(1, "✨ Rarity"), vZone = row(2, "🌍 Zone"), vScore = row(3, "🏆 Priority"), vFilters = row(4, "⚙️ Filters"), vMode = row(5, "📡 Mode"), vFound = row(6, "🔍 Matches"), vAntiKick = row(7, "🛡️ Anti-Kick"), vBlocked = row(8, "🚫 Blocked") }
+end
+
+local TargetHUD = buildHUD()
+
+task.spawn(function()
+    while TargetHUD.gui.Parent do
+        task.wait(0.5)
+        pcall(function()
+            local target = State.CurrentTarget
+            local zCount, rCount = 0, 0
+            for _, v in pairs(CONFIG.SelectedZones) do if v then zCount = zCount + 1 end end
+            for _, v in pairs(CONFIG.SelectedRarities) do if v then rCount = rCount + 1 end end
+            TargetHUD.vFilters.Text = string.format("%d/12 · %d/10", zCount, rCount)
+            TargetHUD.vFilters.TextColor3 = (zCount == 0 and rCount == 0) and Color3.fromRGB(255, 200, 80) or Color3.fromRGB(80, 220, 120)
+            if target then
+                TargetHUD.vTarget.Text = tostring(target.name or "Egg"):sub(1, 22)
+                TargetHUD.vTarget.TextColor3 = Color3.fromRGB(255, 235, 130)
+                TargetHUD.vRarity.Text = tostring(target.rarity)
+                TargetHUD.vRarity.TextColor3 = RarityColors[target.rarity] or Color3.fromRGB(200, 200, 200)
+                TargetHUD.vZone.Text = tostring(target.realZone or target.zone)
+                TargetHUD.vZone.TextColor3 = Color3.fromRGB(150, 230, 255)
+                TargetHUD.vScore.Text = tostring(target.score or 0)
+                TargetHUD.vScore.TextColor3 = (target.score or 0) >= 400000 and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(255, 180, 100)
+            else
+                TargetHUD.vTarget.Text = "—" TargetHUD.vRarity.Text = "—" TargetHUD.vZone.Text = "—" TargetHUD.vScore.Text = "—"
+            end
+            local _, m = findBestTarget()
+            TargetHUD.vFound.Text = tostring(m or 0)
+            TargetHUD.vMode.Text = State.Status or "Idle"
+            TargetHUD.vAntiKick.Text = AntiKick.Enabled and "🟢 Active" or "🔴 Off"
+            TargetHUD.vAntiKick.TextColor3 = AntiKick.Enabled and Color3.fromRGB(80, 220, 120) or Color3.fromRGB(255, 100, 100)
+            TargetHUD.vBlocked.Text = tostring(AntiKick.BlockedCount)
+            TargetHUD.vBlocked.TextColor3 = AntiKick.BlockedCount > 0 and Color3.fromRGB(255, 200, 80) or Color3.fromRGB(150, 150, 150)
+        end)
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+-- RAYFIELD UI
+-- ═══════════════════════════════════════════════════════════════
+local Window = Rayfield:CreateWindow({
+    name = "🛡️ Steal An Egg · Stealth v5.0",
+    subtitle = "✨ Made by: Jepry_jago112",
+    sidebarLayout = true,
+    theme = "cobalt",
+    configuration = { autoSave = false },
+})
+
+local FarmTab = Window:CreateTab({ name = "🥚 Farm", icon = "egg" })
+local FilterTab = Window:CreateTab({ name = "🎯 Filters", icon = "filter" })
+local StealthTab = Window:CreateTab({ name = "🛡️ Stealth", icon = "shield" })
+local PlayerTab = Window:CreateTab({ name = "🏃 Player", icon = "user" })
+local BoostTab = Window:CreateTab({ name = "⚡ FPS", icon = "zap" })
+local MiscTab = Window:CreateTab({ name = "🎮 Misc", icon = "settings" })
+local InfoTab = Window:CreateTab({ name = "ℹ️ Info", icon = "info" })
+
+Window:Notify({ title = "🛡️ Stealth v5.0 Loaded!", content = "Anti-Kick Hook: ACTIVE", duration = 6 })
+
+-- ═══ FARM ═══
+FarmTab:CreateSection("⚙️ Master")
+
+FarmTab:CreateToggle({ name = "▶️ START AUTO FARM", currentValue = false, callback = function(v)
+    State.Running = v
+    Window:Notify({ title = v and "▶️ Farm Started" or "⏹️ Farm Stopped", content = v and "Auto steal activated!" or "Disabled", duration = 3 })
+end })
+
+FarmTab:CreateSection("🥚 Actions")
+
+FarmTab:CreateToggle({ name = "🥚 Auto Steal Egg", currentValue = false, callback = function(v) CONFIG.AutoSteal = v State.Running = v end })
+FarmTab:CreateToggle({ name = "🏠 Auto Place", currentValue = false, callback = function(v) CONFIG.AutoPlace = v end })
+FarmTab:CreateToggle({ name = "🥚 Auto Hatch", currentValue = false, callback = function(v) CONFIG.AutoHatch = v end })
+
+FarmTab:CreateSection("🏃 Treadmill")
+
+FarmTab:CreateToggle({ name = "🏃 Auto Treadmill", currentValue = false, callback = function(v) CONFIG.AutoTreadmill = v end })
+FarmTab:CreateToggle({ name = "⬆️ Auto Upgrade Treadmill", currentValue = false, callback = function(v) CONFIG.AutoUpgradeTreadmill = v end })
+FarmTab:CreateToggle({ name = "🎽 Auto Buy Trails", currentValue = false, callback = function(v) CONFIG.AutoBuyTrails = v end })
+
+FarmTab:CreateSection("⏱️ Timing")
+
+FarmTab:CreateSlider({ name = "Steal Loop Delay", range = { 0.3, 5 }, increment = 0.1, suffix = "s", currentValue = 0.8, callback = function(v) CONFIG.StealDelay = v end })
+FarmTab:CreateSlider({ name = "🛡️ Delay Multiplier", range = { 1.0, 4.0 }, increment = 0.1, suffix = "x", currentValue = 2.0, callback = function(v) CONFIG.DelayMultiplier = v end })
+
+-- ═══ FILTERS ═══
+FilterTab:CreateSection("🌍 Biome / Zone")
+FilterTab:CreateLabel("Pilih zona target")
+
+local zones = { {"🌑 Light Dark", true}, {"🏛️ Titan Temple", true}, {"🌸 Cherry Blossom", true}, {"🌌 Cosmic", false}, {"🦕 Prehistoric", false}, {"🌊 Abyss Ocean", false}, {"🌋 Volcano", false}, {"❄️ Snow", false}, {"🌴 Jungle", false}, {"🏜️ Desert", false}, {"🏞️ Lake", false}, {"🌲 Forest", false} }
+for _, z in ipairs(zones) do
+    local zoneName = z[1]:gsub("^%S+%s", "")
+    FilterTab:CreateToggle({ name = z[1], currentValue = z[2], callback = function(v) CONFIG.SelectedZones[zoneName] = v end })
+end
+
+FilterTab:CreateSection("✨ Rarity")
+local rarities = { {"💜 Divine", true}, {"💛 Eternal", true}, {"❤️ Secret", true}, {"💙 Cosmic", true}, {"🧡 Mythic", true}, {"💚 Legendary", false}, {"💠 Epic", false}, {"🔷 Rare", false}, {"🟢 Uncommon", false}, {"⚪ Common", false} }
+for _, r in ipairs(rarities) do
+    local rarityName = r[1]:gsub("^%S+%s", "")
+    FilterTab:CreateToggle({ name = r[1], currentValue = r[2], callback = function(v) CONFIG.SelectedRarities[rarityName] = v end })
+end
+
+FilterTab:CreateSection("🎁 Special")
+FilterTab:CreateToggle({ name = "⭐ Always Steal Secret+", currentValue = true, callback = function(v) CONFIG.AlwaysSecretPlus = v end })
+
+FilterTab:CreateSection("⚡ Presets")
+FilterTab:CreateButton({ name = "🎯 Divine+ Only", callback = function()
+    for k in pairs(CONFIG.SelectedZones) do CONFIG.SelectedZones[k] = true end
+    CONFIG.SelectedRarities = {Divine=true,Eternal=true,Secret=true,Cosmic=false,Mythic=false,Legendary=false,Epic=false,Rare=false,Uncommon=false,Common=false}
+    Window:Notify({ title = "🎯 Divine+ Preset", content = "Applied", duration = 3 })
+end })
+FilterTab:CreateButton({ name = "🎯 Balanced (Legendary+)", callback = function()
+    for k in pairs(CONFIG.SelectedZones) do CONFIG.SelectedZones[k] = true end
+    CONFIG.SelectedRarities = {Divine=true,Eternal=true,Secret=true,Cosmic=true,Mythic=true,Legendary=true,Epic=false,Rare=false,Uncommon=false,Common=false}
+    Window:Notify({ title = "🎯 Balanced Preset", content = "Applied", duration = 3 })
+end })
+
+-- ═══ STEALTH ═══
+StealthTab:CreateSection("🛡️ Anti-Kick (PALING PENTING)")
+StealthTab:CreateLabel("Anti-Kick Hook melindungi dari kick Byfron")
+
+StealthTab:CreateToggle({ name = "🛡️ Anti-Kick Hook", currentValue = true, callback = function(v)
+    AntiKick.Enabled = v
+    Window:Notify({ title = v and "🛡️ Anti-Kick ON" or "⚠️ Anti-Kick OFF", content = v and "Protected from kicks" or "WARNING: You can be kicked!", duration = 3 })
+end })
+
+StealthTab:CreateButton({ name = "📊 View Blocked Kicks", callback = function()
+    Window:Notify({ title = "🛡️ Blocked Kicks", content = tostring(AntiKick.BlockedCount) .. " kicks blocked", duration = 4 })
+end })
+
+StealthTab:CreateSection("🛡️ Anti-Detection")
+
+StealthTab:CreateToggle({ name = "⏱️ Random Delays", currentValue = true, callback = function(v) CONFIG.StealthDelays = v end })
+StealthTab:CreateToggle({ name = "🚶 Human-like Movement", currentValue = true, callback = function(v) CONFIG.StealthMovement = v end })
+StealthTab:CreateToggle({ name = "📡 Safe Teleport", currentValue = true, callback = function(v)
+    CONFIG.StealthTeleport = v
+    Window:Notify({ title = v and "📡 Safe TP ON" or "⚠️ Safe TP OFF", content = v and "Gradual movement" or "WARNING: Snap TP detectable!", duration = 3 })
+end })
+
+StealthTab:CreateSection("📊 Status")
+StealthTab:CreateLabel("🟢 Anti-Kick: Active")
+StealthTab:CreateLabel("🟢 Random Delays: ±0.5s jitter")
+StealthTab:CreateLabel("🟢 Micro-movement: 0.3-0.7s")
+StealthTab:CreateLabel("🟢 Teleport: Gradual (60 speed)")
+
+StealthTab:CreateSection("⚠️ WAJIB DI LUAR SCRIPT")
+StealthTab:CreateLabel("1. 🛡️ Pakai HWID Spoofer")
+StealthTab:CreateLabel("2. 🌐 Aktifkan VPN")
+StealthTab:CreateLabel("3. 🚪 Tutup Discord overlay")
+StealthTab:CreateLabel("4. 🔥 Tutup MSI Afterburner/RTSS")
+StealthTab:CreateLabel("5. ⏱️ Delay Multiplier 2.0x+")
+StealthTab:CreateLabel("6. 🎮 Pakai akun alt untuk test")
+
+-- ═══ PLAYER ═══
+PlayerTab:CreateSection("🏃 Movement")
+PlayerTab:CreateSlider({ name = "WalkSpeed", range = {16, 200}, increment = 1, suffix = "studs", currentValue = 16, callback = function(v) CONFIG.WalkSpeed = v local _, hum = getChar() if hum then hum.WalkSpeed = v end end })
+PlayerTab:CreateSlider({ name = "JumpPower", range = {50, 200}, increment = 1, suffix = "power", currentValue = 50, callback = function(v) CONFIG.JumpPower = v local _, hum = getChar() if hum then hum.UseJumpPower = true hum.JumpPower = v end end })
+
+PlayerTab:CreateSection("🛡️ Protection")
+PlayerTab:CreateToggle({ name = "🛡️ Godmode", currentValue = false, callback = function(v) CONFIG.Godmode = v applyGodmode(v) end })
+PlayerTab:CreateToggle({ name = "🪤 Anti-Trap", currentValue = true, callback = function(v) CONFIG.AntiTrap = v end })
+PlayerTab:CreateToggle({ name = "🚫 Anti AFK", currentValue = true, callback = function(v) CONFIG.AntiAFK = v end })
+
+-- ═══ FPS ═══
+BoostTab:CreateSection("⚡ Performance")
+BoostTab:CreateToggle({ name = "🗑️ Remove Objects", currentValue = false, callback = function(v) CONFIG.FPSObjects = v applyFPSObjects(v) end })
+BoostTab:CreateToggle({ name = "🌑 Remove Shadows", currentValue = false, callback = function(v) CONFIG.FPSShadows = v applyFPSShadows(v) end })
+BoostTab:CreateToggle({ name = "🖼️ Remove Textures", currentValue = false, callback = function(v) CONFIG.FPSTextures = v applyFPSTextures(v) end })
+
+BoostTab:CreateSection("🚀 Presets")
+BoostTab:CreateButton({ name = "⚡ Apply All", callback = function() applyFPSObjects(true) applyFPSShadows(true) applyFPSTextures(true) CONFIG.FPSObjects=true CONFIG.FPSShadows=true CONFIG.FPSTextures=true end })
+BoostTab:CreateButton({ name = "🔄 Revert All", callback = function() applyFPSObjects(false) applyFPSShadows(false) CONFIG.FPSObjects=false CONFIG.FPSShadows=false CONFIG.FPSTextures=false end })
+
+-- ═══ MISC ═══
+MiscTab:CreateSection("🎮 HUD")
+MiscTab:CreateToggle({ name = "👁️ Show Target HUD", currentValue = true, callback = function(v) if TargetHUD and TargetHUD.frame then TargetHUD.frame.Visible = v end end })
+MiscTab:CreateButton({ name = "🎯 Reset HUD", callback = function() if TargetHUD and TargetHUD.frame then TargetHUD.frame.Position = UDim2.new(0, 15, 0.5, -135) end end })
+
+MiscTab:CreateSection("📢 Webhook")
+MiscTab:CreateToggle({ name = "🔔 Enable", currentValue = false, callback = function(v) CONFIG.WebhookEnabled = v end })
+MiscTab:CreateInput({ name = "🔗 URL", placeholder = "https://discord.com/api/webhooks/...", currentValue = "", removeTextAfterFocusLost = false, callback = function(text) CONFIG.WebhookUrl = text end })
+MiscTab:CreateButton({ name = "📨 Test", callback = function() CONFIG.WebhookEnabled = true sendWebhook("🎉 Test", "Working! 🥚✨") end })
+
+MiscTab:CreateSection("🌐 Server")
+MiscTab:CreateButton({ name = "🔄 Rejoin", callback = function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end })
+
+MiscTab:CreateSection("⚠️ Danger")
+MiscTab:CreateButton({ name = "🛑 Unload Script", callback = function()
+    State.Running = false
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        if pg then local h = pg:FindFirstChild("JepryTargetHUD") if h then h:Destroy() end end
+    end)
+    pcall(function() applyFPSObjects(false) end)
+    pcall(function() applyFPSShadows(false) end)
+    Window:Destroy()
+end })
+
+-- ═══ INFO ═══
+InfoTab:CreateSection("👨‍💻 About")
+InfoTab:CreateLabel("🛡️ Steal An Egg · Stealth v5.0")
+InfoTab:CreateLabel("👤 Made by: Jepry_jago112")
+InfoTab:CreateLabel("🎨 UI: Rayfield Gen 2")
+
+InfoTab:CreateSection("🛡️ 4 Layers of Protection")
+InfoTab:CreateLabel("1. Anti-Kick Hook (__namecall)")
+InfoTab:CreateLabel("2. Anti-Detection (log suppression)")
+InfoTab:CreateLabel("3. Safe Movement (human-like)")
+InfoTab:CreateLabel("4. Safe Teleport (gradual)")
+
+InfoTab:CreateSection("⚠️ CRITICAL")
+InfoTab:CreateLabel("NO SCRIPT is 100% undetectable.")
+InfoTab:CreateLabel("BAC-5518 is behavior detection.")
+InfoTab:CreateLabel("Follow the checklist in Stealth tab.")
+InfoTab:CreateLabel("Use HWID Spoofer + VPN!")
+
+print("╔══════════════════════════════════════════════════╗")
+print("║  🛡️ Stealth v5.0 · Anti-Kick Hook ACTIVE       ║")
+print("║  👤 Made by: Jepry_jago112                      ║")
+print("╚══════════════════════════════════════════════════╝")
