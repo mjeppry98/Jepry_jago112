@@ -1,0 +1,1669 @@
+--[[
+    ╔══════════════════════════════════════════════════════════════╗
+    ║   🥚 STEAL AN EGG · ULTIMATE HUB 🥚                         ║
+    ║   Made by: Jepry_jago112                                    ║
+    ║   UI: Rayfield Gen 2                                        ║
+    ╚══════════════════════════════════════════════════════════════╝
+--]]
+
+-- ═══════════ LOAD RAYFIELD GEN 2 ═══════════
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+
+-- ═══════════ SERVICES ═══════════
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- ═══════════ ANTI-AFK ═══════════
+pcall(function()
+    LocalPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end)
+
+pcall(function()
+    ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+        pcall(function()
+            if typeof(fireproximityprompt) == "function" then
+                fireproximityprompt(prompt)
+            end
+        end)
+    end)
+end)
+
+-- ═══════════ REMOTE FINDER ═══════════
+local function findRemote(name, alt)
+    local roots = {
+        ReplicatedStorage,
+        ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Networking"),
+        ReplicatedStorage:FindFirstChild("Network"),
+    }
+    for _, root in ipairs(roots) do
+        if root then
+            local r = root:FindFirstChild(name) or (alt and root:FindFirstChild(alt))
+            if r then return r end
+            local d = root:FindFirstChild(name, true) or (alt and root:FindFirstChild(alt, true))
+            if d then return d end
+        end
+    end
+    local tail = string.match(name, "[^/]+$")
+    if tail then
+        return ReplicatedStorage:FindFirstChild(tail, true)
+    end
+    return nil
+end
+
+local Remotes = {
+    PlaceEgg        = findRemote("RF/EggWorld/AskPlaceEgg", "AskPlaceEgg"),
+    LiveSnapshot    = findRemote("RF/EggWorld/AskLiveSnapshot", "AskLiveSnapshot"),
+    HomesteadState  = findRemote("RF/Homestead/AskState", "AskState"),
+    FieldCarry      = findRemote("RF/EggWorld/AskFieldEggCarry", "AskFieldEggCarry"),
+    FieldSnapshot   = findRemote("RF/EggWorld/AskFieldEggSnapshot", "AskFieldEggSnapshot"),
+    Hatch           = findRemote("RF/EggWorld/AskHatch", "AskHatch"),
+    FinishHatch     = findRemote("RF/EggWorld/AskFinishHatch", "AskFinishHatch"),
+    ForestStrike    = findRemote("RE/GuardPatrol/ForestStrike", "ForestStrike"),
+    SpeedTollOffer  = findRemote("SpeedTollOffer", "SpeedTollOffer"),
+    TreadmillDoff   = findRemote("RF/Treadmill/AskDoff", "AskDoff"),
+    TreadmillDon    = findRemote("RF/Treadmill/AskDon", "AskDon"),
+    TreadmillUp     = findRemote("RF/Treadmill/AskTierRaise", "AskTierRaise"),
+    TrailBuy        = findRemote("RF/Trailwear/AskPurchase", "AskPurchase"),
+    TrailEquip      = findRemote("RF/Trailwear/AskChoose", "AskChoose"),
+}
+
+-- ═══════════ EGGSTATE / ASSET ITEMS ═══════════
+local EggState = nil
+pcall(function()
+    local client = ReplicatedStorage:WaitForChild("Client", 5)
+    if client then
+        local es = client:WaitForChild("EggState", 5)
+        if es then EggState = require(es) end
+    end
+end)
+if not EggState then
+    pcall(function() EggState = require(ReplicatedStorage.Client.EggState) end)
+end
+
+local AssetItems = nil
+pcall(function()
+    local shared = ReplicatedStorage:WaitForChild("Shared", 5)
+    if shared then
+        local util = shared:WaitForChild("Util", 5)
+        if util then
+            local ai = util:WaitForChild("AssetItems", 5)
+            if ai then AssetItems = require(ai) end
+        end
+    end
+end)
+
+-- ═══════════ CONFIGURATION ═══════════
+local CONFIG = {
+    -- Farming
+    AutoSteal = false,
+    AutoPlace = false,
+    AutoHatch = false,
+    AutoTreadmill = false,
+    AutoUpgradeTreadmill = false,
+    AutoBuyTrails = false,
+    AutoIndex = false,
+    StealDelay = 0.5,
+    StealRange = 500,
+    -- Filters
+    SelectedZones = {
+        ["Light Dark"] = true, ["Titan Temple"] = true, ["Cherry Blossom"] = true,
+        ["Cosmic"] = false, ["Prehistoric"] = false, ["Abyss Ocean"] = false,
+        ["Volcano"] = false, ["Snow"] = false, ["Jungle"] = false,
+        ["Desert"] = false, ["Lake"] = false, ["Forest"] = false,
+    },
+    SelectedRarities = {
+        ["Divine"] = true, ["Eternal"] = true, ["Secret"] = true,
+        ["Cosmic"] = true, ["Mythic"] = true, ["Legendary"] = false,
+        ["Epic"] = false, ["Rare"] = false, ["Uncommon"] = false, ["Common"] = false,
+    },
+    AlwaysSecretPlus = true,
+    -- Player
+    WalkSpeed = 16,
+    JumpPower = 50,
+    Godmode = false,
+    AntiAFK = true,
+    AntiTrap = true,
+    -- FPS Boost
+    FPSObjects = false,
+    FPSShadows = false,
+    FPSTextures = false,
+    FPSLowGraphics = false,
+    -- Server
+    WebhookEnabled = false,
+    WebhookUrl = "",
+    AutoHop = false,
+}
+
+-- Rarity tier data
+local RarityTier = {
+    Divine=6, Eternal=5, Secret=4, Cosmic=3, Mythic=2,
+    Legendary=1, Epic=0.5, Rare=0.3, Uncommon=0.1, Common=0,
+}
+local ZoneWeight = {
+    ["Light Dark"]=1300, ["Titan Temple"]=1100, ["Cherry Blossom"]=1000,
+    ["Cosmic"]=900, ["Prehistoric"]=800, ["Abyss Ocean"]=700,
+    ["Volcano"]=600, ["Snow"]=500, ["Jungle"]=400,
+    ["Desert"]=300, ["Lake"]=200, ["Forest"]=100,
+}
+local RarityColors = {
+    Divine    = Color3.fromRGB(255, 100, 255),
+    Eternal   = Color3.fromRGB(255, 180, 80),
+    Secret    = Color3.fromRGB(255, 80, 80),
+    Cosmic    = Color3.fromRGB(180, 120, 255),
+    Mythic    = Color3.fromRGB(255, 200, 60),
+    Legendary = Color3.fromRGB(255, 140, 40),
+    Epic      = Color3.fromRGB(180, 80, 255),
+    Rare      = Color3.fromRGB(80, 160, 255),
+    Uncommon  = Color3.fromRGB(80, 220, 120),
+    Common    = Color3.fromRGB(200, 200, 200),
+}
+
+-- State
+local State = {
+    Running = false,
+    CurrentTarget = nil,
+    Status = "Idle",
+    Plot = nil,
+    EggESPObjects = {},
+    FPSRemoved = {},
+    AntiAFKActive = false,
+    Session = 0,
+}
+
+-- Constants
+local SAFE_LINE_X = 525
+local CORRIDOR_Z = -360
+local BASE_POS = Vector3.new(4773.75, 70.39, -315.73)
+
+-- ═══════════ UTILITY FUNCTIONS ═══════════
+local function getChar()
+    local char = LocalPlayer.Character
+    if not char or not char.Parent then
+        char = LocalPlayer.CharacterAdded:Wait()
+    end
+    return char, char:FindFirstChildOfClass("Humanoid"), char:FindFirstChild("HumanoidRootPart")
+end
+
+local function isEgg(tool)
+    if not tool or not tool:IsA("Tool") then return false end
+    local n = string.lower(tool.Name)
+    if n:find("sword") or n:find("radar") or n:find("basket") then return false end
+    return tool:GetAttribute("EggUid") or tool:GetAttribute("UID")
+        or n:find("egg") or tool:GetAttribute("ItemType") == "Egg"
+end
+
+local function countCarriedEggs()
+    local count = 0
+    local char = LocalPlayer.Character
+    if char then
+        for _, c in ipairs(char:GetChildren()) do
+            if isEgg(c) then count = count + 1 end
+        end
+    end
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    if bp then
+        for _, c in ipairs(bp:GetChildren()) do
+            if isEgg(c) then count = count + 1 end
+        end
+    end
+    return count
+end
+
+local function unequipAll()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    if hum then pcall(function() hum:UnequipTools() end) end
+    if bp then
+        for _, c in ipairs(char:GetChildren()) do
+            if c:IsA("Tool") then pcall(function() c.Parent = bp end) end
+        end
+    end
+end
+
+local function getAllEggsFromWorld()
+    local eggs = {}
+    local slots = Workspace:FindFirstChild("AreaEggSlotsClient")
+    if slots then
+        for _, model in ipairs(slots:GetChildren()) do
+            local ok, pivot = pcall(function() return model:GetPivot() end)
+            if ok and pivot and pivot.Position.X >= 530 and not tostring(model.Name):find("FirstArea") then
+                local zone = model:GetAttribute("AreaId") or model:GetAttribute("Area") or "Unknown"
+                local rarity = model:GetAttribute("Rarity") or model:GetAttribute("RarityTier") or "Common"
+                local scale = tonumber(model:GetAttribute("Scale") or model:GetAttribute("AssetScale")) or 1
+                table.insert(eggs, {
+                    name = model.Name,
+                    model = model,
+                    zone = tostring(zone),
+                    rarity = tostring(rarity),
+                    scale = scale,
+                    position = pivot.Position,
+                    cframe = pivot,
+                })
+            end
+        end
+    end
+    return eggs
+end
+
+local function detectZoneFromPosition(pos, name)
+    local x = pos.X
+    local lname = string.lower(tostring(name or ""))
+    if x >= 5200 then return "Light Dark" end
+    if x >= 4750 then return "Titan Temple" end
+    if x >= 4000 then return "Cherry Blossom" end
+    if x >= 3350 then return "Cosmic" end
+    if x >= 2780 then return "Prehistoric" end
+    if x >= 2250 then return "Abyss Ocean" end
+    if x >= 1850 then return "Volcano" end
+    if x >= 1450 then return "Snow" end
+    if x >= 1150 then return "Jungle" end
+    if x >= 920 then return "Desert" end
+    if x >= 720 then return "Lake" end
+    if lname:find("lake") then return "Lake" end
+    return "Forest"
+end
+
+local function findBestTarget()
+    local char, hum, hrp = getChar()
+    if not hrp then return nil end
+
+    local eggs = getAllEggsFromWorld()
+    if #eggs == 0 then return nil end
+
+    local best, bestScore = nil, -math.huge
+    local matchingCount = 0
+
+    for _, egg in ipairs(eggs) do
+        local realZone = detectZoneFromPosition(egg.position, egg.zone)
+        local tier = RarityTier[egg.rarity] or 0
+        local zw = ZoneWeight[realZone] or 50
+
+        -- Priority score
+        local score
+        if tier >= 4 then
+            score = 400000 + tier * 10000 + zw
+        else
+            score = zw * 11 + tier * 1000
+        end
+        score = math.floor(score * egg.scale)
+
+        local zonePass = CONFIG.SelectedZones[realZone] == true
+        local rarityPass = CONFIG.SelectedRarities[egg.rarity] == true
+        if tier >= 4 and CONFIG.AlwaysSecretPlus then rarityPass = true end
+
+        if zonePass and rarityPass then
+            matchingCount = matchingCount + 1
+            local dist = (egg.position - hrp.Position).Magnitude
+            if score > bestScore or (score == bestScore and dist < (best and (best.position - hrp.Position).Magnitude or math.huge)) then
+                egg.score = score
+                egg.distance = dist
+                egg.realZone = realZone
+                best = egg
+                bestScore = score
+            end
+        end
+    end
+
+    return best, matchingCount
+end
+
+-- ═══════════ TELEPORT / GLIDE ═══════════
+local function glideTo(targetPos, speed, session)
+    local char, hum, hrp = getChar()
+    if not hrp or not hum then return false end
+    speed = speed or 350
+    local startTime = os.clock()
+    while State.Running and os.clock() - startTime < 15 do
+        if session and State.Session ~= session then return false end
+        local pos = hrp.Position
+        local delta = targetPos - pos
+        if delta.Magnitude <= 6 then break end
+        local step = delta.Unit * math.min(delta.Magnitude, speed * RunService.Heartbeat:Wait())
+        hrp.CFrame = CFrame.lookAt(pos + step, targetPos)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+    hrp.CFrame = CFrame.new(targetPos)
+    return true
+end
+
+local function returnToBase(session)
+    local char, hum, hrp = getChar()
+    if not hrp then return false end
+    local target = Vector3.new(SAFE_LINE_X, 70, CORRIDOR_Z)
+    local ok, _ = pcall(glideTo, target, 400, session)
+    if hrp then
+        hrp.CFrame = CFrame.new(SAFE_LINE_X, math.max(68, hrp.Position.Y), CORRIDOR_Z)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+    return ok
+end
+
+-- ═══════════ STEAL / SECURE EGG ═══════════
+local function secureEgg(egg, session)
+    local char, hum, hrp = getChar()
+    if not hrp then return false end
+
+    -- Phase 1: Lift
+    State.Status = "🔒 Lifting egg..."
+    local deadline = os.clock() + 3.5
+    while os.clock() < deadline and State.Running do
+        if session and State.Session ~= session then return false end
+        hrp.CFrame = egg.cframe * CFrame.new(0, 0.4, 0)
+        local carryRemote = Remotes.FieldCarry
+        if carryRemote and egg.name then
+            pcall(function()
+                if carryRemote:IsA("RemoteFunction") then
+                    carryRemote:InvokeServer({ Uid = egg.name })
+                else
+                    carryRemote:FireServer({ Uid = egg.name })
+                end
+            end)
+        end
+        task.wait(0.15)
+        local _, carriedUid = nil, nil
+        local ch = LocalPlayer.Character
+        if ch then
+            for _, c in ipairs(ch:GetChildren()) do
+                if isEgg(c) then return true end
+            end
+        end
+    end
+
+    -- Phase 2: Guard Strike
+    State.Status = "⚔️ Guard Strike..."
+    local strikeRemote = Remotes.ForestStrike
+    if strikeRemote then
+        pcall(function()
+            if strikeRemote:IsA("RemoteFunction") then strikeRemote:InvokeServer()
+            else strikeRemote:FireServer() end
+        end)
+    end
+    task.wait(1.5)
+
+    -- Phase 3: Re-grab
+    State.Status = "🎯 Re-grabbing..."
+    deadline = os.clock() + 3
+    while os.clock() < deadline and State.Running do
+        if session and State.Session ~= session then return false end
+        hrp.CFrame = egg.cframe * CFrame.new(0, 0.4, 0)
+        local carryRemote = Remotes.FieldCarry
+        if carryRemote and egg.name then
+            pcall(function()
+                if carryRemote:IsA("RemoteFunction") then
+                    carryRemote:InvokeServer({ Uid = egg.name })
+                else
+                    carryRemote:FireServer({ Uid = egg.name })
+                end
+            end)
+        end
+        task.wait(0.15)
+        local ch = LocalPlayer.Character
+        if ch then
+            for _, c in ipairs(ch:GetChildren()) do
+                if isEgg(c) then return true end
+            end
+        end
+    end
+    return false
+end
+
+-- ═══════════ PLACE EGG AT BASE ═══════════
+local function placeEggsAtBase(session)
+    local char, hum, hrp = getChar()
+    if not hrp then return end
+    State.Status = "🏠 Returning to base..."
+    returnToBase(session)
+    task.wait(0.3)
+
+    -- Find base position
+    local base = Workspace:FindFirstChild("Plots")
+    local myBase = nil
+    if base then
+        for _, plot in ipairs(base:GetChildren()) do
+            local center = plot:FindFirstChild("CenterPoint")
+            if center then
+                myBase = center.Position
+                break
+            end
+        end
+    end
+    if not myBase then myBase = BASE_POS end
+
+    hrp.CFrame = CFrame.new(myBase + Vector3.new(0, 5, 0))
+    task.wait(0.3)
+
+    State.Status = "📦 Placing eggs..."
+    local placeRemote = Remotes.PlaceEgg
+    if placeRemote then
+        for _ = 1, 20 do
+            local ch = LocalPlayer.Character
+            local carried = 0
+            if ch then
+                for _, c in ipairs(ch:GetChildren()) do
+                    if isEgg(c) then carried = carried + 1 end
+                end
+            end
+            local bp = LocalPlayer:FindFirstChild("Backpack")
+            if bp then
+                for _, c in ipairs(bp:GetChildren()) do
+                    if isEgg(c) then carried = carried + 1 end
+                end
+            end
+            if carried == 0 then break end
+
+            pcall(function()
+                local uid
+                local tool = nil
+                if ch then
+                    for _, c in ipairs(ch:GetChildren()) do
+                        if isEgg(c) then tool = c break end
+                    end
+                end
+                if not tool and bp then
+                    for _, c in ipairs(bp:GetChildren()) do
+                        if isEgg(c) then tool = c break end
+                    end
+                end
+                if tool then
+                    uid = tool:GetAttribute("UID") or tool:GetAttribute("EggUid") or tool.Name
+                    if placeRemote:IsA("RemoteFunction") then
+                        placeRemote:InvokeServer({ Uid = uid, LocalCFrame = CFrame.new(0, 5, 0) })
+                    else
+                        placeRemote:FireServer({ Uid = uid, LocalCFrame = CFrame.new(0, 5, 0) })
+                    end
+                end
+            end)
+            task.wait(0.1)
+        end
+    end
+end
+
+-- ═══════════ HATCH ═══════════
+local function hatchAll(session)
+    local snapshot = Remotes.LiveSnapshot
+    local hatchRemote = Remotes.Hatch
+    local finishRemote = Remotes.FinishHatch
+    if not snapshot or not hatchRemote or not finishRemote then return end
+
+    State.Status = "🥚 Hatching..."
+    local ok, data = pcall(function() return snapshot:InvokeServer() end)
+    if not ok or type(data) ~= "table" then return end
+
+    local uidList = {}
+    for uid, rec in pairs(data) do
+        if type(rec) == "table" and rec.OwnerUserId == LocalPlayer.UserId then
+            for u in pairs(rec.Records or {}) do
+                table.insert(uidList, u)
+            end
+        end
+    end
+
+    for _, uid in ipairs(uidList) do
+        if session and State.Session ~= session then return end
+        pcall(function()
+            if hatchRemote:IsA("RemoteFunction") then
+                hatchRemote:InvokeServer(uid)
+            else
+                hatchRemote:FireServer(uid)
+            end
+        end)
+        task.wait(0.9)
+        pcall(function()
+            if finishRemote:IsA("RemoteFunction") then
+                finishRemote:InvokeServer(uid)
+            else
+                finishRemote:FireServer(uid)
+            end
+        end)
+        task.wait(0.1)
+    end
+end
+
+-- ═══════════ TREADMILL ═══════════
+local function findTreadmill()
+    local plots = Workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+    for _, plot in ipairs(plots:GetChildren()) do
+        local tread = plot:FindFirstChild("TreadmillBottom", true)
+        if tread and tread:IsA("BasePart") then return tread end
+    end
+    return nil
+end
+
+local function mountTreadmill()
+    local tread = findTreadmill()
+    if not tread then return false end
+    local char, hum, hrp = getChar()
+    if not hrp then return false end
+    hrp.CFrame = CFrame.new(tread.Position + Vector3.new(0, 2, 0))
+    task.wait(0.3)
+    pcall(function()
+        if typeof(firetouchinterest) == "function" then
+            firetouchinterest(hrp, tread, 0)
+            task.wait(0.05)
+            firetouchinterest(hrp, tread, 1)
+        end
+    end)
+    pcall(function()
+        for _, d in ipairs(tread:GetDescendants()) do
+            if d:IsA("ProximityPrompt") and d.Enabled then
+                if typeof(fireproximityprompt) == "function" then
+                    fireproximityprompt(d)
+                end
+            end
+        end
+    end)
+    local donRemote = Remotes.TreadmillDon
+    if donRemote then pcall(function() donRemote:InvokeServer() end) end
+    State.Status = "🏃 On treadmill"
+    return true
+end
+
+-- ═══════════ MAIN FARM LOOP ═══════════
+task.spawn(function()
+    while true do
+        task.wait(CONFIG.StealDelay)
+        if not State.Running or not CONFIG.AutoSteal then
+            State.Status = "💤 Idle"
+            continue
+        end
+
+        State.Session = State.Session + 1
+        local session = State.Session
+
+        local ok, err = pcall(function()
+            local target, matchCount = findBestTarget()
+
+            if not target then
+                -- No egg matching filter → go to treadmill if enabled
+                if CONFIG.AutoTreadmill then
+                    State.Status = "🛌 No target · treadmill"
+                    mountTreadmill()
+                else
+                    State.Status = "🔍 Scanning... (0 matches)"
+                end
+                return
+            end
+
+            State.CurrentTarget = target
+            State.Status = string.format("🎯 %s · %s · %d", target.rarity, target.realZone or target.zone, matchCount)
+
+            -- Glide to egg
+            local glideSpeed = 350
+            local sid = State.Session
+            glideTo(target.position + Vector3.new(0, 3, 0), glideSpeed, sid)
+            if State.Session ~= sid then return end
+
+            -- Secure egg
+            secureEgg(target, sid)
+            if State.Session ~= sid then return end
+
+            -- Auto place if enabled
+            if CONFIG.AutoPlace then
+                placeEggsAtBase(sid)
+            end
+        end)
+
+        if not ok then
+            State.Status = "⚠️ Recovered: " .. tostring(err):sub(1, 40)
+            task.wait(1)
+        end
+    end
+end)
+
+-- ═══════════ AUTO HATCH LOOP ═══════════
+task.spawn(function()
+    while true do
+        task.wait(4)
+        if State.Running and CONFIG.AutoHatch then
+            pcall(hatchAll, State.Session)
+        end
+    end
+end)
+
+-- ═══════════ FPS BOOST ═══════════
+local FpsState = { lightingSnap = nil, removed = {} }
+
+local function isImportant(inst)
+    if not inst then return true end
+    local n = inst.Name:lower()
+    if n:find("egg") or n:find("monster") or n:find("guard") or n:find("npc")
+        or n:find("boss") or n:find("pet") or n:find("player") then return true end
+    if inst:GetAttribute("IsEgg") or inst:GetAttribute("IsMonster") then return true end
+    if inst.Name == "HumanoidRootPart" or inst.Name == "Humanoid" then return true end
+    return false
+end
+
+local function applyFPSObjects(state)
+    if state then
+        FpsState.removed = {}
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if isImportant(obj) then continue end
+            local isPlayerPart = false
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Character and obj:IsDescendantOf(plr.Character) then
+                    isPlayerPart = true break
+                end
+            end
+            if isPlayerPart then continue end
+
+            pcall(function()
+                if obj:IsA("BasePart") then
+                    obj.Transparency = 1
+                    obj.CanCollide = false
+                    obj.CastShadow = false
+                    table.insert(FpsState.removed, obj)
+                elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 1
+                    table.insert(FpsState.removed, obj)
+                elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail")
+                    or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles")
+                    or obj:IsA("Beam") or obj:IsA("Light") then
+                    obj.Enabled = false
+                    table.insert(FpsState.removed, obj)
+                end
+            end)
+        end
+    else
+        for _, obj in ipairs(FpsState.removed) do
+            pcall(function()
+                if obj and obj.Parent then
+                    if obj:IsA("BasePart") then
+                        obj.Transparency = 0
+                        obj.CanCollide = true
+                        obj.CastShadow = true
+                    elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                        obj.Transparency = 0
+                    elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail")
+                        or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles")
+                        or obj:IsA("Beam") or obj:IsA("Light") then
+                        obj.Enabled = true
+                    end
+                end
+            end)
+        end
+        FpsState.removed = {}
+    end
+end
+
+local function applyFPSShadows(state)
+    if state then
+        if not FpsState.lightingSnap then
+            FpsState.lightingSnap = {
+                GlobalShadows = Lighting.GlobalShadows,
+                FogEnd = Lighting.FogEnd,
+                Brightness = Lighting.Brightness,
+                Ambient = Lighting.Ambient,
+            }
+        end
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+        Lighting.Brightness = 2
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("BasePart") then obj.CastShadow = false end
+            end)
+        end
+    else
+        if FpsState.lightingSnap then
+            Lighting.GlobalShadows = FpsState.lightingSnap.GlobalShadows
+            Lighting.FogEnd = FpsState.lightingSnap.FogEnd
+            Lighting.Brightness = FpsState.lightingSnap.Brightness
+            Lighting.Ambient = FpsState.lightingSnap.Ambient
+        else
+            Lighting.GlobalShadows = true
+        end
+    end
+end
+
+local function applyFPSTextures(state)
+    if state then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 1
+                elseif obj:IsA("BasePart") and obj.Material ~= Enum.Material.SmoothPlastic then
+                    obj.Material = Enum.Material.SmoothPlastic
+                end
+            end)
+        end
+    end
+end
+
+local function applyFPSLowGraphics(state)
+    if state then
+        applyFPSShadows(true)
+        applyFPSTextures(true)
+        pcall(function()
+            for _, fx in ipairs(Lighting:GetChildren()) do
+                if fx:IsA("PostEffect") or fx:IsA("BloomEffect") or fx:IsA("BlurEffect")
+                    or fx:IsA("ColorCorrectionEffect") or fx:IsA("SunRaysEffect")
+                    or fx:IsA("DepthOfFieldEffect") or fx:IsA("Atmosphere") then
+                    fx.Enabled = false
+                end
+            end
+        end)
+    end
+end
+
+-- ═══════════ GODMODE ═══════════
+local function applyGodmode(state)
+    local char, hum = getChar()
+    if not hum then return end
+    hum:SetStateEnabled(Enum.HumanoidStateType.Dead, not state)
+    if state and hum.Health < 100 then hum.Health = 100 end
+    if char then
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanTouch = not state
+            end
+        end
+    end
+end
+
+-- ═══════════ ANTI AFK INDEPENDENT ═══════════
+task.spawn(function()
+    while true do
+        task.wait(60)
+        if CONFIG.AntiAFK then
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new())
+            end)
+        end
+    end
+end)
+
+-- ═══════════ WEBHOOK ═══════════
+local function sendWebhook(title, desc)
+    if not CONFIG.WebhookEnabled then return end
+    if not CONFIG.WebhookUrl:find("discord.com/api/webhooks") then return end
+    local payload = HttpService:JSONEncode({
+        username = "Jepry Hub",
+        embeds = {{
+            title = "🥚 " .. tostring(title),
+            description = tostring(desc),
+            color = 0xE8E8E8,
+            footer = { text = "Jepry Hub · Steal an Egg" },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        }}
+    })
+    task.spawn(function()
+        pcall(function()
+            local req = (syn and syn.request) or (http and http.request) or http_request or request
+            if req then
+                req({
+                    Url = CONFIG.WebhookUrl,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = payload,
+                })
+            end
+        end)
+    end)
+end
+
+-- ═══════════ TARGET HUD ═══════════
+local function buildTargetHUD()
+    local pg = LocalPlayer:WaitForChild("PlayerGui")
+    local old = pg:FindFirstChild("JepryTargetHUD")
+    if old then old:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "JepryTargetHUD"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.DisplayOrder = 100
+    gui.Parent = pg
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 290, 0, 240)
+    frame.Position = UDim2.new(0, 15, 0.5, -120)
+    frame.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+    frame.BackgroundTransparency = 0.08
+    frame.BorderSizePixel = 0
+    frame.Active = true
+    frame.Draggable = true
+    frame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(70, 70, 90)
+    stroke.Thickness = 1.2
+    stroke.Parent = frame
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 32)
+    titleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = frame
+    local tc = Instance.new("UICorner")
+    tc.CornerRadius = UDim.new(0, 12)
+    tc.Parent = titleBar
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -20, 1, 0)
+    title.Position = UDim2.new(0, 12, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🎯 JEPRY TARGET"
+    title.TextColor3 = Color3.fromRGB(240, 240, 250)
+    title.TextSize = 13
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = titleBar
+
+    local body = Instance.new("Frame")
+    body.Size = UDim2.new(1, 0, 1, -32)
+    body.Position = UDim2.new(0, 0, 0, 32)
+    body.BackgroundTransparency = 1
+    body.Parent = frame
+
+    local function row(order, label)
+        local r = Instance.new("Frame")
+        r.Size = UDim2.new(1, -20, 0, 24)
+        r.Position = UDim2.new(0, 10, 0, order * 24 + 6)
+        r.BackgroundTransparency = 1
+        r.Parent = body
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0.42, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = Color3.fromRGB(130, 130, 145)
+        lbl.TextSize = 11
+        lbl.Font = Enum.Font.Gotham
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = r
+
+        local val = Instance.new("TextLabel")
+        val.Size = UDim2.new(0.58, 0, 1, 0)
+        val.Position = UDim2.new(0.42, 0, 0, 0)
+        val.BackgroundTransparency = 1
+        val.Text = "—"
+        val.TextColor3 = Color3.fromRGB(240, 240, 250)
+        val.TextSize = 11
+        val.Font = Enum.Font.GothamBold
+        val.TextXAlignment = Enum.TextXAlignment.Right
+        val.TextTruncate = Enum.TextTruncate.AtEnd
+        val.Parent = r
+        return val
+    end
+
+    local vTarget   = row(0, "🥚 Target")
+    local vRarity   = row(1, "✨ Rarity")
+    local vZone     = row(2, "🌍 Zone")
+    local vScore    = row(3, "🏆 Priority")
+    local vFilters  = row(4, "⚙️ Filters")
+    local vMode     = row(5, "📡 Mode")
+    local vFound    = row(6, "🔍 Matches")
+
+    return {
+        gui = gui, frame = frame,
+        vTarget = vTarget, vRarity = vRarity, vZone = vZone,
+        vScore = vScore, vFilters = vFilters, vMode = vMode, vFound = vFound,
+    }
+end
+
+local TargetHUD = buildTargetHUD()
+
+task.spawn(function()
+    while TargetHUD.gui.Parent do
+        task.wait(0.4)
+        pcall(function()
+            local target = State.CurrentTarget
+
+            -- Filters
+            local zCount, rCount = 0, 0
+            for _, v in pairs(CONFIG.SelectedZones) do if v then zCount = zCount + 1 end end
+            for _, v in pairs(CONFIG.SelectedRarities) do if v then rCount = rCount + 1 end end
+            TargetHUD.vFilters.Text = string.format("%d/12 · %d/10", zCount, rCount)
+            TargetHUD.vFilters.TextColor3 = (zCount == 0 and rCount == 0)
+                and Color3.fromRGB(255, 200, 80)
+                or Color3.fromRGB(80, 220, 120)
+
+            if target then
+                TargetHUD.vTarget.Text = tostring(target.name or "Egg"):sub(1, 22)
+                TargetHUD.vTarget.TextColor3 = Color3.fromRGB(255, 235, 130)
+
+                TargetHUD.vRarity.Text = tostring(target.rarity)
+                TargetHUD.vRarity.TextColor3 = RarityColors[target.rarity] or Color3.fromRGB(200, 200, 200)
+
+                TargetHUD.vZone.Text = tostring(target.realZone or target.zone)
+                TargetHUD.vZone.TextColor3 = Color3.fromRGB(150, 230, 255)
+
+                TargetHUD.vScore.Text = tostring(target.score or 0)
+                TargetHUD.vScore.TextColor3 = (target.score or 0) >= 400000
+                    and Color3.fromRGB(255, 100, 100)
+                    or Color3.fromRGB(255, 180, 100)
+            else
+                TargetHUD.vTarget.Text = "—"
+                TargetHUD.vRarity.Text = "—"
+                TargetHUD.vZone.Text = "—"
+                TargetHUD.vScore.Text = "—"
+            end
+
+            -- Matches count
+            local _, mcount = findBestTarget()
+            TargetHUD.vFound.Text = tostring(mcount or 0)
+
+            -- Status
+            TargetHUD.vMode.Text = State.Status or "Idle"
+        end)
+    end
+end)
+
+-- ═══════════ RAYFIELD GEN 2 UI ═══════════
+local Window = Rayfield:CreateWindow({
+    name = "🥚 Steal An Egg · Ultimate",
+    subtitle = "✨ Made by: Jepry_jago112 ✨",
+    sidebarLayout = true,
+    theme = "cobalt",
+    configuration = {
+        autoSave = false,
+    },
+})
+
+-- ═══ TABS ═══
+local FarmTab     = Window:CreateTab({ name = "🥚 Farm", icon = "egg" })
+local FilterTab   = Window:CreateTab({ name = "🎯 Filters", icon = "filter" })
+local PlayerTab   = Window:CreateTab({ name = "🏃 Player", icon = "user" })
+local BoostTab    = Window:CreateTab({ name = "⚡ FPS Boost", icon = "zap" })
+local MiscTab     = Window:CreateTab({ name = "🎮 Misc", icon = "settings" })
+local InfoTab     = Window:CreateTab({ name = "ℹ️ Info", icon = "info" })
+
+Window:Notify({
+    title = "🥚 Ultimate Hub Loaded!",
+    content = "Made with ❤️ by Jepry_jago112",
+    duration = 5,
+})
+
+-- ═══════════ FARM TAB ═══════════
+FarmTab:CreateSection("⚙️ Master Control")
+
+FarmTab:CreateToggle({
+    name = "▶️ START AUTO FARM",
+    flag = "MasterFarm",
+    currentValue = false,
+    callback = function(v)
+        State.Running = v
+        if v then
+            Window:Notify({ title = "▶️ Farm Started", content = "Auto steal activated!", duration = 3 })
+        else
+            Window:Notify({ title = "⏹️ Farm Stopped", content = "Auto steal disabled", duration = 3 })
+        end
+    end,
+})
+
+FarmTab:CreateSection("🥚 Egg Actions")
+
+FarmTab:CreateToggle({
+    name = "🥚 Auto Steal Egg",
+    flag = "AutoSteal",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoSteal = v
+        State.Running = v
+        Window:Notify({ title = v and "✅ Auto Steal ON" or "❌ Auto Steal OFF", content = "Egg stealing updated", duration = 2 })
+    end,
+})
+
+FarmTab:CreateToggle({
+    name = "🏠 Auto Place (Return to Base)",
+    flag = "AutoPlace",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoPlace = v
+        if v then
+            sendWebhook("Auto Place Enabled", "Returning eggs to base automatically")
+        end
+    end,
+})
+
+FarmTab:CreateToggle({
+    name = "🥚 Auto Hatch Egg",
+    flag = "AutoHatch",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoHatch = v
+    end,
+})
+
+FarmTab:CreateSection("🏃 Treadmill")
+
+FarmTab:CreateToggle({
+    name = "🏃 Auto Treadmill (AFK Safe)",
+    flag = "AutoTreadmill",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoTreadmill = v
+        Window:Notify({
+            title = v and "🏃 Treadmill ON" or "🛑 Treadmill OFF",
+            content = v and "Will auto-mount when no egg found" or "Disabled",
+            duration = 2,
+        })
+    end,
+})
+
+FarmTab:CreateToggle({
+    name = "⬆️ Auto Upgrade Treadmill",
+    flag = "AutoUpgradeTreadmill",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoUpgradeTreadmill = v
+    end,
+})
+
+FarmTab:CreateSection("🎽 Trails & Index")
+
+FarmTab:CreateToggle({
+    name = "🎽 Auto Buy Trails",
+    flag = "AutoBuyTrails",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoBuyTrails = v
+    end,
+})
+
+FarmTab:CreateToggle({
+    name = "📚 Auto Index",
+    flag = "AutoIndex",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.AutoIndex = v
+    end,
+})
+
+FarmTab:CreateSection("⏱️ Timing")
+
+FarmTab:CreateSlider({
+    name = "Steal Loop Delay",
+    range = { 0.1, 5 },
+    increment = 0.1,
+    suffix = "s",
+    currentValue = 0.5,
+    flag = "StealDelay",
+    callback = function(v)
+        CONFIG.StealDelay = v
+    end,
+})
+
+FarmTab:CreateSection("🚀 Manual Actions")
+
+FarmTab:CreateButton({
+    name = "🏠 Force Return to Base",
+    callback = function()
+        task.spawn(function()
+            State.Session = State.Session + 1
+            placeEggsAtBase(State.Session)
+            Window:Notify({ title = "🏠 Returned", content = "Placed eggs at base", duration = 3 })
+        end)
+    end,
+})
+
+FarmTab:CreateButton({
+    name = "🥚 Force Hatch Once",
+    callback = function()
+        task.spawn(function()
+            hatchAll(State.Session)
+            Window:Notify({ title = "🥚 Hatched", content = "Hatch pass completed", duration = 3 })
+        end)
+    end,
+})
+
+FarmTab:CreateButton({
+    name = "🎯 Steal Nearest Now",
+    callback = function()
+        task.spawn(function()
+            local target = findBestTarget()
+            if target then
+                local sid = State.Session
+                glideTo(target.position + Vector3.new(0, 3, 0), 350, sid)
+                secureEgg(target, sid)
+                Window:Notify({ title = "🎯 Stolen", content = target.rarity .. " · " .. target.zone, duration = 3 })
+            else
+                Window:Notify({ title = "❌ No Target", content = "No egg matches your filters", duration = 3 })
+            end
+        end)
+    end,
+})
+
+-- ═══════════ FILTER TAB ═══════════
+FilterTab:CreateSection("🌍 Biome / Zone Selection")
+FilterTab:CreateLabel("Select which zones to steal from")
+
+FilterTab:CreateToggle({
+    name = "🌑 Light Dark",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedZones["Light Dark"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🏛️ Titan Temple",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedZones["Titan Temple"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🌸 Cherry Blossom",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedZones["Cherry Blossom"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🌌 Cosmic",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Cosmic"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🦕 Prehistoric",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Prehistoric"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🌊 Abyss Ocean",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Abyss Ocean"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🌋 Volcano",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Volcano"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "❄️ Snow",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Snow"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🌴 Jungle",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Jungle"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🏜️ Desert",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Desert"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🏞️ Lake",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Lake"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🌲 Forest",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedZones["Forest"] = v end,
+})
+
+FilterTab:CreateSection("✨ Rarity Selection")
+FilterTab:CreateLabel("Only steal eggs with these rarities")
+
+FilterTab:CreateToggle({
+    name = "💜 Divine",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedRarities["Divine"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "💛 Eternal",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedRarities["Eternal"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "❤️ Secret",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedRarities["Secret"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "💙 Cosmic",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedRarities["Cosmic"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🧡 Mythic",
+    currentValue = true,
+    callback = function(v) CONFIG.SelectedRarities["Mythic"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "💚 Legendary",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedRarities["Legendary"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "💠 Epic",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedRarities["Epic"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🔷 Rare",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedRarities["Rare"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "🟢 Uncommon",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedRarities["Uncommon"] = v end,
+})
+FilterTab:CreateToggle({
+    name = "⚪ Common",
+    currentValue = false,
+    callback = function(v) CONFIG.SelectedRarities["Common"] = v end,
+})
+
+FilterTab:CreateSection("🎁 Special")
+
+FilterTab:CreateToggle({
+    name = "⭐ Always Steal Secret+",
+    currentValue = true,
+    callback = function(v) CONFIG.AlwaysSecretPlus = v end,
+})
+
+FilterTab:CreateSection("⚡ Quick Presets")
+
+FilterTab:CreateButton({
+    name = "🎯 Preset: High Value Only (Divine+)",
+    callback = function()
+        for k in pairs(CONFIG.SelectedZones) do CONFIG.SelectedZones[k] = true end
+        CONFIG.SelectedRarities = {
+            Divine=true, Eternal=true, Secret=true, Cosmic=false, Mythic=false,
+            Legendary=false, Epic=false, Rare=false, Uncommon=false, Common=false,
+        }
+        Window:Notify({ title = "🎯 Preset Applied", content = "Divine+ only, all zones", duration = 3 })
+    end,
+})
+
+FilterTab:CreateButton({
+    name = "🎯 Preset: Balanced (Legendary+)",
+    callback = function()
+        for k in pairs(CONFIG.SelectedZones) do CONFIG.SelectedZones[k] = true end
+        CONFIG.SelectedRarities = {
+            Divine=true, Eternal=true, Secret=true, Cosmic=true, Mythic=true,
+            Legendary=true, Epic=false, Rare=false, Uncommon=false, Common=false,
+        }
+        Window:Notify({ title = "🎯 Preset Applied", content = "Legendary+, all zones", duration = 3 })
+    end,
+})
+
+FilterTab:CreateButton({
+    name = "🎯 Preset: All Rarities",
+    callback = function()
+        for k in pairs(CONFIG.SelectedZones) do CONFIG.SelectedZones[k] = true end
+        for k in pairs(CONFIG.SelectedRarities) do CONFIG.SelectedRarities[k] = true end
+        Window:Notify({ title = "🎯 Preset Applied", content = "All eggs, all zones", duration = 3 })
+    end,
+})
+
+FilterTab:CreateButton({
+    name = "❌ Clear All Filters",
+    callback = function()
+        for k in pairs(CONFIG.SelectedZones) do CONFIG.SelectedZones[k] = false end
+        for k in pairs(CONFIG.SelectedRarities) do CONFIG.SelectedRarities[k] = false end
+        Window:Notify({ title = "❌ Cleared", content = "All filters reset", duration = 3 })
+    end,
+})
+
+-- ═══════════ PLAYER TAB ═══════════
+PlayerTab:CreateSection("🏃 Movement")
+
+PlayerTab:CreateSlider({
+    name = "WalkSpeed",
+    range = { 16, 500 },
+    increment = 1,
+    suffix = "studs/s",
+    currentValue = 16,
+    callback = function(v)
+        CONFIG.WalkSpeed = v
+        local _, hum = getChar()
+        if hum then hum.WalkSpeed = v end
+    end,
+})
+
+PlayerTab:CreateSlider({
+    name = "JumpPower",
+    range = { 50, 500 },
+    increment = 1,
+    suffix = "power",
+    currentValue = 50,
+    callback = function(v)
+        CONFIG.JumpPower = v
+        local _, hum = getChar()
+        if hum then hum.UseJumpPower = true hum.JumpPower = v end
+    end,
+})
+
+PlayerTab:CreateSection("🛡️ Protection")
+
+PlayerTab:CreateToggle({
+    name = "🛡️ Godmode",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.Godmode = v
+        applyGodmode(v)
+        Window:Notify({ title = v and "🛡️ Godmode ON" or "⚔️ Godmode OFF", content = "Protection updated", duration = 2 })
+    end,
+})
+
+PlayerTab:CreateToggle({
+    name = "🪤 Anti-Trap",
+    currentValue = true,
+    callback = function(v)
+        CONFIG.AntiTrap = v
+    end,
+})
+
+PlayerTab:CreateToggle({
+    name = "🚫 Anti AFK",
+    currentValue = true,
+    callback = function(v)
+        CONFIG.AntiAFK = v
+    end,
+})
+
+PlayerTab:CreateSection("🔄 Actions")
+
+PlayerTab:CreateButton({
+    name = "🔄 Refresh Character",
+    callback = function()
+        local char = LocalPlayer.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0) end
+        end
+        Window:Notify({ title = "🔄 Refreshed", content = "Character position reset", duration = 2 })
+    end,
+})
+
+PlayerTab:CreateButton({
+    name = "📍 Teleport to Base",
+    callback = function()
+        local char, _, hrp = getChar()
+        if hrp then
+            hrp.CFrame = CFrame.new(BASE_POS + Vector3.new(0, 5, 0))
+            Window:Notify({ title = "🏠 Teleported", content = "At spawn base", duration = 2 })
+        end
+    end,
+})
+
+PlayerTab:CreateButton({
+    name = "🎯 Teleport to Target Egg",
+    callback = function()
+        task.spawn(function()
+            local target = findBestTarget()
+            if target then
+                local _, _, hrp = getChar()
+                if hrp then hrp.CFrame = CFrame.new(target.position + Vector3.new(0, 3, 0)) end
+                Window:Notify({ title = "🎯 Teleported", content = target.rarity .. " · " .. target.zone, duration = 3 })
+            else
+                Window:Notify({ title = "❌ No Target", content = "No egg matches filters", duration = 3 })
+            end
+        end)
+    end,
+})
+
+-- ═══════════ FPS BOOST TAB ═══════════
+BoostTab:CreateSection("⚡ Performance Boost")
+BoostTab:CreateLabel("Improve FPS while keeping monsters, eggs, and players visible")
+
+BoostTab:CreateToggle({
+    name = "🗑️ Remove Decorative Objects",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.FPSObjects = v
+        applyFPSObjects(v)
+        Window:Notify({
+            title = v and "⚡ Objects Cleared" or "🔄 Objects Restored",
+            content = v and "Removed decorations (kept monsters/eggs)" or "Restored all objects",
+            duration = 3,
+        })
+    end,
+})
+
+BoostTab:CreateToggle({
+    name = "🌑 Remove Global Shadows",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.FPSShadows = v
+        applyFPSShadows(v)
+        Window:Notify({
+            title = v and "🌑 Shadows OFF" or "☀️ Shadows ON",
+            content = v and "Removed global shadows" or "Restored shadows",
+            duration = 2,
+        })
+    end,
+})
+
+BoostTab:CreateToggle({
+    name = "🖼️ Remove Textures / Decals",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.FPSTextures = v
+        applyFPSTextures(v)
+        Window:Notify({
+            title = v and "🖼️ Textures OFF" or "🎨 Textures ON",
+            content = v and "Textures stripped" or "Textures will reload",
+            duration = 2,
+        })
+    end,
+})
+
+BoostTab:CreateSection("🚀 Presets")
+
+BoostTab:CreateToggle({
+    name = "💎 Low Graphics Preset (All-in-one)",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.FPSLowGraphics = v
+        applyFPSLowGraphics(v)
+        Window:Notify({
+            title = v and "💎 Low Graphics ON" or "✨ High Graphics ON",
+            content = v and "All boosts applied" or "Graphics restored",
+            duration = 3,
+        })
+    end,
+})
+
+BoostTab:CreateSection("🛠️ Quick Actions")
+
+BoostTab:CreateButton({
+    name = "⚡ Apply All Boosts",
+    callback = function()
+        CONFIG.FPSObjects = true
+        CONFIG.FPSShadows = true
+        CONFIG.FPSTextures = true
+        applyFPSObjects(true)
+        applyFPSShadows(true)
+        applyFPSTextures(true)
+        Window:Notify({ title = "⚡ Applied", content = "All FPS boosts activated", duration = 3 })
+    end,
+})
+
+BoostTab:CreateButton({
+    name = "🔄 Revert All Boosts",
+    callback = function()
+        CONFIG.FPSObjects = false
+        CONFIG.FPSShadows = false
+        CONFIG.FPSTextures = false
+        CONFIG.FPSLowGraphics = false
+        applyFPSObjects(false)
+        applyFPSShadows(false)
+        Window:Notify({ title = "🔄 Reverted", content = "All FPS boosts disabled", duration = 3 })
+    end,
+})
+
+-- ═══════════ MISC TAB ═══════════
+MiscTab:CreateSection("🎮 HUD Control")
+
+MiscTab:CreateToggle({
+    name = "👁️ Show Target HUD",
+    currentValue = true,
+    callback = function(v)
+        if TargetHUD and TargetHUD.frame then
+            TargetHUD.frame.Visible = v
+        end
+    end,
+})
+
+MiscTab:CreateButton({
+    name = "🎯 Reset HUD Position",
+    callback = function()
+        if TargetHUD and TargetHUD.frame then
+            TargetHUD.frame.Position = UDim2.new(0, 15, 0.5, -120)
+        end
+        Window:Notify({ title = "🎯 Reset", content = "HUD position restored", duration = 2 })
+    end,
+})
+
+MiscTab:CreateSection("📢 Webhook Notifications")
+
+MiscTab:CreateToggle({
+    name = "🔔 Enable Webhook",
+    currentValue = false,
+    callback = function(v)
+        CONFIG.WebhookEnabled = v
+    end,
+})
+
+MiscTab:CreateInput({
+    name = "🔗 Webhook URL",
+    placeholder = "https://discord.com/api/webhooks/...",
+    currentValue = "",
+    removeTextAfterFocusLost = false,
+    callback = function(text)
+        CONFIG.WebhookUrl = text
+    end,
+})
+
+MiscTab:CreateButton({
+    name = "📨 Test Webhook",
+    callback = function()
+        CONFIG.WebhookEnabled = true
+        sendWebhook("🎉 Test Message", "Steal An Egg script webhook is working correctly! 🥚✨")
+        Window:Notify({ title = "📨 Sent", content = "Test message sent", duration = 3 })
+    end,
+})
+
+MiscTab:CreateSection("🌐 Server")
+
+MiscTab:CreateButton({
+    name = "🔄 Rejoin Server",
+    callback = function()
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end,
+})
+
+MiscTab:CreateButton({
+    name = "🎲 Server Hop",
+    callback = function()
+        task.spawn(function()
+            local ok, servers = pcall(function()
+                return HttpService:JSONDecode(game:HttpGet(
+                    "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+                ))
+            end)
+            if ok and servers and servers.data then
+                for _, s in ipairs(servers.data) do
+                    if s.playing < s.maxPlayers and s.id ~= game.JobId then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
+                        return
+                    end
+                end
+            end
+            Window:Notify({ title = "❌ Failed", content = "No available servers", duration = 3 })
+        end)
+    end,
+})
+
+MiscTab:CreateButton({
+    name = "📋 Copy Job ID",
+    callback = function()
+        if setclipboard then
+            setclipboard(game.JobId)
+            Window:Notify({ title = "📋 Copied", content = "Job ID: " .. game.JobId:sub(1, 8) .. "...", duration = 3 })
+        end
+    end,
+})
+
+MiscTab:CreateSection("⚠️ Danger Zone")
+
+MiscTab:CreateButton({
+    name = "🛑 Unload Script",
+    callback = function()
+        State.Running = false
+        pcall(function()
+            local pg = LocalPlayer:FindFirstChild("PlayerGui")
+            if pg then
+                local hud = pg:FindFirstChild("JepryTargetHUD")
+                if hud then hud:Destroy() end
+            end
+        end)
+        pcall(function() applyFPSObjects(false) end)
+        pcall(function() applyFPSShadows(false) end)
+        Window:Destroy()
+    end,
+})
+
+-- ═══════════ INFO TAB ═══════════
+InfoTab:CreateSection("👨‍💻 About")
+
+InfoTab:CreateLabel("🥚 Script: Steal An Egg - Ultimate Hub")
+InfoTab:CreateLabel("👤 Made by: Jepry_jago112")
+InfoTab:CreateLabel("🎨 UI: Rayfield Gen 2")
+InfoTab:CreateLabel("📅 Version: 3.0")
+
+InfoTab:CreateSection("✨ Features")
+
+InfoTab:CreateLabel("🎯 Smart target priority (Rarity + Zone + Scale)")
+InfoTab:CreateLabel("🌍 Custom biome/zone filtering")
+InfoTab:CreateLabel("✨ Rarity tier filtering (Divine → Common)")
+InfoTab:CreateLabel("🥚 Auto Steal · Place · Hatch · Treadmill")
+InfoTab:CreateLabel("🎽 Auto Buy Trails · Auto Index")
+InfoTab:CreateLabel("🛡️ Godmode · Anti-Trap · Anti-AFK")
+InfoTab:CreateLabel("⚡ FPS Boost (objects · shadows · textures)")
+InfoTab:CreateLabel("👁️ Live Target HUD with priority score")
+InfoTab:CreateLabel("📢 Webhook notifications")
+InfoTab:CreateLabel("🌐 Server hop · Rejoin")
+
+InfoTab:CreateSection("💡 Tips")
+
+InfoTab:CreateLabel("• Enable master farm toggle first")
+InfoTab:CreateLabel("• Tune filters to focus on high-value eggs")
+InfoTab:CreateLabel("• HUD shows current target live")
+InfoTab:CreateLabel("• Auto Treadmill kicks in when no egg found")
+InfoTab:CreateLabel("• Use FPS Boost for smoother gameplay")
+
+InfoTab:CreateSection("⚠️ Disclaimer")
+
+InfoTab:CreateLabel("Use at your own risk.")
+InfoTab:CreateLabel("Works best with a supported executor.")
+
+-- ═══════════ WELCOME ═══════════
+task.delay(1, function()
+    Window:Notify({
+        title = "💡 Tip",
+        content = "Enable 🥚 Auto Steal to begin farming!",
+        duration = 6,
+    })
+end)
+
+print("╔══════════════════════════════════════════════════╗")
+print("║  🥚 Steal An Egg · Ultimate Hub 🥚              ║")
+print("║  ✅ Loaded successfully                         ║")
+print("║  👤 Made by: Jepry_jago112                      ║")
+print("╚══════════════════════════════════════════════════╝")
