@@ -1,0 +1,1862 @@
+--[[
+    QuizBot v1 (beta)
+    =================
+    Chat-Based Multiplayer Quiz
+]]
+
+local function getRequestFunc()
+    for _, name in ipairs({"request","http_request","httprequest","secure_request","async_request","fetch"}) do
+        local ok, fn = pcall(function() return rawget(getgenv(), name) end)
+        if ok and type(fn) == "function" then return fn end
+    end
+    for _, ns in ipairs({"syn","fluxus","http","KRNL","wave","electron","solara","delta","comet","seliware","Celery","macsploit","coco","JJSploit","Vega","Swift","Xeno","AWP"}) do
+        local ok, tbl = pcall(function() return rawget(getgenv(), ns) end)
+        if ok and type(tbl) == "table" then
+            for _, meth in ipairs({"request","http_request","httprequest","Request","HttpRequest"}) do
+                local ok2, fn = pcall(function() return rawget(tbl, meth) end)
+                if ok2 and type(fn) == "function" then return fn end
+            end
+        end
+    end
+    return nil
+end
+
+local _requestFn = getRequestFunc()
+
+local function httpRequest(params)
+    if not _requestFn then warn("[QuizBot] No HTTP executor function found."); return nil end
+    local ok, res = pcall(_requestFn, params)
+    if not ok then warn("[QuizBot] HTTP error: " .. tostring(res)); return nil end
+    return res
+end
+
+local function parseHttpResponse(res)
+    if not res then return false, "", nil end
+    local bodyStr = res.Body or res.body or res.content or res.text or res.data or ""
+    if type(bodyStr) ~= "string" then bodyStr = tostring(bodyStr) end
+    local code    = res.StatusCode or res.status_code or res.status or res.Status
+    local success = res.Success or res.success
+    if success == nil then success = (code == 200) end
+    return success, bodyStr, code
+end
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+
+local Players            = game:GetService("Players")
+local HttpService        = game:GetService("HttpService")
+local TextChatService    = game:GetService("TextChatService")
+local StarterGui         = game:GetService("StarterGui")
+local MarketplaceService = game:GetService("MarketplaceService")
+local SoundService       = game:GetService("SoundService")
+local localPlayer        = Players.LocalPlayer
+
+local function safe(label, fn, ...)
+    local ok, res = pcall(fn, ...)
+    if not ok then warn("[QuizBot UI] Failed: " .. label .. " -> " .. tostring(res)); return nil end
+    return res
+end
+
+local function _getWriteFile()
+    return rawget(getgenv(),"writefile") or rawget(getgenv(),"writeFile")
+        or (type(writefile) == "function" and writefile) or nil
+end
+local function _getReadFile()
+    return rawget(getgenv(),"readfile") or rawget(getgenv(),"readFile")
+        or (type(readfile) == "function" and readfile) or nil
+end
+local function canWriteFile()
+    return type(_getWriteFile()) == "function" and type(_getReadFile()) == "function"
+end
+
+local DEFAULT_CATEGORIES = {
+    "🔬 Science", "📜 History", "🌍 Geography", "⚽ Sports",
+    "💻 Technology", "🎬 Movies", "📚 Literature", "➗ Mathematics",
+}
+local DEFAULT_CATEGORIES_RAW = {
+    ["🔬 Science"]     = "Science",
+    ["📜 History"]     = "History",
+    ["🌍 Geography"]   = "Geography",
+    ["⚽ Sports"]      = "Sports",
+    ["💻 Technology"]  = "Technology",
+    ["🎬 Movies"]      = "Movies",
+    ["📚 Literature"]  = "Literature",
+    ["➗ Mathematics"] = "Mathematics",
+}
+local DIFFICULTIES = { "🟢 Easy", "🟡 Medium", "🟠 Hard", "🔴 Very Hard", "💀 Hardcore" }
+local DIFFICULTIES_RAW = {
+    ["🟢 Easy"]      = "Easy",
+    ["🟡 Medium"]    = "Medium",
+    ["🟠 Hard"]      = "Hard",
+    ["🔴 Very Hard"] = "Very Hard",
+    ["💀 Hardcore"]  = "Hardcore",
+}
+
+local PUBLIC_KEY       = ""
+local PUBLIC_KEY_LABEL = "Public Key (Free)"
+local SAVE_FILE        = "quizbot_api_keys.json"
+local CONFIG_FILE      = "quizbot_config.json"
+local HISTORY_FILE     = "quizbot_history.json"
+local MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
+local MISTRAL_MODELS_ENDPOINT = "https://api.mistral.ai/v1/models"
+local DEFAULT_MODEL    = "ministral-8b-latest"
+
+local State = {
+    phase               = "idle",
+    savedApiKeys        = {},
+    activeApiKeyIndex   = 0,
+    apiKeyValidated     = false,
+    modelsAvailable     = 0,
+    lastModelUsed       = DEFAULT_MODEL,
+    lastCallPrompt      = 0,
+    lastCallCompletion  = 0,
+    lastFetched         = "—",
+    category            = nil,
+    difficulty          = nil,
+    questions           = {},
+    currentIndex        = 0,
+    votes               = {},
+    scores              = {},
+    answers             = {},
+    mode                = "Direct",
+    totalQuestions      = 20,
+    voteTime            = 20,
+    questionTime        = 15,
+    soundEnabled        = true,
+    skipRequested       = false,
+    endRequested        = false,
+    customCategories    = {},
+    customCatMap        = {},
+    speedBonusEnabled   = true,
+    streakBonusEnabled  = true,
+    shuffleQuestions    = false,
+    autoSaveConfig      = true,
+    quizHistory         = {},
+    playerStats         = {},
+    firstAnswererId     = nil,
+    lastGeneratedQuiz   = nil,
+}
+local running = false
+
+local refreshUI
+local refreshPlayerList
+local refreshAPIInfo
+local refreshHistory
+local refreshStats
+local refreshExtrasStatus
+local refreshCategoryDropdown
+local refreshCustomDeleteDropdown
+local startQuizFlow
+
+local function getActiveKey()
+    local entry = State.savedApiKeys[State.activeApiKeyIndex]
+    return entry and entry.key or nil
+end
+local function maskKey(key)
+    if not key or key == "" then return "—" end
+    if #key <= 12 then return key:sub(1, 4) .. "..." end
+    return key:sub(1, 8) .. "..."
+end
+local function getTimestamp()
+    local ok, t = pcall(function() return os.date("%Y-%m-%d %H:%M:%S") end)
+    return ok and t or "—"
+end
+local function getModeLabel()
+    return (State.mode == "Direct") and "Direct Selection" or "Chat Voting"
+end
+
+local function saveKeysToFile()
+    if not canWriteFile() then return false end
+    local wf = _getWriteFile()
+    local data = { savedApiKeys = State.savedApiKeys, activeApiKeyIndex = State.activeApiKeyIndex }
+    local ok, enc = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok then return false end
+    return pcall(wf, SAVE_FILE, enc)
+end
+
+local function loadKeysFromFile()
+    if not canWriteFile() then return false end
+    local rf = _getReadFile()
+    local ok, raw = pcall(rf, SAVE_FILE)
+    if not ok or not raw or raw == "" then return false end
+    local ok2, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not ok2 or type(decoded) ~= "table" then return false end
+    if type(decoded.savedApiKeys) == "table" then State.savedApiKeys = decoded.savedApiKeys end
+    if type(decoded.activeApiKeyIndex) == "number" then State.activeApiKeyIndex = decoded.activeApiKeyIndex end
+    return true
+end
+
+local function saveConfigToFile()
+    if not canWriteFile() then return false end
+    local wf = _getWriteFile()
+    local data = {
+        mode               = State.mode,
+        totalQuestions     = State.totalQuestions,
+        voteTime           = State.voteTime,
+        questionTime       = State.questionTime,
+        soundEnabled       = State.soundEnabled,
+        speedBonusEnabled  = State.speedBonusEnabled,
+        streakBonusEnabled = State.streakBonusEnabled,
+        shuffleQuestions   = State.shuffleQuestions,
+        autoSaveConfig     = State.autoSaveConfig,
+        category           = State.category,
+        difficulty         = State.difficulty,
+        customCategories   = State.customCategories,
+    }
+    local ok, enc = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok then return false end
+    return pcall(wf, CONFIG_FILE, enc)
+end
+
+local function loadConfigFromFile()
+    if not canWriteFile() then return false end
+    local rf = _getReadFile()
+    local ok, raw = pcall(rf, CONFIG_FILE)
+    if not ok or not raw or raw == "" then return false end
+    local ok2, d = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not ok2 or type(d) ~= "table" then return false end
+    if type(d.mode) == "string" then State.mode = d.mode end
+    if type(d.totalQuestions) == "number" then State.totalQuestions = d.totalQuestions end
+    if type(d.voteTime) == "number" then State.voteTime = d.voteTime end
+    if type(d.questionTime) == "number" then State.questionTime = d.questionTime end
+    if type(d.soundEnabled) == "boolean" then State.soundEnabled = d.soundEnabled end
+    if type(d.speedBonusEnabled) == "boolean" then State.speedBonusEnabled = d.speedBonusEnabled end
+    if type(d.streakBonusEnabled) == "boolean" then State.streakBonusEnabled = d.streakBonusEnabled end
+    if type(d.shuffleQuestions) == "boolean" then State.shuffleQuestions = d.shuffleQuestions end
+    if type(d.autoSaveConfig) == "boolean" then State.autoSaveConfig = d.autoSaveConfig end
+    if type(d.category) == "string" then State.category = d.category end
+    if type(d.difficulty) == "string" then State.difficulty = d.difficulty end
+    if type(d.customCategories) == "table" then
+        State.customCategories = d.customCategories
+        State.customCatMap = {}
+        for _, c in ipairs(d.customCategories) do
+            if c.label and c.raw then State.customCatMap[c.label] = c.raw end
+        end
+    end
+    return true
+end
+
+local function saveHistoryToFile()
+    if not canWriteFile() then return false end
+    local wf = _getWriteFile()
+    local data = { quizHistory = State.quizHistory, playerStats = State.playerStats }
+    local ok, enc = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok then return false end
+    return pcall(wf, HISTORY_FILE, enc)
+end
+
+local function loadHistoryFromFile()
+    if not canWriteFile() then return false end
+    local rf = _getReadFile()
+    local ok, raw = pcall(rf, HISTORY_FILE)
+    if not ok or not raw or raw == "" then return false end
+    local ok2, d = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not ok2 or type(d) ~= "table" then return false end
+    if type(d.quizHistory) == "table" then State.quizHistory = d.quizHistory end
+    if type(d.playerStats) == "table" then State.playerStats = d.playerStats end
+    return true
+end
+
+local function injectPublicKey()
+    if PUBLIC_KEY == "" then return end
+    for _, entry in ipairs(State.savedApiKeys) do
+        if entry.key == PUBLIC_KEY then return end
+    end
+    table.insert(State.savedApiKeys, 1, { key = PUBLIC_KEY, label = PUBLIC_KEY_LABEL })
+    if State.activeApiKeyIndex == 0 then State.activeApiKeyIndex = 1 end
+    saveKeysToFile()
+end
+
+local function getAllCategories()
+    local list = {}
+    for _, c in ipairs(DEFAULT_CATEGORIES) do table.insert(list, c) end
+    for _, c in ipairs(State.customCategories) do table.insert(list, c.label) end
+    return list
+end
+local function getCategoryRaw(label)
+    return DEFAULT_CATEGORIES_RAW[label] or State.customCatMap[label] or label
+end
+
+local SOUND = { correct = "9118823109", wrong = "9118823655", notify = "9118824255" }
+local function playSound(id)
+    if not State.soundEnabled then return end
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://" .. id
+    s.Volume = 0.5
+    s.Parent = SoundService
+    s:Play()
+    game:GetService("Debris"):AddItem(s, 3)
+end
+
+local function broadcast(text)
+    local ok = pcall(function()
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local channels = TextChatService:FindFirstChild("TextChannels")
+            if channels then
+                local general = channels:FindFirstChild("RBXGeneral")
+                if general then
+                    general:DisplaySystemMessage(text)
+                    return true
+                end
+                for _, ch in ipairs(channels:GetChildren()) do
+                    if ch:IsA("TextChannel") then
+                        ch:DisplaySystemMessage(text)
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end)
+    if ok then return end
+    pcall(function() StarterGui:SetCore("ChatMakeSystemMessage", { Text = text }) end)
+end
+
+local function callMistral(messages, useJson)
+    local activeKey = getActiveKey()
+    if not activeKey or activeKey == "" then return false, "No active API key selected." end
+    local body = HttpService:JSONEncode({
+        model           = State.lastModelUsed,
+        messages        = messages,
+        temperature     = 0.9,
+        response_format = useJson and { type = "json_object" } or nil,
+    })
+    local res = httpRequest({
+        Url     = MISTRAL_ENDPOINT,
+        Method  = "POST",
+        Headers = {
+            ["Content-Type"]  = "application/json",
+            ["Authorization"] = "Bearer " .. tostring(activeKey),
+        },
+        Body = body,
+    })
+    local success, respBody, code = parseHttpResponse(res)
+    if not success then return false, "HTTP " .. tostring(code) .. " — " .. tostring(respBody) end
+    pcall(function()
+        local decoded = HttpService:JSONDecode(respBody)
+        if decoded.usage then
+            State.lastCallPrompt     = decoded.usage.prompt_tokens or 0
+            State.lastCallCompletion = decoded.usage.completion_tokens or 0
+        end
+    end)
+    State.lastFetched = getTimestamp()
+    return true, respBody
+end
+
+local function fetchModels()
+    local activeKey = getActiveKey()
+    if not activeKey or activeKey == "" then return false, 0 end
+    local res = httpRequest({
+        Url     = MISTRAL_MODELS_ENDPOINT,
+        Method  = "GET",
+        Headers = { ["Authorization"] = "Bearer " .. tostring(activeKey) },
+    })
+    local success, respBody = parseHttpResponse(res)
+    if not success then return false, 0 end
+    local ok, decoded = pcall(function() return HttpService:JSONDecode(respBody) end)
+    if not ok or not decoded.data then return false, 0 end
+    return true, #decoded.data
+end
+
+local function generateQuestions(category, difficulty)
+    local prompt = string.format([[
+Generate %d multiple-choice quiz questions.
+Category: %s
+Difficulty: %s
+Rules:
+- Each question must be unique, varied, and randomized.
+- Exactly 4 choices per question.
+- Provide the correct answer as index 0-3.
+Return ONLY JSON matching: {"questions":[{"question":"...","choices":["a","b","c","d"],"answer":0}, ...]}
+]], State.totalQuestions, category, difficulty)
+    local ok, body = callMistral({
+        { role = "system", content = "You are a quiz generator. Output strictly valid JSON." },
+        { role = "user",   content = prompt }
+    }, true)
+    if not ok then return nil, body end
+    local decoded = HttpService:JSONDecode(body)
+    local content = decoded.choices[1].message.content
+    local ok2, parsed = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok2 or not parsed.questions then return nil, "Failed to parse questions." end
+    return parsed.questions
+end
+
+local function generateCategoryWithAI()
+    local prompt = [[
+Generate ONE creative, unique quiz category (2 to 4 words).
+Examples: "Cyberpunk Lore", "Deep Sea Creatures", "Medieval Japan".
+Return ONLY JSON: {"category":"Category Name"}
+]]
+    local ok, body = callMistral({
+        { role = "system", content = "Creative category generator. Output strictly valid JSON." },
+        { role = "user",   content = prompt }
+    }, true)
+    if not ok then return nil, body end
+    local decoded = HttpService:JSONDecode(body)
+    local content = decoded.choices[1].message.content
+    local ok2, parsed = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok2 or not parsed.category then return nil, "Failed to parse category." end
+    return parsed.category
+end
+
+local function tallyVotes()
+    local counts = {}
+    for _, choice in pairs(State.votes) do
+        counts[choice] = (counts[choice] or 0) + 1
+    end
+    local best, bestN = nil, 0
+    for k, n in pairs(counts) do
+        if n > bestN then best, bestN = k, n end
+    end
+    return best
+end
+
+local function calculatePoints(userId)
+    local points = 1
+    if State.speedBonusEnabled and State.firstAnswererId == userId then
+        points = points + 1
+    end
+    if State.streakBonusEnabled then
+        local stats = State.playerStats[userId]
+        local streak = stats and stats.streak or 0
+        if streak >= 3 then
+            points = points + 1
+        end
+    end
+    return points
+end
+
+local function handleChat(speaker, message)
+    local num = tonumber(message:match("^%s*(%d+)%s*$"))
+    if not num then return end
+
+    if State.phase == "selectingCategory" then
+        if speaker == localPlayer then
+            local total = #getAllCategories()
+            if num >= 1 and num <= total then
+                State.votes[speaker.UserId] = num
+            end
+        end
+    elseif State.phase == "selectingDifficulty" then
+        if speaker == localPlayer then
+            if num >= 1 and num <= #DIFFICULTIES then
+                State.votes[speaker.UserId] = num
+            end
+        end
+    elseif State.phase == "votingCategory" then
+        local total = #getAllCategories()
+        if num >= 1 and num <= total and not State.votes[speaker.UserId] then
+            State.votes[speaker.UserId] = num
+            broadcast("🗳️ " .. speaker.Name .. " voted.")
+        end
+    elseif State.phase == "votingDifficulty" then
+        if num >= 1 and num <= #DIFFICULTIES and not State.votes[speaker.UserId] then
+            State.votes[speaker.UserId] = num
+            broadcast("🗳️ " .. speaker.Name .. " voted.")
+        end
+    elseif State.phase == "quiz" then
+        if num >= 1 and num <= 4 and not State.answers[speaker.UserId] then
+            State.answers[speaker.UserId] = num - 1
+            local q = State.questions[State.currentIndex]
+            if not q then return end
+
+            local correct = ((num - 1) == q.answer)
+            if correct and not State.firstAnswererId then
+                State.firstAnswererId = speaker.UserId
+            end
+
+            if not State.playerStats[speaker.UserId] then
+                State.playerStats[speaker.UserId] = {
+                    games = 0, correct = 0, bestScore = 0, bestStreak = 0, streak = 0
+                }
+            end
+            local ps = State.playerStats[speaker.UserId]
+
+            if correct then
+                ps.correct = ps.correct + 1
+                ps.streak  = ps.streak + 1
+                if ps.streak > ps.bestStreak then ps.bestStreak = ps.streak end
+
+                local pts = calculatePoints(speaker.UserId)
+                State.scores[speaker.UserId] = (State.scores[speaker.UserId] or 0) + pts
+                local bonusText = pts > 1 and (" (+" .. (pts - 1) .. " bonus)") or ""
+                broadcast("✅ " .. speaker.Name .. " answered correctly!" .. bonusText)
+                if speaker == localPlayer then playSound(SOUND.correct) end
+            else
+                ps.streak = 0
+                broadcast("❌ Wrong — " .. speaker.Name)
+                if speaker == localPlayer then playSound(SOUND.wrong) end
+            end
+        end
+    end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    p.Chatted:Connect(function(msg) handleChat(p, msg) end)
+end
+Players.PlayerAdded:Connect(function(p)
+    p.Chatted:Connect(function(msg) handleChat(p, msg) end)
+end)
+
+pcall(loadKeysFromFile)
+pcall(loadConfigFromFile)
+pcall(loadHistoryFromFile)
+pcall(injectPublicKey)
+if #State.savedApiKeys > 0 and State.activeApiKeyIndex == 0 then
+    State.activeApiKeyIndex = 1
+end
+
+local gameName = "Roblox"
+pcall(function() gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name end)
+
+local Window = Rayfield:CreateWindow({
+    name           = "QuizBot",
+    subtitle       = "v1 (beta) — Chat-Based Multiplayer Quiz",
+    sidebarLayout  = true,
+    theme          = "Cobalt",
+    showName       = "QuizBot",
+    profile        = "Game: " .. gameName,
+    icon           = "rbxassetid://88458716065095",
+    configuration  = { autoSave = false },
+})
+
+local HomeTab    = safe("HomeTab",    function() return Window:CreateTab({ name = "🏠 Home",          icon = 0 }) end); task.wait(0.1)
+local PlayersTab = safe("PlayersTab", function() return Window:CreateTab({ name = "👥 Players",       icon = 0 }) end); task.wait(0.1)
+local APIKeyTab  = safe("APIKeyTab",  function() return Window:CreateTab({ name = "🔑 API",           icon = 0 }) end); task.wait(0.1)
+local ConfigTab  = safe("ConfigTab",  function() return Window:CreateTab({ name = "🎛️ Configuration", icon = 0 }) end); task.wait(0.1)
+local CustomTab  = safe("CustomTab",  function() return Window:CreateTab({ name = "✨ Custom AI",     icon = 0 }) end); task.wait(0.1)
+local ExtrasTab  = safe("ExtrasTab",  function() return Window:CreateTab({ name = "⚡ Extras",        icon = 0 }) end); task.wait(0.1)
+
+local function addTextCard(tab, title, body)
+    if not tab then return nil end
+    return safe("Text:" .. (title or ""), function()
+        return tab:CreateText({ name = title, text = body })
+    end)
+end
+
+local homeOverviewCard
+
+if HomeTab then
+    safe("HomeSection1", function() HomeTab:CreateSection({ name = "🎯 Quick Overview" }) end)
+    homeOverviewCard = addTextCard(HomeTab, "🎯 Quick Overview",
+        "📌 Status: idle\n" ..
+        "🎮 Mode: Direct Selection\n" ..
+        "📂 Category: —\n" ..
+        "🎯 Difficulty: —\n" ..
+        "📈 Progress: 0 / 20\n" ..
+        "⚡ Bonuses: none"
+    )
+
+    safe("HomeSection2", function() HomeTab:CreateSection({ name = "🚀 Quiz Controls" }) end)
+    addTextCard(HomeTab, "ℹ️ About Controls",
+        "🚀 Start Quiz — begins the quiz using current settings.\n" ..
+        "⏭️ Skip Question — skips the current question (host only).\n" ..
+        "⏹️ End Quiz — ends the quiz and jumps to leaderboard.\n" ..
+        "🔄 Reset All — clears all quiz state without restarting script."
+    )
+
+    safe("BtnStart", function()
+        HomeTab:CreateButton({
+            name = "🚀 Start Quiz",
+            callback = function()
+                if not State.apiKeyValidated then
+                    Window:Notify({ title = "❌ Not Ready", content = "Please validate your API key first.", duration = 4 })
+                    return
+                end
+
+                if running and State.phase == "idle" then
+                    warn("[QuizBot] Detected stuck running flag, resetting...")
+                    running = false
+                end
+
+                if running then
+                    Window:Notify({ title = "⚠️ Busy", content = "A quiz is already running.", duration = 4 })
+                    return
+                end
+
+                Window:Notify({ title = "🎮 Starting", content = "Select your options in chat.", duration = 4 })
+                warn("[QuizBot] Start clicked | mode=" .. tostring(State.mode) ..
+                     " | totalQ=" .. tostring(State.totalQuestions))
+
+                task.spawn(function()
+                    local ok, err = pcall(startQuizFlow)
+                    if not ok then
+                        warn("[QuizBot] startQuizFlow crashed: " .. tostring(err))
+                        broadcast("❌ Quiz crashed: " .. tostring(err))
+                        Window:Notify({ title = "❌ Quiz Error", content = tostring(err), duration = 10 })
+                        running = false
+                        State.phase = "idle"
+                        if refreshUI then refreshUI() end
+                    end
+                end)
+            end,
+        })
+    end)
+
+    safe("BtnSkip", function()
+        HomeTab:CreateButton({
+            name = "⏭️ Skip Current Question",
+            callback = function()
+                if State.phase == "quiz" then
+                    State.skipRequested = true
+                    broadcast("⏭️ Host skipped the question.")
+                    Window:Notify({ title = "⏭️ Skipped", content = "Moving to the next question.", duration = 3 })
+                end
+            end,
+        })
+    end)
+
+    safe("BtnEnd", function()
+        HomeTab:CreateButton({
+            name = "⏹️ End Quiz",
+            callback = function()
+                if running then
+                    State.endRequested = true
+                    Window:Notify({ title = "⏹️ Ending", content = "Quiz will end shortly.", duration = 3 })
+                end
+            end,
+        })
+    end)
+
+    safe("BtnReset", function()
+        HomeTab:CreateButton({
+            name = "🔄 Reset All States",
+            callback = function()
+                State.phase          = "idle"
+                State.category       = nil
+                State.difficulty     = nil
+                State.questions      = {}
+                State.currentIndex   = 0
+                State.votes          = {}
+                State.scores         = {}
+                State.answers        = {}
+                State.skipRequested  = false
+                State.endRequested   = false
+                running              = false
+                Window:Notify({ title = "🔄 Reset", content = "All states have been cleared.", duration = 3 })
+                if refreshUI then refreshUI() end
+            end,
+        })
+    end)
+end
+
+local playerCards = {}
+local playersTitleCard
+
+refreshPlayerList = function()
+    if not PlayersTab then return end
+    for _, card in ipairs(playerCards) do
+        if card and card.Destroy then pcall(function() card:Destroy() end) end
+    end
+    table.clear(playerCards)
+
+    if playersTitleCard and playersTitleCard.Set then
+        pcall(function() playersTitleCard:Set("👥 Players (" .. #Players:GetPlayers() .. ")") end)
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        local isHost     = (p == localPlayer)
+        local role       = isHost and "👑 Host" or "👤 Player"
+        local score      = State.scores[p.UserId] or 0
+        local answered   = State.answers[p.UserId] ~= nil
+        local stats      = State.playerStats[p.UserId]
+        local streak     = stats and stats.streak or 0
+        local statusText = "❓ Not Answered"
+
+        if State.phase == "quiz" then
+            local q = State.questions[State.currentIndex]
+            if q and answered then
+                statusText = (State.answers[p.UserId] == q.answer) and "✅ Correct!" or "❌ Wrong"
+            elseif answered then
+                statusText = "✅ Answered"
+            end
+        end
+
+        local streakText = streak > 0 and (" 🔥 x" .. streak) or ""
+        local cardText = string.format(
+            "⭐ %s (%s)\n🏷️ Tier: %s\n📊 Score: %d%s  |  ✅ Answered: %s\n🎯 Status: %s",
+            p.Name, p.DisplayName or p.Name, role, score, streakText, tostring(answered), statusText
+        )
+        local card = addTextCard(PlayersTab, p.Name, cardText)
+        if card then table.insert(playerCards, card) end
+    end
+end
+
+if PlayersTab then
+    safe("PlayersSection", function() PlayersTab:CreateSection({ name = "👥 Player List" }) end)
+    addTextCard(PlayersTab, "ℹ️ About",
+        "Live list of all players in the server.\n" ..
+        "⭐ = name, 👑 = host, 👤 = player\n" ..
+        "🔥 = current correct answer streak."
+    )
+    playersTitleCard = addTextCard(PlayersTab, "👥 Players (0)", "Loading...")
+    task.wait(0.1)
+    refreshPlayerList()
+    Players.PlayerAdded:Connect(function() refreshPlayerList() end)
+    Players.PlayerRemoving:Connect(function() refreshPlayerList() end)
+end
+
+local apiKeyDropdown
+local activeKeyCard
+local keyInfoCard
+local statusCard
+
+local function buildKeyOptions()
+    local opts = {}
+    for i, entry in ipairs(State.savedApiKeys) do
+        table.insert(opts, string.format("%d. %s", i, entry.label))
+    end
+    if #opts == 0 then opts = { "No keys saved" } end
+    return opts
+end
+
+local function buildCurrentOption()
+    if State.activeApiKeyIndex == 0 or #State.savedApiKeys == 0 then
+        return { "No keys saved" }
+    end
+    local entry = State.savedApiKeys[State.activeApiKeyIndex]
+    return { string.format("%d. %s", State.activeApiKeyIndex, entry.label) }
+end
+
+refreshAPIInfo = function()
+    if activeKeyCard and activeKeyCard.Set then
+        local activeText = string.format(
+            "🌐 Active Key\n\n🔑 Active: %s\n\nEndpoint: %s",
+            maskKey(getActiveKey()),
+            MISTRAL_ENDPOINT
+        )
+        pcall(function() activeKeyCard:Set(activeText) end)
+    end
+
+    if keyInfoCard and keyInfoCard.Set then
+        local infoText = string.format(
+            "📋 Active Key Info\n\n" ..
+            "🔑 Custom Key — %s\n" ..
+            "%s Valid: %s\n" ..
+            "🤖 Models Available: %d\n" ..
+            "💿 Model Used: %s\n" ..
+            "📊 Last Call: prompt=%d completion=%d\n" ..
+            "🕐 Fetched: %s",
+            maskKey(getActiveKey()),
+            State.apiKeyValidated and "✅" or "❌",
+            State.apiKeyValidated and "Yes" or "No",
+            State.modelsAvailable,
+            State.lastModelUsed,
+            State.lastCallPrompt,
+            State.lastCallCompletion,
+            State.lastFetched
+        )
+        pcall(function() keyInfoCard:Set(infoText) end)
+    end
+
+    if statusCard and statusCard.Set then
+        local statusText = "⏳ Not connected"
+        if State.apiKeyValidated then statusText = "✅ Connected to Mistral AI" end
+        if not getActiveKey() then statusText = "⚠️ No API key selected" end
+        pcall(function() statusCard:Set(statusText) end)
+    end
+end
+
+if APIKeyTab then
+    safe("Section_ActiveKey", function() APIKeyTab:CreateSection({ name = "🌐 Active Key" }) end)
+    activeKeyCard = addTextCard(APIKeyTab, "🌐 Active Key",
+        "🔑 Active: —\n\nEndpoint: " .. MISTRAL_ENDPOINT)
+
+    safe("Section_KeyInfo", function() APIKeyTab:CreateSection({ name = "📋 Active Key Info" }) end)
+    keyInfoCard = addTextCard(APIKeyTab, "📋 Active Key Info",
+        "🔑 Custom Key — —\n❌ Valid: No\n🤖 Models Available: 0\n💿 Model Used: " .. DEFAULT_MODEL ..
+        "\n📊 Last Call: prompt=0 completion=0\n🕐 Fetched: —")
+
+    safe("Section_SavedKeys", function() APIKeyTab:CreateSection({ name = "📚 Saved Keys" }) end)
+    addTextCard(APIKeyTab, "ℹ️ About",
+        "Save multiple API keys and switch between them.\n" ..
+        "The active key is used for all quiz generation."
+    )
+    apiKeyDropdown = safe("KeyDropdown", function()
+        return APIKeyTab:CreateDropdown({
+            name            = "📚 Select Key",
+            options         = buildKeyOptions(),
+            currentOption   = buildCurrentOption(),
+            multipleOptions = false,
+            flag            = "APIKeySelect",
+            callback        = function(option)
+                if type(option) == "table" then option = option[1] end
+                local idx = tonumber(option:match("^(%d+)"))
+                if idx and State.savedApiKeys[idx] then
+                    State.activeApiKeyIndex = idx
+                    State.apiKeyValidated   = false
+                    State.lastCallPrompt    = 0
+                    State.lastCallCompletion = 0
+                    saveKeysToFile()
+                    refreshAPIInfo()
+                    Window:Notify({
+                        title = "🔑 Key Selected",
+                        content = State.savedApiKeys[idx].label,
+                        duration = 3,
+                    })
+                end
+            end,
+        })
+    end)
+
+    safe("Section_AddKey", function() APIKeyTab:CreateSection({ name = "➕ Add New Key" }) end)
+    addTextCard(APIKeyTab, "ℹ️ About",
+        "Get a free API key at mistral.ai\n" ..
+        "The label is optional — used to identify the key."
+    )
+    local newKeyInput = safe("NewKeyInput", function()
+        return APIKeyTab:CreateInput({
+            name        = "🔑 API Key",
+            placeholder = "Paste your Mistral API key here...",
+            value       = "",
+            callback    = function(text) end,
+        })
+    end)
+    local newLabelInput = safe("NewLabelInput", function()
+        return APIKeyTab:CreateInput({
+            name        = "🏷️ Label (optional)",
+            placeholder = "e.g. My Key, Work Key...",
+            value       = "",
+            callback    = function(text) end,
+        })
+    end)
+
+    safe("AddKeyBtn", function()
+        APIKeyTab:CreateButton({
+            name = "➕ Save New API Key",
+            callback = function()
+                local key = ((newKeyInput and newKeyInput.value) or ""):gsub("%s+", "")
+                if key == "" then
+                    Window:Notify({ title = "⚠️ Error", content = "API key is empty.", duration = 4 })
+                    return
+                end
+                if #key < 10 then
+                    Window:Notify({ title = "⚠️ Error", content = "API key is too short.", duration = 4 })
+                    return
+                end
+                for _, entry in ipairs(State.savedApiKeys) do
+                    if entry.key == key then
+                        Window:Notify({ title = "⚠️ Duplicate", content = "This key is already saved.", duration = 4 })
+                        return
+                    end
+                end
+
+                local label = ((newLabelInput and newLabelInput.value) or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if label == "" then label = "Key #" .. (#State.savedApiKeys + 1) end
+
+                table.insert(State.savedApiKeys, { key = key, label = label })
+                State.activeApiKeyIndex = #State.savedApiKeys
+                saveKeysToFile()
+
+                if apiKeyDropdown and apiKeyDropdown.Refresh then
+                    pcall(function() apiKeyDropdown:Refresh(buildKeyOptions(), buildCurrentOption()) end)
+                end
+                refreshAPIInfo()
+                Window:Notify({ title = "✅ Key Saved", content = label .. " is now active.", duration = 5 })
+                playSound(SOUND.notify)
+            end,
+        })
+    end)
+
+    safe("Section_Conn", function() APIKeyTab:CreateSection({ name = "🚦 Connection" }) end)
+    addTextCard(APIKeyTab, "ℹ️ About",
+        "Validate = test if the active key works.\n" ..
+        "Refresh Models = fetch the list of available models from Mistral."
+    )
+    statusCard = addTextCard(APIKeyTab, "Status", "⏳ Not connected")
+
+    safe("ValidateBtn", function()
+        APIKeyTab:CreateButton({
+            name = "✅ Validate Active Key",
+            callback = function()
+                local key = getActiveKey()
+                if not key or key == "" then
+                    Window:Notify({ title = "⚠️ Error", content = "No key selected.", duration = 4 })
+                    return
+                end
+                Window:Notify({ title = "⏳ Validating", content = "Checking API key...", duration = 3 })
+                if statusCard and statusCard.Set then
+                    pcall(function() statusCard:Set("⏳ Validating...") end)
+                end
+
+                local ok, body = callMistral({
+                    { role = "user", content = "Reply with the single word: OK" }
+                }, false)
+
+                if ok then
+                    State.apiKeyValidated = true
+                    State.lastFetched     = getTimestamp()
+                    Window:Notify({ title = "✅ Connected", content = "API key validated successfully!", duration = 4 })
+                    playSound(SOUND.notify)
+                    task.spawn(function()
+                        local mok, count = fetchModels()
+                        if mok then
+                            State.modelsAvailable = count
+                            refreshAPIInfo()
+                        end
+                    end)
+                else
+                    State.apiKeyValidated = false
+                    State.modelsAvailable = 0
+                    Window:Notify({ title = "❌ Failed", content = tostring(body), duration = 8 })
+                end
+                refreshAPIInfo()
+            end,
+        })
+    end)
+
+    safe("RefreshModelsBtn", function()
+        APIKeyTab:CreateButton({
+            name = "🔄 Refresh Models List",
+            callback = function()
+                if not State.apiKeyValidated then
+                    Window:Notify({ title = "⚠️ Not Ready", content = "Please validate the key first.", duration = 4 })
+                    return
+                end
+                Window:Notify({ title = "🔄 Fetching", content = "Loading models list...", duration = 3 })
+                task.spawn(function()
+                    local mok, count = fetchModels()
+                    if mok then
+                        State.modelsAvailable = count
+                        State.lastFetched     = getTimestamp()
+                        refreshAPIInfo()
+                        Window:Notify({ title = "✅ Updated", content = "Models available: " .. count, duration = 4 })
+                    else
+                        Window:Notify({ title = "❌ Failed", content = "Could not fetch models.", duration = 5 })
+                    end
+                end)
+            end,
+        })
+    end)
+
+    safe("Section_Manage", function() APIKeyTab:CreateSection({ name = "🗑️ Manage Keys" }) end)
+
+    safe("RemoveKeyBtn", function()
+        APIKeyTab:CreateButton({
+            name = "🗑️ Remove Active Key",
+            callback = function()
+                if #State.savedApiKeys == 0 then
+                    Window:Notify({ title = "⚠️ Empty", content = "No keys saved.", duration = 3 })
+                    return
+                end
+                local idx     = State.activeApiKeyIndex
+                local removed = table.remove(State.savedApiKeys, idx)
+
+                if #State.savedApiKeys == 0 then
+                    State.activeApiKeyIndex = 0
+                elseif idx > #State.savedApiKeys then
+                    State.activeApiKeyIndex = #State.savedApiKeys
+                end
+
+                State.apiKeyValidated   = false
+                State.modelsAvailable   = 0
+                State.lastCallPrompt    = 0
+                State.lastCallCompletion = 0
+                saveKeysToFile()
+
+                if apiKeyDropdown and apiKeyDropdown.Refresh then
+                    pcall(function() apiKeyDropdown:Refresh(buildKeyOptions(), buildCurrentOption()) end)
+                end
+                refreshAPIInfo()
+                Window:Notify({
+                    title = "🗑️ Removed",
+                    content = "Removed: " .. (removed and removed.label or "?"),
+                    duration = 4,
+                })
+            end,
+        })
+    end)
+
+    safe("ClearKeysBtn", function()
+        APIKeyTab:CreateButton({
+            name = "🧹 Clear All Saved Keys",
+            callback = function()
+                State.savedApiKeys       = {}
+                State.activeApiKeyIndex  = 0
+                State.apiKeyValidated    = false
+                State.modelsAvailable    = 0
+                saveKeysToFile()
+
+                if apiKeyDropdown and apiKeyDropdown.Refresh then
+                    pcall(function() apiKeyDropdown:Refresh(buildKeyOptions(), buildCurrentOption()) end)
+                end
+                refreshAPIInfo()
+                Window:Notify({ title = "🧹 Cleared", content = "All saved keys removed.", duration = 4 })
+            end,
+        })
+    end)
+end
+
+local categoryDropdown
+
+if ConfigTab then
+    safe("CfgModeSection", function() ConfigTab:CreateSection({ name = "🎮 Mode Selection" }) end)
+    addTextCard(ConfigTab, "ℹ️ About Modes",
+        "🎯 Direct Selection — the host picks the category and difficulty manually. Best for solo or quick quizzes.\n\n" ..
+        "🗳️ Chat Voting — all players vote via chat for the category and difficulty. Best for multiplayer."
+    )
+    safe("ModeDropdown", function()
+        ConfigTab:CreateDropdown({
+            name            = "🎯 Quiz Mode",
+            options         = { "Direct Selection", "Chat Voting" },
+            currentOption   = { getModeLabel() },
+            multipleOptions = false,
+            flag            = "QuizMode",
+            callback        = function(option)
+                if type(option) == "table" then option = option[1] end
+                State.mode = (option == "Direct Selection") and "Direct" or "Vote"
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({ title = "🎮 Mode Changed", content = "Current mode: " .. option, duration = 3 })
+            end,
+        })
+    end)
+
+    safe("CfgTopicSection", function() ConfigTab:CreateSection({ name = "📚 Topic Selection" }) end)
+    addTextCard(ConfigTab, "ℹ️ About Topic",
+        "📂 Category — the topic of the quiz questions.\n" ..
+        "🎯 Difficulty — how hard the questions will be.\n\n" ..
+        "ℹ️ These dropdowns are just a preview. When starting in Direct mode, you will be prompted to select in chat."
+    )
+    categoryDropdown = safe("CategoryDropdown", function()
+        return ConfigTab:CreateDropdown({
+            name            = "📂 Category",
+            options         = getAllCategories(),
+            currentOption   = { State.category or DEFAULT_CATEGORIES[1] },
+            multipleOptions = false,
+            flag            = "CategorySelect",
+            callback        = function(option)
+                if type(option) == "table" then option = option[1] end
+                State.category = getCategoryRaw(option)
+                if State.autoSaveConfig then saveConfigToFile() end
+            end,
+        })
+    end)
+
+    safe("DiffDropdown", function()
+        ConfigTab:CreateDropdown({
+            name            = "🎯 Difficulty",
+            options         = DIFFICULTIES,
+            currentOption   = { State.difficulty or DIFFICULTIES[2] },
+            multipleOptions = false,
+            flag            = "DifficultySelect",
+            callback        = function(option)
+                if type(option) == "table" then option = option[1] end
+                State.difficulty = DIFFICULTIES_RAW[option] or "Medium"
+                if State.autoSaveConfig then saveConfigToFile() end
+            end,
+        })
+    end)
+
+    safe("CfgParamSection", function() ConfigTab:CreateSection({ name = "🎚️ Quiz Parameters" }) end)
+    addTextCard(ConfigTab, "ℹ️ About Parameters",
+        "📝 Total Questions — how many questions per quiz.\n" ..
+        "⏱️ Time Per Question — seconds to answer each question.\n" ..
+        "🗳️ Voting Duration — seconds for category/difficulty voting (Chat Voting mode only)."
+    )
+    safe("SliderQ", function()
+        ConfigTab:CreateSlider({
+            name         = "📝 Total Questions",
+            range        = { 5, 50 },
+            increment    = 1,
+            suffix       = " questions",
+            currentValue = State.totalQuestions,
+            flag         = "TotalQ",
+            callback     = function(v)
+                State.totalQuestions = v
+                if State.autoSaveConfig then saveConfigToFile() end
+            end,
+        })
+    end)
+
+    safe("SliderTime", function()
+        ConfigTab:CreateSlider({
+            name         = "⏱️ Time Per Question",
+            range        = { 5, 60 },
+            increment    = 1,
+            suffix       = " seconds",
+            currentValue = State.questionTime,
+            flag         = "QTime",
+            callback     = function(v)
+                State.questionTime = v
+                if State.autoSaveConfig then saveConfigToFile() end
+            end,
+        })
+    end)
+
+    safe("SliderVote", function()
+        ConfigTab:CreateSlider({
+            name         = "🗳️ Voting Duration",
+            range        = { 5, 60 },
+            increment    = 1,
+            suffix       = " seconds",
+            currentValue = State.voteTime,
+            flag         = "VTime",
+            callback     = function(v)
+                State.voteTime = v
+                if State.autoSaveConfig then saveConfigToFile() end
+            end,
+        })
+    end)
+
+    safe("CfgFeedbackSection", function() ConfigTab:CreateSection({ name = "🔊 Feedback" }) end)
+    addTextCard(ConfigTab, "ℹ️ About Feedback",
+        "Play a chime when you answer correctly or buzz when wrong."
+    )
+    safe("SoundToggle", function()
+        ConfigTab:CreateToggle({
+            name         = "🔊 Sound Effects",
+            currentValue = State.soundEnabled,
+            flag         = "SoundToggle",
+            callback     = function(s)
+                State.soundEnabled = s
+                if State.autoSaveConfig then saveConfigToFile() end
+            end,
+        })
+    end)
+end
+
+refreshCategoryDropdown = function()
+    if categoryDropdown and categoryDropdown.Refresh then
+        pcall(function()
+            categoryDropdown:Refresh(getAllCategories(), { DEFAULT_CATEGORIES[1] })
+        end)
+    end
+end
+
+local customDeleteDropdown
+local selectedCustomDelete = nil
+
+local function getCustomCategoryLabels()
+    local list = {}
+    for _, c in ipairs(State.customCategories) do
+        table.insert(list, c.label)
+    end
+    if #list == 0 then list = { "No custom categories" } end
+    return list
+end
+
+refreshCustomDeleteDropdown = function()
+    if customDeleteDropdown and customDeleteDropdown.Refresh then
+        local opts = getCustomCategoryLabels()
+        local current = { opts[1] }
+        pcall(function() customDeleteDropdown:Refresh(opts, current) end)
+    end
+    selectedCustomDelete = nil
+end
+
+if CustomTab then
+    safe("CustomSection1", function() CustomTab:CreateSection({ name = "✨ AI-Generated Categories" }) end)
+    addTextCard(CustomTab, "ℹ️ About",
+        "Let AI create a unique quiz category for you (e.g. 'Cyberpunk Lore').\n" ..
+        "Custom categories appear in the 📂 Category dropdown."
+    )
+
+    safe("BtnAIGen", function()
+        CustomTab:CreateButton({
+            name = "✨ Generate Random Category with AI",
+            callback = function()
+                if not State.apiKeyValidated then
+                    Window:Notify({ title = "❌ Not Ready", content = "Please validate your API key first.", duration = 4 })
+                    return
+                end
+                Window:Notify({ title = "✨ Generating", content = "AI is thinking...", duration = 3 })
+                task.spawn(function()
+                    local cat, err = generateCategoryWithAI()
+                    if not cat then
+                        Window:Notify({ title = "❌ Failed", content = tostring(err), duration = 6 })
+                        return
+                    end
+                    local label = "✨ " .. cat
+                    for _, c in ipairs(State.customCategories) do
+                        if c.raw == cat then
+                            Window:Notify({ title = "⚠️ Duplicate", content = "This category already exists.", duration = 4 })
+                            return
+                        end
+                    end
+                    table.insert(State.customCategories, { label = label, raw = cat })
+                    State.customCatMap[label] = cat
+                    refreshCategoryDropdown()
+                    refreshCustomDeleteDropdown()
+                    if State.autoSaveConfig then saveConfigToFile() end
+                    Window:Notify({ title = "✅ Added", content = "New category: " .. cat, duration = 5 })
+                    playSound(SOUND.notify)
+                end)
+            end,
+        })
+    end)
+
+    safe("CustomSection2", function() CustomTab:CreateSection({ name = "➕ Add Custom Category Manually" }) end)
+    addTextCard(CustomTab, "ℹ️ About",
+        "Type your own category name (e.g. 'Anime Trivia')."
+    )
+
+    local customInput = safe("CustomInput", function()
+        return CustomTab:CreateInput({
+            name        = "📝 Category Name",
+            placeholder = "e.g. Ancient Egypt, Anime Trivia...",
+            value       = "",
+            callback    = function(t) end,
+        })
+    end)
+
+    safe("BtnAddManual", function()
+        CustomTab:CreateButton({
+            name = "➕ Add Custom Category",
+            callback = function()
+                local name = ((customInput and customInput.value) or ""):gsub("^%s+", ""):gsub("%s+$", "")
+                if name == "" then
+                    Window:Notify({ title = "⚠️ Error", content = "Category name is empty.", duration = 4 })
+                    return
+                end
+                local label = "✨ " .. name
+                for _, c in ipairs(State.customCategories) do
+                    if c.raw:lower() == name:lower() then
+                        Window:Notify({ title = "⚠️ Duplicate", content = "This category already exists.", duration = 4 })
+                        return
+                    end
+                end
+                table.insert(State.customCategories, { label = label, raw = name })
+                State.customCatMap[label] = name
+                refreshCategoryDropdown()
+                refreshCustomDeleteDropdown()
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({ title = "✅ Added", content = "New category: " .. name, duration = 4 })
+                playSound(SOUND.notify)
+            end,
+        })
+    end)
+
+    safe("CustomSection3", function() CustomTab:CreateSection({ name = "🗑️ Delete Custom Category" }) end)
+    addTextCard(CustomTab, "ℹ️ About",
+        "Pick a custom category from the dropdown, then click Delete.\n" ..
+        "The list is refreshed automatically when categories are added or removed."
+    )
+
+    customDeleteDropdown = safe("CustomDeleteDropdown", function()
+        return CustomTab:CreateDropdown({
+            name            = "🎯 Select Category to Delete",
+            options         = getCustomCategoryLabels(),
+            currentOption   = { getCustomCategoryLabels()[1] },
+            multipleOptions = false,
+            flag            = "CustomDeleteSelect",
+            callback        = function(option)
+                if type(option) == "table" then option = option[1] end
+                selectedCustomDelete = option
+            end,
+        })
+    end)
+
+    safe("BtnDeleteSelected", function()
+        CustomTab:CreateButton({
+            name = "🗑️ Delete Selected Category",
+            callback = function()
+                if #State.customCategories == 0 then
+                    Window:Notify({ title = "⚠️ Empty", content = "There are no custom categories.", duration = 3 })
+                    return
+                end
+                local target = selectedCustomDelete
+                if not target or target == "No custom categories" then
+                    target = State.customCategories[1].label
+                end
+
+                local foundIdx = nil
+                for i, c in ipairs(State.customCategories) do
+                    if c.label == target then
+                        foundIdx = i
+                        break
+                    end
+                end
+
+                if not foundIdx then
+                    Window:Notify({ title = "⚠️ Not Found", content = "Selected category not found.", duration = 4 })
+                    refreshCustomDeleteDropdown()
+                    return
+                end
+
+                local removed = table.remove(State.customCategories, foundIdx)
+                State.customCatMap[removed.label] = nil
+                refreshCategoryDropdown()
+                refreshCustomDeleteDropdown()
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({ title = "🗑️ Deleted", content = "Removed: " .. removed.raw, duration = 4 })
+                playSound(SOUND.notify)
+            end,
+        })
+    end)
+
+    safe("CustomSection4", function() CustomTab:CreateSection({ name = "🧹 Bulk Actions" }) end)
+
+    safe("BtnRemoveLast", function()
+        CustomTab:CreateButton({
+            name = "🗑️ Remove Last Custom Category",
+            callback = function()
+                if #State.customCategories == 0 then
+                    Window:Notify({ title = "⚠️ Empty", content = "There are no custom categories.", duration = 3 })
+                    return
+                end
+                local removed = table.remove(State.customCategories)
+                State.customCatMap[removed.label] = nil
+                refreshCategoryDropdown()
+                refreshCustomDeleteDropdown()
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({ title = "🗑️ Removed", content = "Removed: " .. removed.raw, duration = 4 })
+            end,
+        })
+    end)
+
+    safe("BtnClearAll", function()
+        CustomTab:CreateButton({
+            name = "🧹 Clear All Custom Categories",
+            callback = function()
+                State.customCategories = {}
+                State.customCatMap     = {}
+                refreshCategoryDropdown()
+                refreshCustomDeleteDropdown()
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({ title = "🧹 Cleared", content = "All custom categories have been removed.", duration = 4 })
+            end,
+        })
+    end)
+end
+
+local historyCards = {}
+local statsCards   = {}
+local extrasStatusCard
+local howToPlayCard
+
+refreshHistory = function()
+    if not ExtrasTab then return end
+    for _, card in ipairs(historyCards) do
+        if card and card.Destroy then pcall(function() card:Destroy() end) end
+    end
+    table.clear(historyCards)
+
+    if #State.quizHistory == 0 then
+        local c = addTextCard(ExtrasTab, "📜 History", "No quizzes have been played yet.")
+        if c then table.insert(historyCards, c) end
+        return
+    end
+    local limit = math.min(#State.quizHistory, 10)
+    for i = 1, limit do
+        local h = State.quizHistory[i]
+        local text = string.format(
+            "🏆 Winner: %s\n📂 %s | 🎯 %s\n📅 %s | 📊 %d questions",
+            h.winner or "—", h.category or "?", h.difficulty or "?",
+            h.date or "—", h.totalQuestions or 0
+        )
+        local card = addTextCard(ExtrasTab, "#" .. i, text)
+        if card then table.insert(historyCards, card) end
+    end
+end
+
+refreshStats = function()
+    if not ExtrasTab then return end
+    for _, card in ipairs(statsCards) do
+        if card and card.Destroy then pcall(function() card:Destroy() end) end
+    end
+    table.clear(statsCards)
+
+    local entries = {}
+    for userId, stats in pairs(State.playerStats) do
+        local p = Players:GetPlayerByUserId(userId)
+        local name = p and p.Name or ("User" .. userId)
+        table.insert(entries, { name = name, stats = stats })
+    end
+    if #entries == 0 then
+        local c = addTextCard(ExtrasTab, "🏅 Stats", "No player statistics recorded yet.")
+        if c then table.insert(statsCards, c) end
+        return
+    end
+    table.sort(entries, function(a, b)
+        return (a.stats.correct or 0) > (b.stats.correct or 0)
+    end)
+    for i, e in ipairs(entries) do
+        local s = e.stats
+        local text = string.format(
+            "👤 %s\n🎮 Games: %d | ✅ Correct: %d\n⭐ Best Score: %d | 🔥 Best Streak: %d",
+            e.name, s.games or 0, s.correct or 0, s.bestScore or 0, s.bestStreak or 0
+        )
+        local card = addTextCard(ExtrasTab, "#" .. i, text)
+        if card then table.insert(statsCards, card) end
+    end
+end
+
+if ExtrasTab then
+    safe("ExtrasHowToSection", function() ExtrasTab:CreateSection({ name = "📖 How to Play" }) end)
+    howToPlayCard = addTextCard(ExtrasTab, "📖 How to Play",
+        "1️⃣ Add your Mistral API key in the 🔑 API tab.\n" ..
+        "2️⃣ Click ✅ Validate Active Key.\n" ..
+        "3️⃣ (Optional) Use the ✨ Custom AI tab to create unique categories.\n" ..
+        "4️⃣ In the 🎛️ Configuration tab, choose Mode (Direct or Chat Voting).\n" ..
+        "5️⃣ Open the 🏠 Home tab and click 🚀 Start Quiz.\n" ..
+        "6️⃣ In Direct mode: the host types the category number, then the difficulty number in chat.\n" ..
+        "7️⃣ In Chat Voting mode: all players vote by typing numbers 1-8 and 1-5.\n" ..
+        "8️⃣ Players answer questions via chat using numbers 1-4.\n" ..
+        "9️⃣ 🏆 The leaderboard appears automatically at the end."
+    )
+
+    safe("ExtrasStatusSection", function() ExtrasTab:CreateSection({ name = "📊 Status" }) end)
+    extrasStatusCard = addTextCard(ExtrasTab, "Extras Status", "—")
+
+    safe("ExtrasGameplaySection", function() ExtrasTab:CreateSection({ name = "⚡ Gameplay Options" }) end)
+    addTextCard(ExtrasTab, "ℹ️ About Options",
+        "⚡ Speed Bonus — first player to answer correctly earns +1 extra point.\n\n" ..
+        "🔥 Streak Bonus — every 3rd correct answer in a row earns +1 extra point.\n\n" ..
+        "🎲 Shuffle Questions — randomize the question order before starting.\n\n" ..
+        "💾 Auto-Save Config — automatically save your settings when changed."
+    )
+
+    safe("SpeedBonusToggle", function()
+        ExtrasTab:CreateToggle({
+            name         = "⚡ Speed Bonus (first correct answer = +1)",
+            currentValue = State.speedBonusEnabled,
+            flag         = "SpeedBonus",
+            callback     = function(s)
+                State.speedBonusEnabled = s
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({
+                    title   = "⚡ Speed Bonus",
+                    content = s and "Enabled" or "Disabled",
+                    duration = 3,
+                })
+            end,
+        })
+    end)
+
+    safe("StreakBonusToggle", function()
+        ExtrasTab:CreateToggle({
+            name         = "🔥 Streak Bonus (3+ correct in a row = +1)",
+            currentValue = State.streakBonusEnabled,
+            flag         = "StreakBonus",
+            callback     = function(s)
+                State.streakBonusEnabled = s
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({
+                    title   = "🔥 Streak Bonus",
+                    content = s and "Enabled" or "Disabled",
+                    duration = 3,
+                })
+            end,
+        })
+    end)
+
+    safe("ShuffleToggle", function()
+        ExtrasTab:CreateToggle({
+            name         = "🎲 Shuffle Questions",
+            currentValue = State.shuffleQuestions,
+            flag         = "ShuffleQ",
+            callback     = function(s)
+                State.shuffleQuestions = s
+                if State.autoSaveConfig then saveConfigToFile() end
+                Window:Notify({
+                    title   = "🎲 Shuffle",
+                    content = s and "Enabled" or "Disabled",
+                    duration = 3,
+                })
+            end,
+        })
+    end)
+
+    safe("AutoSaveToggle", function()
+        ExtrasTab:CreateToggle({
+            name         = "💾 Auto-Save Config",
+            currentValue = State.autoSaveConfig,
+            flag         = "AutoSaveCfg",
+            callback     = function(s)
+                State.autoSaveConfig = s
+                if s then saveConfigToFile() end
+                Window:Notify({
+                    title   = "💾 Auto-Save",
+                    content = s and "Enabled" or "Disabled",
+                    duration = 3,
+                })
+            end,
+        })
+    end)
+
+    safe("ExtrasHistorySection", function() ExtrasTab:CreateSection({ name = "📜 Quiz History" }) end)
+    refreshHistory()
+
+    safe("ExtrasStatsSection", function() ExtrasTab:CreateSection({ name = "🏅 Player Statistics" }) end)
+    refreshStats()
+
+    safe("ExtrasDataSection", function() ExtrasTab:CreateSection({ name = "💾 Data Management" }) end)
+    addTextCard(ExtrasTab, "ℹ️ About Data",
+        "📤 Export Last Quiz — save the last generated questions to a JSON file.\n" ..
+        "📜 Export History — save all quiz history and player stats to JSON.\n" ..
+        "🗑️ Clear History — delete the quiz history (does not affect stats).\n" ..
+        "🗑️ Reset Stats — delete all player statistics."
+    )
+
+    safe("ExportQuizBtn", function()
+        ExtrasTab:CreateButton({
+            name = "📤 Export Last Quiz to File",
+            callback = function()
+                if not State.lastGeneratedQuiz then
+                    Window:Notify({ title = "⚠️ Empty", content = "There is no quiz to export yet.", duration = 3 })
+                    return
+                end
+                if not canWriteFile() then
+                    Window:Notify({ title = "❌ Not Supported", content = "This executor does not support writefile.", duration = 5 })
+                    return
+                end
+                local wf = _getWriteFile()
+                local data = {
+                    category       = State.category,
+                    difficulty     = State.difficulty,
+                    totalQuestions = State.totalQuestions,
+                    generatedAt    = getTimestamp(),
+                    questions      = State.lastGeneratedQuiz,
+                }
+                local ok, enc = pcall(function() return HttpService:JSONEncode(data) end)
+                if ok then
+                    local ok2 = pcall(wf, "quizbot_export.json", enc)
+                    if ok2 then
+                        Window:Notify({ title = "✅ Exported", content = "Saved to quizbot_export.json", duration = 5 })
+                    else
+                        Window:Notify({ title = "❌ Failed", content = "writefile failed.", duration = 5 })
+                    end
+                end
+            end,
+        })
+    end)
+
+    safe("ExportHistoryBtn", function()
+        ExtrasTab:CreateButton({
+            name = "📜 Export History to File",
+            callback = function()
+                if not canWriteFile() then
+                    Window:Notify({ title = "❌ Not Supported", content = "This executor does not support writefile.", duration = 5 })
+                    return
+                end
+                local wf = _getWriteFile()
+                local data = {
+                    exportedAt  = getTimestamp(),
+                    quizHistory = State.quizHistory,
+                    playerStats = State.playerStats,
+                }
+                local ok, enc = pcall(function() return HttpService:JSONEncode(data) end)
+                if ok then
+                    local ok2 = pcall(wf, "quizbot_history_export.json", enc)
+                    if ok2 then
+                        Window:Notify({ title = "✅ Exported", content = "Saved to quizbot_history_export.json", duration = 5 })
+                    else
+                        Window:Notify({ title = "❌ Failed", content = "writefile failed.", duration = 5 })
+                    end
+                end
+            end,
+        })
+    end)
+
+    safe("ClearHistoryBtn", function()
+        ExtrasTab:CreateButton({
+            name = "🗑️ Clear Quiz History",
+            callback = function()
+                State.quizHistory = {}
+                saveHistoryToFile()
+                refreshHistory()
+                Window:Notify({ title = "🗑️ Cleared", content = "Quiz history cleared.", duration = 3 })
+            end,
+        })
+    end)
+
+    safe("ClearStatsBtn", function()
+        ExtrasTab:CreateButton({
+            name = "🗑️ Reset Player Statistics",
+            callback = function()
+                State.playerStats = {}
+                saveHistoryToFile()
+                refreshStats()
+                Window:Notify({ title = "🗑️ Reset", content = "Player statistics cleared.", duration = 3 })
+            end,
+        })
+    end)
+end
+
+refreshExtrasStatus = function()
+    if not (extrasStatusCard and extrasStatusCard.Set) then return end
+    local trackedPlayers = 0
+    for _ in pairs(State.playerStats) do trackedPlayers = trackedPlayers + 1 end
+    local text = string.format(
+        "⚡ Speed Bonus: %s\n🔥 Streak Bonus: %s\n🎲 Shuffle: %s\n💾 Auto-Save: %s\n📜 History Entries: %d\n🏅 Tracked Players: %d",
+        State.speedBonusEnabled  and "✅ ON" or "❌ OFF",
+        State.streakBonusEnabled and "✅ ON" or "❌ OFF",
+        State.shuffleQuestions   and "✅ ON" or "❌ OFF",
+        State.autoSaveConfig     and "✅ ON" or "❌ OFF",
+        #State.quizHistory,
+        trackedPlayers
+    )
+    pcall(function() extrasStatusCard:Set(text) end)
+end
+
+refreshUI = function()
+    local bonusText = ""
+    if State.speedBonusEnabled  then bonusText = bonusText .. "⚡" end
+    if State.streakBonusEnabled then bonusText = bonusText .. "🔥" end
+    if State.shuffleQuestions   then bonusText = bonusText .. "🎲" end
+
+    if homeOverviewCard and homeOverviewCard.Set then
+        local text = string.format(
+            "📌 Status: %s\n" ..
+            "🎮 Mode: %s\n" ..
+            "📂 Category: %s\n" ..
+            "🎯 Difficulty: %s\n" ..
+            "📈 Progress: %d / %d\n" ..
+            "⚡ Bonuses: %s",
+            State.phase,
+            getModeLabel(),
+            State.category or "—",
+            State.difficulty or "—",
+            State.currentIndex,
+            State.totalQuestions,
+            (bonusText ~= "" and bonusText or "none")
+        )
+        pcall(function() homeOverviewCard:Set(text) end)
+    end
+
+    if refreshPlayerList   then refreshPlayerList()   end
+    if refreshExtrasStatus then refreshExtrasStatus() end
+end
+
+startQuizFlow = function()
+    if running then broadcast("⚠️ Quiz already running.") return end
+    running = true
+
+    State.questions      = {}
+    State.currentIndex   = 0
+    State.scores         = {}
+    State.answers        = {}
+    State.votes          = {}
+    State.skipRequested  = false
+    State.endRequested   = false
+    State.firstAnswererId = nil
+
+    local ok, err = pcall(function()
+        if State.mode == "Direct" then
+            -- ============ DIRECT MODE ============
+            State.phase = "selectingCategory"
+            State.votes = {}
+            local allCats = getAllCategories()
+
+            broadcast("══════════════════════════")
+            broadcast("📋 Select a category:")
+            broadcast("══════════════════════════")
+            task.wait(0.3)
+            for i, c in ipairs(allCats) do
+                broadcast("  " .. i .. ". " .. c)
+            end
+            broadcast("💬 Type the NUMBER to select (host only).")
+            refreshUI()
+
+            local startT1 = tick()
+            while (tick() - startT1) < State.voteTime do
+                if State.votes[localPlayer.UserId] then break end
+                task.wait(0.3)
+            end
+
+            local catIdx      = State.votes[localPlayer.UserId] or 1
+            local chosenLabel = allCats[catIdx] or allCats[1]
+            State.category    = getCategoryRaw(chosenLabel)
+            broadcast("✅ Category selected: " .. chosenLabel)
+            refreshUI()
+            task.wait(1.5)
+
+            State.phase = "selectingDifficulty"
+            State.votes = {}
+
+            broadcast("══════════════════════════")
+            broadcast("🎯 Choose a difficulty level:")
+            broadcast("══════════════════════════")
+            task.wait(0.3)
+            for i, d in ipairs(DIFFICULTIES) do
+                broadcast("  " .. i .. ". " .. d)
+            end
+            broadcast("💬 Type the NUMBER to select (host only).")
+
+            local startT2 = tick()
+            while (tick() - startT2) < State.voteTime do
+                if State.votes[localPlayer.UserId] then break end
+                task.wait(0.3)
+            end
+
+            local diffIdx     = State.votes[localPlayer.UserId] or 2
+            State.difficulty  = DIFFICULTIES_RAW[DIFFICULTIES[diffIdx]] or "Medium"
+            broadcast("✅ Difficulty selected: " .. DIFFICULTIES[diffIdx])
+            refreshUI()
+            task.wait(1.5)
+
+        else
+            -- ============ CHAT VOTING MODE ============
+            State.phase = "votingCategory"
+            State.votes = {}
+            local allCats = getAllCategories()
+
+            broadcast("══════════════════════════")
+            broadcast("📊 VOTING: CATEGORY (" .. State.voteTime .. "s)")
+            broadcast("══════════════════════════")
+            task.wait(0.3)
+            for i, c in ipairs(allCats) do
+                broadcast("  " .. i .. ". " .. c)
+            end
+            broadcast("💬 Type the NUMBER to vote!")
+            refreshUI()
+            task.wait(State.voteTime)
+
+            local catIdx      = tallyVotes() or 1
+            local chosenLabel = allCats[catIdx] or allCats[1]
+            State.category    = getCategoryRaw(chosenLabel)
+            broadcast("✅ Category selected: " .. chosenLabel)
+            refreshUI()
+            task.wait(2)
+
+            State.phase = "votingDifficulty"
+            State.votes = {}
+
+            broadcast("══════════════════════════")
+            broadcast("📊 VOTING: DIFFICULTY (" .. State.voteTime .. "s)")
+            broadcast("══════════════════════════")
+            task.wait(0.3)
+            for i, d in ipairs(DIFFICULTIES) do
+                broadcast("  " .. i .. ". " .. d)
+            end
+            broadcast("💬 Type the NUMBER to vote!")
+            task.wait(State.voteTime)
+
+            local diffIdx     = tallyVotes() or 2
+            State.difficulty  = DIFFICULTIES_RAW[DIFFICULTIES[diffIdx]] or "Medium"
+            broadcast("✅ Difficulty selected: " .. DIFFICULTIES[diffIdx])
+            refreshUI()
+            task.wait(2)
+        end
+
+        State.phase = "generating"
+        refreshUI()
+        broadcast("⏳ Generating " .. State.totalQuestions .. " questions...")
+        broadcast("   (This may take 10-30 seconds)")
+        local qs, err2 = generateQuestions(State.category, State.difficulty)
+        if not qs then
+            broadcast("❌ Failed to generate quiz: " .. tostring(err2))
+            State.phase = "idle"
+            running     = false
+            refreshUI()
+            return
+        end
+
+        if State.shuffleQuestions then
+            for i = #qs, 2, -1 do
+                local j = math.random(i)
+                qs[i], qs[j] = qs[j], qs[i]
+            end
+            broadcast("🎲 Questions have been shuffled.")
+        end
+
+        State.questions        = qs
+        State.lastGeneratedQuiz = qs
+        refreshAPIInfo()
+        broadcast("🎉 Quiz is ready! Answer with 1-4.")
+        task.wait(2)
+
+        State.phase = "quiz"
+        for i = 1, #qs do
+            if State.endRequested then break end
+
+            State.currentIndex    = i
+            State.answers         = {}
+            State.skipRequested   = false
+            State.firstAnswererId = nil
+
+            local q = qs[i]
+            broadcast("──────────────────────────")
+            broadcast("❓ Question " .. i .. "/" .. #qs .. " [" .. State.category .. " | " .. State.difficulty .. "]")
+            task.wait(0.2)
+            broadcast(q.question)
+            task.wait(0.2)
+            for k, c in ipairs(q.choices) do
+                broadcast("  " .. k .. ". " .. c)
+            end
+
+            local endT = tick() + State.questionTime
+            while tick() < endT do
+                if State.skipRequested or State.endRequested then break end
+                local allDone = true
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if not State.answers[p.UserId] then allDone = false break end
+                end
+                if allDone then break end
+                task.wait(0.4)
+            end
+            task.wait(1)
+
+            broadcast("✅ Answer: " .. (q.answer + 1) .. ". " .. q.choices[q.answer + 1])
+            refreshUI()
+            task.wait(2)
+        end
+
+        State.phase = "leaderboard"
+        broadcast("══════════════════════════")
+        broadcast("🏆  FINAL LEADERBOARD  🏆")
+        broadcast("══════════════════════════")
+
+        local list = {}
+        for userId, sc in pairs(State.scores) do
+            local p = Players:GetPlayerByUserId(userId)
+            table.insert(list, {
+                name   = p and p.Name or ("User" .. userId),
+                score  = sc,
+                userId = userId,
+            })
+        end
+        table.sort(list, function(a, b) return a.score > b.score end)
+
+        for i, e in ipairs(list) do
+            local medal = i == 1 and "🥇" or i == 2 and "🥈" or i == 3 and "🥉" or ("#" .. i)
+            broadcast("  " .. medal .. "  " .. e.name .. " — " .. e.score .. "/" .. State.totalQuestions)
+        end
+        broadcast("🏁 Quiz complete!")
+
+        for userId, sc in pairs(State.scores) do
+            if not State.playerStats[userId] then
+                State.playerStats[userId] = { games = 0, correct = 0, bestScore = 0, bestStreak = 0, streak = 0 }
+            end
+            local ps = State.playerStats[userId]
+            ps.games = ps.games + 1
+            if sc > ps.bestScore then ps.bestScore = sc end
+        end
+
+        local winnerName = list[1] and list[1].name or "—"
+        table.insert(State.quizHistory, 1, {
+            date           = getTimestamp(),
+            category       = State.category,
+            difficulty     = State.difficulty,
+            totalQuestions = State.totalQuestions,
+            winner         = winnerName,
+            scores         = list,
+        })
+        if #State.quizHistory > 30 then State.quizHistory[31] = nil end
+
+        pcall(saveHistoryToFile)
+        if refreshHistory then pcall(refreshHistory) end
+        if refreshStats   then pcall(refreshStats)   end
+    end)
+
+    if not ok then
+        warn("[QuizBot] startQuizFlow error: " .. tostring(err))
+        broadcast("❌ Quiz error: " .. tostring(err))
+        Window:Notify({ title = "❌ Quiz Error", content = tostring(err), duration = 10 })
+    end
+
+    State.phase = "idle"
+    running     = false
+    if refreshUI then refreshUI() end
+end
+
+if not State.category then State.category = "Science" end
+if not State.difficulty then State.difficulty = "Medium" end
+
+pcall(refreshUI)
+pcall(refreshAPIInfo)
+pcall(refreshHistory)
+pcall(refreshStats)
+
+Window:Notify({ title = "🎉 Welcome to QuizBot", content = "Press RIGHT SHIFT to toggle the UI.", duration = 8 })
+task.wait(1.5)
+Window:Notify({ title = "💡 Tip", content = "Add your Mistral API key in the 🔑 API tab.", duration = 6 })
