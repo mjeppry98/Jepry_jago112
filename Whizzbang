@@ -3,9 +3,9 @@
  [ WHIZZBANG ] - UNIVERSAL CLAN EDITION
 ================================================================================
   - Place Lock: Only runs on PlaceId 14234703115.
-  - Combat: Silent Aim (+ FOV Input Box + Target Part Selector), InstantPrompt
+  - Combat: Silent Aim (+ FOV Input Box + Target Part Selector for R6), InstantPrompt
   - Visuals: NPC ESP, Crosshair (Fixed Shapes), Dogtag ESP, Wounded ESP,
-             Decrypted Fragment ESP (White)
+             Encrypted Message ESP (White)
   - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
   - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
@@ -120,25 +120,40 @@ local WhizConfig = {
     UiLocked           = false,
 }
 
+-- R6-first part resolvers (falls back to R15 if needed)
 local TARGET_PART_RESOLVERS = {
-    ["Head"]  = function(model) return model:FindFirstChild("Head") end,
+    ["Head"]  = function(model)
+        return model:FindFirstChild("Head")
+    end,
     ["Torso"] = function(model)
-        return model:FindFirstChild("UpperTorso")
-            or model:FindFirstChild("Torso")
+        -- R6: single Torso block
+        return model:FindFirstChild("Torso")
+            -- R15 fallbacks
+            or model:FindFirstChild("UpperTorso")
             or model:FindFirstChild("LowerTorso")
             or model:FindFirstChild("HumanoidRootPart")
     end,
     ["Leg"]   = function(model)
-        return model:FindFirstChild("LeftUpperLeg")
-            or model:FindFirstChild("LeftLeg")
+        -- R6: "Left Leg" / "Right Leg" (space in name)
+        return model:FindFirstChild("Left Leg")
+            or model:FindFirstChild("Right Leg")
+            -- R15 fallbacks
+            or model:FindFirstChild("LeftUpperLeg")
             or model:FindFirstChild("RightUpperLeg")
+            or model:FindFirstChild("LeftLowerLeg")
+            or model:FindFirstChild("RightLowerLeg")
+            or model:FindFirstChild("LeftLeg")
             or model:FindFirstChild("RightLeg")
     end,
     ["Arms"]  = function(model)
-        return model:FindFirstChild("LeftUpperArm")
-            or model:FindFirstChild("Left Arm")
-            or model:FindFirstChild("RightUpperArm")
+        -- R6: "Left Arm" / "Right Arm" (space in name)
+        return model:FindFirstChild("Left Arm")
             or model:FindFirstChild("Right Arm")
+            -- R15 fallbacks
+            or model:FindFirstChild("LeftUpperArm")
+            or model:FindFirstChild("RightUpperArm")
+            or model:FindFirstChild("LeftLowerArm")
+            or model:FindFirstChild("RightLowerArm")
     end,
     ["HumanoidRootPart"] = function(model) return model:FindFirstChild("HumanoidRootPart") end,
     ["Closest"] = nil,
@@ -752,7 +767,7 @@ local function stopWoundedEsp()
 end
 
 -- ===== ENCRYPTED MESSAGE ESP (White) - target: workspace.Cryptography["decrypted fragment"] =====
-local encryptedEspData = {} -- [BasePart] = { highlight, billboard }
+local encryptedEspData = {}
 
 local function getCryptographyFolder()
     return workspace:FindFirstChild("Cryptography")
@@ -761,10 +776,8 @@ end
 local function getDecryptedFragment()
     local folder = getCryptographyFolder()
     if not folder then return nil end
-    -- try direct child first
     local df = folder:FindFirstChild("decrypted fragment")
     if df then return df end
-    -- normalized name search (in case casing/spacing differs)
     for _, child in ipairs(folder:GetChildren()) do
         local n = string.lower(string.gsub(tostring(child.Name or ""), "[%s_%-]", ""))
         if n == "decryptedfragment" then
@@ -791,7 +804,6 @@ local function createEncryptedEsp(target)
     if not target or not target.Parent then return end
     if encryptedEspData[target] then return end
 
-    -- Resolve the BasePart we'll attach visuals to
     local adornee = target
     if target:IsA("Model") then
         adornee = target.PrimaryPart
@@ -800,7 +812,6 @@ local function createEncryptedEsp(target)
     end
     if not (adornee and adornee:IsA("BasePart")) then return end
 
-    -- White highlight
     local hl = Instance.new("Highlight")
     hl.Name                = "EncryptedHighlight"
     hl.Adornee             = target
@@ -811,7 +822,6 @@ local function createEncryptedEsp(target)
     hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Parent              = target
 
-    -- Label above the object
     local billboard = Instance.new("BillboardGui")
     billboard.Name        = "EncryptedBillboard"
     billboard.Adornee     = adornee
@@ -862,7 +872,6 @@ end
 local function startEncryptedEsp()
     scanEncrypted()
 
-    -- Watch for the folder / object appearing
     table.insert(_G.EncryptedEspConns, workspace.ChildAdded:Connect(function(obj)
         if not WhizConfig.EncryptedEsp then return end
         if obj.Name == "Cryptography" then
@@ -885,7 +894,6 @@ local function startEncryptedEsp()
         end
     end)
 
-    -- Fallback polling loop
     task.spawn(function()
         while WhizConfig.EncryptedEsp do
             pcall(scanEncrypted)
@@ -1724,7 +1732,7 @@ MainTab:Toggle({
 pcall(function()
     MainTab:Dropdown({
         Title       = "Aim Target Part",
-        Desc        = "Which body part the Silent Aim should lock onto.",
+        Desc        = "Which body part the Silent Aim should lock onto (R6 supported).",
         Values      = { "Head", "Torso", "Leg", "Arms", "HumanoidRootPart", "Closest" },
         Default     = "Head",
         Callback    = function(selected)
@@ -2055,6 +2063,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Encrypted ESP now only targets 'decrypted fragment'.",
+    Content  = "Silent Aim now supports R6 body parts (Torso / Leg).",
     Duration = 5,
 })
