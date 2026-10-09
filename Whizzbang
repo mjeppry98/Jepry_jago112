@@ -2,8 +2,8 @@
 ================================================================================
  [ WHIZZBANG ] - UNIVERSAL CLAN EDITION
 ================================================================================
-  - Combat: Silent Aim (FOV Input), Dart Silent Aim (Target Boards), InstantPrompt
-  - Visuals: NPC ESP, Crosshair (Multiple Styles), Dogtag ESP, Wounded ESP
+  - Combat: Silent Aim (+ FOV Input Box + Target Part Selector), InstantPrompt
+  - Visuals: NPC ESP, Crosshair (Fixed Shapes), Dogtag ESP, Wounded ESP
   - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
   - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
@@ -36,9 +36,7 @@ local WhizConfig = {
     SilentAim          = false,
     AimbotLoaded       = false,
     AimbotFOV          = 150,
-    DartSilentAim      = false,
-    DartAimbotLoaded   = false,
-    DartFOV            = 400,
+    AimbotPart         = "Head",
     AutoClean          = false,
     CustomSpeedEnabled = false,
     WalkSpeed          = 16,
@@ -56,10 +54,68 @@ local WhizConfig = {
     UiLocked           = false,
 }
 
+-- Target part mapping: how to find the part on a character
+local TARGET_PART_RESOLVERS = {
+    ["Head"]  = function(model) return model:FindFirstChild("Head") end,
+    ["Torso"] = function(model)
+        return model:FindFirstChild("UpperTorso")
+            or model:FindFirstChild("Torso")
+            or model:FindFirstChild("LowerTorso")
+            or model:FindFirstChild("HumanoidRootPart")
+    end,
+    ["Leg"]   = function(model)
+        return model:FindFirstChild("LeftUpperLeg")
+            or model:FindFirstChild("LeftLeg")
+            or model:FindFirstChild("RightUpperLeg")
+            or model:FindFirstChild("RightLeg")
+    end,
+    ["Arms"]  = function(model)
+        return model:FindFirstChild("LeftUpperArm")
+            or model:FindFirstChild("Left Arm")
+            or model:FindFirstChild("RightUpperArm")
+            or model:FindFirstChild("Right Arm")
+    end,
+    ["HumanoidRootPart"] = function(model) return model:FindFirstChild("HumanoidRootPart") end,
+    ["Closest"] = nil, -- will use closest part to camera center
+}
+
+local function getTargetPart(model, viewportCenter)
+    if not model or not model.Parent then return nil end
+
+    local choice = WhizConfig.AimbotPart
+    local resolver = TARGET_PART_RESOLVERS[choice]
+
+    if choice == "Closest" then
+        -- Find the part (with a valid position) closest to the screen center
+        local bestPart, bestDist = nil, math.huge
+        for _, part in ipairs(model:GetChildren()) do
+            if part:IsA("BasePart") then
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local d = (Vector2.new(pos.X, pos.Y) - viewportCenter).Magnitude
+                    if d < bestDist then
+                        bestDist = d
+                        bestPart = part
+                    end
+                end
+            end
+        end
+        return bestPart
+    end
+
+    if resolver then
+        local part = resolver(model)
+        if part then return part end
+    end
+
+    -- Fallback: Head → HumanoidRootPart → any part
+    return model:FindFirstChild("Head")
+        or model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChildWhichIsA("BasePart", true)
+end
+
 pcall(function() if _G.AimbotConnection then _G.AimbotConnection:Disconnect() end end)
 pcall(function() if _G.FOVCircle then _G.FOVCircle:Remove() end end)
-pcall(function() if _G.DartAimbotConnection then _G.DartAimbotConnection:Disconnect() end end)
-pcall(function() if _G.DartFOVCircle then _G.DartFOVCircle:Remove() end end)
 pcall(function() if _G.InstantPromptConn then _G.InstantPromptConn:Disconnect() end end)
 pcall(function()
     if _G.DogtagEspConns then
@@ -171,7 +227,7 @@ local CrossHolder = Instance.new("Frame")
 CrossHolder.Name = "CrossHolder"
 CrossHolder.AnchorPoint = Vector2.new(0.5, 0.5)
 CrossHolder.Position = UDim2.new(0.5, 0, 0.5, 0)
-CrossHolder.Size = UDim2.new(0, 40, 0, 40)
+CrossHolder.Size = UDim2.new(0, 60, 0, 60)
 CrossHolder.BackgroundTransparency = 1
 CrossHolder.Visible = false
 CrossHolder.Parent = CrossGui
@@ -189,6 +245,8 @@ local function makeFrame(props)
     local f = Instance.new("Frame")
     f.BorderSizePixel = 0
     f.BackgroundColor3 = WhizConfig.CrosshairColor
+    f.AnchorPoint = Vector2.new(0.5, 0.5)
+    f.Position = UDim2.new(0.5, 0, 0.5, 0)
     for k, v in pairs(props or {}) do
         f[k] = v
     end
@@ -202,67 +260,131 @@ local function buildCrosshair(style)
     local color = WhizConfig.CrosshairColor
 
     if style == "Purple Plus" then
-        makeFrame({ Size = UDim2.new(0, 2, 0, 16), Position = UDim2.new(0.5, -1, 0.5, -8), BackgroundColor3 = color })
-        makeFrame({ Size = UDim2.new(0, 16, 0, 2), Position = UDim2.new(0.5, -8, 0.5, -1), BackgroundColor3 = color })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 16),
+            Position = UDim2.new(0.5, 0, 0.5, -8),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 16),
+            Position = UDim2.new(0.5, 0, 0.5, 8),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 16, 0, 2),
+            Position = UDim2.new(0.5, -8, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 16, 0, 2),
+            Position = UDim2.new(0.5, 8, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5),
+        })
 
     elseif style == "Dot" then
-        local f = makeFrame({ Size = UDim2.new(0, 4, 0, 4), Position = UDim2.new(0.5, -2, 0.5, -2), BackgroundColor3 = color })
+        local f = makeFrame({ Size = UDim2.new(0, 4, 0, 4), BackgroundColor3 = color })
         Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
 
     elseif style == "Hollow Circle" then
-        local ring = makeFrame({ Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0.5, -7, 0.5, -7), BackgroundTransparency = 1 })
+        local ring = makeFrame({ Size = UDim2.new(0, 18, 0, 18), BackgroundTransparency = 1 })
+        Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
         local stroke = Instance.new("UIStroke", ring)
         stroke.Color = color
         stroke.Thickness = 1.5
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
     elseif style == "Cross (Full)" then
-        makeFrame({ Size = UDim2.new(0, 2, 0, 22), Position = UDim2.new(0.5, -1, 0.5, -11), BackgroundColor3 = color })
-        makeFrame({ Size = UDim2.new(0, 22, 0, 2), Position = UDim2.new(0.5, -11, 0.5, -1), BackgroundColor3 = color })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 11),
+            Position = UDim2.new(0.5, 0, 0.5, -1),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 11),
+            Position = UDim2.new(0.5, 0, 0.5, 1),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 11, 0, 2),
+            Position = UDim2.new(0.5, -1, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 11, 0, 2),
+            Position = UDim2.new(0.5, 1, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5),
+        })
 
     elseif style == "Open Plus" then
-        makeFrame({ Size = UDim2.new(0, 2, 0, 6), Position = UDim2.new(0.5, -1, 0.5, -11), BackgroundColor3 = color })
-        makeFrame({ Size = UDim2.new(0, 2, 0, 6), Position = UDim2.new(0.5, -1, 0.5, 5),   BackgroundColor3 = color })
-        makeFrame({ Size = UDim2.new(0, 6, 0, 2), Position = UDim2.new(0.5, -11, 0.5, -1), BackgroundColor3 = color })
-        makeFrame({ Size = UDim2.new(0, 6, 0, 2), Position = UDim2.new(0.5, 5, 0.5, -1),   BackgroundColor3 = color })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 6),
+            Position = UDim2.new(0.5, 0, 0.5, -4),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 6),
+            Position = UDim2.new(0.5, 0, 0.5, 4),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 6, 0, 2),
+            Position = UDim2.new(0.5, -4, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 6, 0, 2),
+            Position = UDim2.new(0.5, 4, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5),
+        })
 
     elseif style == "T-Shape" then
-        makeFrame({ Size = UDim2.new(0, 2, 0, 14), Position = UDim2.new(0.5, -1, 0.5, -7), BackgroundColor3 = color })
-        makeFrame({ Size = UDim2.new(0, 12, 0, 2), Position = UDim2.new(0.5, -6, 0.5, -7), BackgroundColor3 = color })
+        makeFrame({
+            Size = UDim2.new(0, 2, 0, 14),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
+        })
+        makeFrame({
+            Size = UDim2.new(0, 14, 0, 2),
+            Position = UDim2.new(0.5, 0, 0.5, -7),
+            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
+        })
 
     elseif style == "X Shape" then
-        local size, thickness = 20, 2
+        local size = 20
         for _, rotation in ipairs({45, -45}) do
             makeFrame({
-                Size = UDim2.new(0, thickness, 0, size),
-                Position = UDim2.new(0.5, 0, 0.5, 0),
+                Size = UDim2.new(0, 2, 0, size),
                 BackgroundColor3 = color,
                 Rotation = rotation,
-                AnchorPoint = Vector2.new(0.5, 0.5),
             })
         end
 
     elseif style == "Dot + Ring" then
-        local dot = makeFrame({ Size = UDim2.new(0, 3, 0, 3), Position = UDim2.new(0.5, -1.5, 0.5, -1.5), BackgroundColor3 = color })
+        local dot = makeFrame({ Size = UDim2.new(0, 4, 0, 4), BackgroundColor3 = color })
         Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-        local ring = makeFrame({ Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0.5, -7, 0.5, -7), BackgroundTransparency = 1 })
+
+        local ring = makeFrame({ Size = UDim2.new(0, 18, 0, 18), BackgroundTransparency = 1 })
+        Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
         local stroke = Instance.new("UIStroke", ring)
         stroke.Color = color
         stroke.Thickness = 1.5
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
     elseif style == "Square" then
-        local sq = makeFrame({ Size = UDim2.new(0, 10, 0, 10), Position = UDim2.new(0.5, -5, 0.5, -5), BackgroundTransparency = 1 })
+        local sq = makeFrame({ Size = UDim2.new(0, 14, 0, 14), BackgroundTransparency = 1 })
         local stroke = Instance.new("UIStroke", sq)
         stroke.Color = color
         stroke.Thickness = 1.5
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
     elseif style == "Chevron" then
-        for _, rot in ipairs({35, -35}) do
+        for _, rotation in ipairs({35, -35}) do
             makeFrame({
                 Size = UDim2.new(0, 2, 0, 10),
-                Position = UDim2.new(0.5, 0, 0.5, 0),
-                AnchorPoint = Vector2.new(0.5, 1),
-                Rotation = rot,
+                Position = UDim2.new(0.5, 0, 0.5, 2),
                 BackgroundColor3 = color,
+                Rotation = rotation,
+                AnchorPoint = Vector2.new(0.5, 1),
             })
         end
     end
@@ -421,6 +543,13 @@ local function createPurpleButtonHUD(config)
     btn.MouseButton1Click:Connect(function()
         playButtonSfx()
         if config.onClick then config.onClick(btn) end
+    end)
+
+    btn.MouseButton1Down:Connect(function()
+        TweenService:Create(hover, TweenInfo.new(0.08), { BackgroundTransparency = 0.7 }):Play()
+        task.delay(0.15, function()
+            TweenService:Create(hover, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+        end)
     end)
 
     registerDraggable(frame)
@@ -1367,7 +1496,7 @@ local ExtraTab  = Window:Tab({ Title = "Extra Utilities", Icon = "wrench" })
 -- ===== COMBAT =====
 MainTab:Toggle({
     Title = "Silent Aim (Thin & Smooth)",
-    Desc  = "Locks the camera onto the head of the nearest NPC inside the radius.",
+    Desc  = "Locks the camera onto the nearest NPC inside the FOV. Target part can be changed below.",
     Default = false,
     Callback = function(state)
         WhizConfig.SilentAim = state
@@ -1385,27 +1514,42 @@ MainTab:Toggle({
             _G.AimbotConnection = RS.RenderStepped:Connect(function()
                 if not WhizConfig.SilentAim then return end
                 pcall(function()
-                    Circle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+                    local viewport = Camera.ViewportSize
+                    local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
+                    Circle.Position = center
                     Circle.Color    = Color3.fromHSV(tick() % 5 / 5, 0.8, 1)
                     Circle.Radius   = WhizConfig.AimbotFOV
-                    local Target, MinDist = nil, Circle.Radius
+
+                    local bestPart, bestScreen = nil, nil
+                    local minDist = Circle.Radius
+
                     for _, v in pairs(workspace:GetChildren()) do
                         if v:IsA("Model") and not Players:GetPlayerFromCharacter(v) then
                             pcall(function()
-                                local h   = v:FindFirstChild("Head")
                                 local hum = v:FindFirstChildOfClass("Humanoid")
-                                if h and hum and hum.Health > 0 then
-                                    local Pos, On = Camera:WorldToViewportPoint(h.Position)
-                                    if On then
-                                        local M = (Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2) - Vector2.new(Pos.X, Pos.Y)).Magnitude
-                                        if M < MinDist then MinDist = M; Target = h end
+                                if hum and hum.Health > 0 then
+                                    local targetPart = getTargetPart(v, center)
+                                    if targetPart and targetPart:IsA("BasePart") then
+                                        local pos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                                        if onScreen then
+                                            local scr = Vector2.new(pos.X, pos.Y)
+                                            local d = (scr - center).Magnitude
+                                            if d < minDist then
+                                                minDist = d
+                                                bestPart = targetPart
+                                                bestScreen = scr
+                                            end
+                                        end
                                     end
                                 end
                             end)
                         end
                     end
-                    if Target then
-                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, Target.Position), 0.12)
+
+                    if bestPart then
+                        Camera.CFrame = Camera.CFrame:Lerp(
+                            CFrame.new(Camera.CFrame.Position, bestPart.Position), 0.12
+                        )
                     end
                 end)
             end)
@@ -1418,8 +1562,27 @@ MainTab:Toggle({
 })
 
 pcall(function()
+    MainTab:Dropdown({
+        Title       = "Aim Target Part",
+        Desc        = "Which body part the Silent Aim should lock onto.",
+        Values      = {
+            "Head",
+            "Torso",
+            "Leg",
+            "Arms",
+            "HumanoidRootPart",
+            "Closest",
+        },
+        Default     = "Head",
+        Callback    = function(selected)
+            WhizConfig.AimbotPart = selected
+        end,
+    })
+end)
+
+pcall(function()
     MainTab:Input({
-        Title       = "Silent Aim FOV Radius",
+        Title       = "Aimbot FOV Radius",
         Desc        = "FOV circle size (30 - 800).",
         Value       = "150",
         Placeholder = "e.g. 150",
@@ -1431,127 +1594,6 @@ pcall(function()
                 WhizConfig.AimbotFOV = n
                 if _G.FOVCircle then
                     pcall(function() _G.FOVCircle.Radius = n end)
-                end
-            end
-        end,
-    })
-end)
-
--- ===== DART SILENT AIM =====
--- Locks the camera onto specific target boards that live under
--- workspace["Updated Lobby"].OutsideArea.Targets["Moving Targets"]["Group 2"]
-MainTab:Toggle({
-    Title = "Dart Silent Aim (Target Boards)",
-    Desc  = "Locks the camera onto the dart target boards (Group 2 children 2 & 3).",
-    Default = false,
-    Callback = function(state)
-        WhizConfig.DartSilentAim = state
-        if state then
-            if WhizConfig.DartAimbotLoaded then return end
-            WhizConfig.DartAimbotLoaded = true
-
-            local circle = Drawing.new("Circle")
-            circle.Visible      = true
-            circle.Radius       = WhizConfig.DartFOV
-            circle.Thickness    = 1
-            circle.Transparency = 1
-            circle.Filled       = false
-            circle.Color        = Color3.fromRGB(255, 170, 60)
-            _G.DartFOVCircle = circle
-
-            _G.DartAimbotConnection = RS.RenderStepped:Connect(function()
-                if not WhizConfig.DartSilentAim then return end
-                pcall(function()
-                    circle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-                    circle.Color    = Color3.fromHSV(tick() % 5 / 5, 0.6, 1)
-                    circle.Radius   = WhizConfig.DartFOV
-
-                    -- Resolve the target boards safely
-                    local boards = {}
-                    pcall(function()
-                        local lobby = workspace:FindFirstChild("Updated Lobby")
-                        if not lobby then return end
-                        local outside = lobby:FindFirstChild("OutsideArea")
-                        if not outside then return end
-                        local targets = outside:FindFirstChild("Targets")
-                        if not targets then return end
-                        local moving = targets:FindFirstChild("Moving Targets")
-                        if not moving then return end
-                        local group = moving:FindFirstChild("Group 2")
-                        if not group then return end
-
-                        local kids = group:GetChildren()
-                        local kid3 = kids[3]
-                        local kid2 = kids[2]
-
-                        if kid3 then
-                            local tb = kid3:FindFirstChild("TargetBoard")
-                            if tb then
-                                local t10 = tb:FindFirstChild("10")
-                                if t10 then table.insert(boards, t10) end
-                            end
-                        end
-                        if kid2 then
-                            local tb = kid2:FindFirstChild("TargetBoard")
-                            if tb then
-                                local t10 = tb:FindFirstChild("10")
-                                if t10 then table.insert(boards, t10) end
-                            end
-                        end
-                    end)
-
-                    if #boards == 0 then return end
-
-                    -- Pick the nearest board to screen center
-                    local target, minDist = nil, circle.Radius
-                    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-                    for _, part in ipairs(boards) do
-                        if part and part:IsA("BasePart") and part.Parent then
-                            local Pos, On = Camera:WorldToViewportPoint(part.Position)
-                            if On then
-                                local M = (center - Vector2.new(Pos.X, Pos.Y)).Magnitude
-                                if M < minDist then
-                                    minDist = M
-                                    target  = part
-                                end
-                            end
-                        end
-                    end
-
-                    if target then
-                        local aimPos = target.Position
-                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, aimPos), 0.25)
-                    end
-                end)
-            end)
-        else
-            if _G.DartAimbotConnection then
-                _G.DartAimbotConnection:Disconnect()
-                _G.DartAimbotConnection = nil
-            end
-            if _G.DartFOVCircle then
-                _G.DartFOVCircle:Remove()
-                _G.DartFOVCircle = nil
-            end
-            WhizConfig.DartAimbotLoaded = false
-        end
-    end,
-})
-
-pcall(function()
-    MainTab:Input({
-        Title       = "Dart Silent Aim FOV Radius",
-        Desc        = "FOV circle size for dart targets (50 - 1200).",
-        Value       = "400",
-        Placeholder = "e.g. 400",
-        Type        = "Input",
-        Callback    = function(text)
-            local n = tonumber(text)
-            if n then
-                n = math.clamp(n, 50, 1200)
-                WhizConfig.DartFOV = n
-                if _G.DartFOVCircle then
-                    pcall(function() _G.DartFOVCircle.Radius = n end)
                 end
             end
         end,
@@ -1587,9 +1629,16 @@ VisualTab:Dropdown({
     Title       = "Crosshair Style",
     Desc        = "Pick the crosshair design you want to use.",
     Values      = {
-        "Purple Plus", "Dot", "Hollow Circle", "Cross (Full)",
-        "Open Plus", "T-Shape", "X Shape", "Dot + Ring",
-        "Square", "Chevron",
+        "Purple Plus",
+        "Dot",
+        "Hollow Circle",
+        "Cross (Full)",
+        "Open Plus",
+        "T-Shape",
+        "X Shape",
+        "Dot + Ring",
+        "Square",
+        "Chevron",
     },
     Default     = "Purple Plus",
     Callback    = function(selected)
@@ -1612,7 +1661,7 @@ VisualTab:Colorpicker({
 
 VisualTab:Toggle({
     Title = "Wounded Player ESP (Red)",
-    Desc  = "Marks injured players with a red blinking icon.",
+    Desc  = "Marks players in red with a small blinking wounded icon while their health is actively dropping. Clears automatically once their health stops decreasing.",
     Default = false,
     Callback = function(v)
         WhizConfig.WoundedEsp = v
@@ -1622,7 +1671,7 @@ VisualTab:Toggle({
 
 VisualTab:Toggle({
     Title = "Dogtag ESP (Yellow Body Highlight)",
-    Desc  = "Marks corpses that still hold a dogtag.",
+    Desc  = "Marks corpses that still hold a dogtag so you can find them easily.",
     Default = false,
     Callback = function(v)
         WhizConfig.DogtagEsp = v
@@ -1667,7 +1716,7 @@ end)
 
 WorldTab:Toggle({
     Title = "Enable Custom Speed",
-    Desc  = "Applies your own walk speed.",
+    Desc  = "Applies your own walk speed. Turns off back to default when disabled.",
     Default = false,
     Callback = function(v)
         WhizConfig.CustomSpeedEnabled = v
@@ -1708,7 +1757,11 @@ ExtraTab:Toggle({
     Default = false,
     Callback = function(v)
         WhizConfig.AutoMakeBread = v
-        if v then startAutoMakeBread() else stopAutoMakeBread() end
+        if v then
+            startAutoMakeBread()
+        else
+            stopAutoMakeBread()
+        end
     end,
 })
 
@@ -1740,7 +1793,9 @@ ExtraTab:Button({
             text      = "RELOAD",
             position  = UDim2.new(0, 30, 0, 220),
             size      = UDim2.new(0, 92, 0, 34),
-            onClick = function() UniversalReload() end,
+            onClick = function()
+                UniversalReload()
+            end,
         })
     end,
 })
@@ -1770,6 +1825,7 @@ ExtraTab:Toggle({
     Callback = function(v)
         WhizConfig.UiLocked = v
         applyLockState()
+        print(string.format("[WHIZZBANG] Lock UI: %s", v and "ON" or "OFF"))
     end,
 })
 
@@ -1837,6 +1893,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Dart Silent Aim added for target boards!",
+    Content  = "Added Target Part selector to Silent Aim!",
     Duration = 5,
 })
