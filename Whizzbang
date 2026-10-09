@@ -7,7 +7,7 @@
   - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
   - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
-  - HUD: Revamped Instant Reload & Clean Button (Purple Glow, Draggable + SFX)
+  - HUD: Revamped Instant Reload (Better SFX) & Clean Button (Purple Glow, Draggable)
   - Lock UI: Freeze all draggable HUDs with a single toggle
   - UI: WindUI (Violet Theme)
 ================================================================================
@@ -29,7 +29,10 @@ local SoundService           = game:GetService("SoundService")
 
 local WOUNDED_TEXTURE_ID = "rbxassetid://10797750927"
 local WOUNDED_ICON_SIZE  = UDim2.new(0, 24, 0, 24)
-local BUTTON_SFX_ID      = "rbxassetid://9120386436"
+
+-- Sound effects
+local BUTTON_SFX_ID      = "rbxassetid://9120386436"   -- generic button click (clean button)
+local RELOAD_SFX_ID      = "rbxassetid://6895079853"   -- nicer pop/notification for reload
 
 local WhizConfig = {
     EspActive          = false,
@@ -54,7 +57,6 @@ local WhizConfig = {
     UiLocked           = false,
 }
 
--- Target part mapping: how to find the part on a character
 local TARGET_PART_RESOLVERS = {
     ["Head"]  = function(model) return model:FindFirstChild("Head") end,
     ["Torso"] = function(model)
@@ -76,17 +78,15 @@ local TARGET_PART_RESOLVERS = {
             or model:FindFirstChild("Right Arm")
     end,
     ["HumanoidRootPart"] = function(model) return model:FindFirstChild("HumanoidRootPart") end,
-    ["Closest"] = nil, -- will use closest part to camera center
+    ["Closest"] = nil,
 }
 
 local function getTargetPart(model, viewportCenter)
     if not model or not model.Parent then return nil end
-
     local choice = WhizConfig.AimbotPart
     local resolver = TARGET_PART_RESOLVERS[choice]
 
     if choice == "Closest" then
-        -- Find the part (with a valid position) closest to the screen center
         local bestPart, bestDist = nil, math.huge
         for _, part in ipairs(model:GetChildren()) do
             if part:IsA("BasePart") then
@@ -108,7 +108,6 @@ local function getTargetPart(model, viewportCenter)
         if part then return part end
     end
 
-    -- Fallback: Head → HumanoidRootPart → any part
     return model:FindFirstChild("Head")
         or model:FindFirstChild("HumanoidRootPart")
         or model:FindFirstChildWhichIsA("BasePart", true)
@@ -179,18 +178,27 @@ local function applyLockState()
     end
 end
 
-local function playButtonSfx()
+local function playSfx(id, volume, pitch)
     pcall(function()
         local s = Instance.new("Sound")
-        s.SoundId = BUTTON_SFX_ID
-        s.Volume = 0.6
-        s.PlaybackSpeed = 1
+        s.SoundId = id
+        s.Volume = volume or 0.6
+        s.PlaybackSpeed = pitch or 1
         s.Parent = SoundService
         s:Play()
-        task.delay(2, function()
+        task.delay(3, function()
             pcall(function() s:Destroy() end)
         end)
     end)
+end
+
+local function playButtonSfx()
+    playSfx(BUTTON_SFX_ID, 0.6, 1)
+end
+
+local function playReloadSfx()
+    -- Slightly louder + pitch up for a satisfying "pop"
+    playSfx(RELOAD_SFX_ID, 0.75, 1.05)
 end
 
 local DEFAULT_SPEED = 16
@@ -260,26 +268,10 @@ local function buildCrosshair(style)
     local color = WhizConfig.CrosshairColor
 
     if style == "Purple Plus" then
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 16),
-            Position = UDim2.new(0.5, 0, 0.5, -8),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 16),
-            Position = UDim2.new(0.5, 0, 0.5, 8),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 16, 0, 2),
-            Position = UDim2.new(0.5, -8, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 16, 0, 2),
-            Position = UDim2.new(0.5, 8, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5),
-        })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 16), Position = UDim2.new(0.5, 0, 0.5, -8), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0) })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 16), Position = UDim2.new(0.5, 0, 0.5, 8), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1) })
+        makeFrame({ Size = UDim2.new(0, 16, 0, 2), Position = UDim2.new(0.5, -8, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5) })
+        makeFrame({ Size = UDim2.new(0, 16, 0, 2), Position = UDim2.new(0.5, 8, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5) })
 
     elseif style == "Dot" then
         local f = makeFrame({ Size = UDim2.new(0, 4, 0, 4), BackgroundColor3 = color })
@@ -294,75 +286,30 @@ local function buildCrosshair(style)
         stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
     elseif style == "Cross (Full)" then
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 11),
-            Position = UDim2.new(0.5, 0, 0.5, -1),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 11),
-            Position = UDim2.new(0.5, 0, 0.5, 1),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 11, 0, 2),
-            Position = UDim2.new(0.5, -1, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 11, 0, 2),
-            Position = UDim2.new(0.5, 1, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5),
-        })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 11), Position = UDim2.new(0.5, 0, 0.5, -1), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1) })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 11), Position = UDim2.new(0.5, 0, 0.5, 1), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0) })
+        makeFrame({ Size = UDim2.new(0, 11, 0, 2), Position = UDim2.new(0.5, -1, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5) })
+        makeFrame({ Size = UDim2.new(0, 11, 0, 2), Position = UDim2.new(0.5, 1, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5) })
 
     elseif style == "Open Plus" then
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 6),
-            Position = UDim2.new(0.5, 0, 0.5, -4),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 6),
-            Position = UDim2.new(0.5, 0, 0.5, 4),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 6, 0, 2),
-            Position = UDim2.new(0.5, -4, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 6, 0, 2),
-            Position = UDim2.new(0.5, 4, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5),
-        })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 6), Position = UDim2.new(0.5, 0, 0.5, -4), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 1) })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 6), Position = UDim2.new(0.5, 0, 0.5, 4), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0) })
+        makeFrame({ Size = UDim2.new(0, 6, 0, 2), Position = UDim2.new(0.5, -4, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(1, 0.5) })
+        makeFrame({ Size = UDim2.new(0, 6, 0, 2), Position = UDim2.new(0.5, 4, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(0, 0.5) })
 
     elseif style == "T-Shape" then
-        makeFrame({
-            Size = UDim2.new(0, 2, 0, 14),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
-        })
-        makeFrame({
-            Size = UDim2.new(0, 14, 0, 2),
-            Position = UDim2.new(0.5, 0, 0.5, -7),
-            BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0),
-        })
+        makeFrame({ Size = UDim2.new(0, 2, 0, 14), Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0) })
+        makeFrame({ Size = UDim2.new(0, 14, 0, 2), Position = UDim2.new(0.5, 0, 0.5, -7), BackgroundColor3 = color, AnchorPoint = Vector2.new(0.5, 0) })
 
     elseif style == "X Shape" then
         local size = 20
         for _, rotation in ipairs({45, -45}) do
-            makeFrame({
-                Size = UDim2.new(0, 2, 0, size),
-                BackgroundColor3 = color,
-                Rotation = rotation,
-            })
+            makeFrame({ Size = UDim2.new(0, 2, 0, size), BackgroundColor3 = color, Rotation = rotation })
         end
 
     elseif style == "Dot + Ring" then
         local dot = makeFrame({ Size = UDim2.new(0, 4, 0, 4), BackgroundColor3 = color })
         Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-
         local ring = makeFrame({ Size = UDim2.new(0, 18, 0, 18), BackgroundTransparency = 1 })
         Instance.new("UICorner", ring).CornerRadius = UDim.new(1, 0)
         local stroke = Instance.new("UIStroke", ring)
@@ -379,13 +326,7 @@ local function buildCrosshair(style)
 
     elseif style == "Chevron" then
         for _, rotation in ipairs({35, -35}) do
-            makeFrame({
-                Size = UDim2.new(0, 2, 0, 10),
-                Position = UDim2.new(0.5, 0, 0.5, 2),
-                BackgroundColor3 = color,
-                Rotation = rotation,
-                AnchorPoint = Vector2.new(0.5, 1),
-            })
+            makeFrame({ Size = UDim2.new(0, 2, 0, 10), Position = UDim2.new(0.5, 0, 0.5, 2), BackgroundColor3 = color, Rotation = rotation, AnchorPoint = Vector2.new(0.5, 1) })
         end
     end
 end
@@ -541,7 +482,11 @@ local function createPurpleButtonHUD(config)
     end)
 
     btn.MouseButton1Click:Connect(function()
-        playButtonSfx()
+        if config.sfx then
+            config.sfx()
+        else
+            playButtonSfx()
+        end
         if config.onClick then config.onClick(btn) end
     end)
 
@@ -1520,7 +1465,7 @@ MainTab:Toggle({
                     Circle.Color    = Color3.fromHSV(tick() % 5 / 5, 0.8, 1)
                     Circle.Radius   = WhizConfig.AimbotFOV
 
-                    local bestPart, bestScreen = nil, nil
+                    local bestPart = nil
                     local minDist = Circle.Radius
 
                     for _, v in pairs(workspace:GetChildren()) do
@@ -1537,7 +1482,6 @@ MainTab:Toggle({
                                             if d < minDist then
                                                 minDist = d
                                                 bestPart = targetPart
-                                                bestScreen = scr
                                             end
                                         end
                                     end
@@ -1565,14 +1509,7 @@ pcall(function()
     MainTab:Dropdown({
         Title       = "Aim Target Part",
         Desc        = "Which body part the Silent Aim should lock onto.",
-        Values      = {
-            "Head",
-            "Torso",
-            "Leg",
-            "Arms",
-            "HumanoidRootPart",
-            "Closest",
-        },
+        Values      = { "Head", "Torso", "Leg", "Arms", "HumanoidRootPart", "Closest" },
         Default     = "Head",
         Callback    = function(selected)
             WhizConfig.AimbotPart = selected
@@ -1629,16 +1566,8 @@ VisualTab:Dropdown({
     Title       = "Crosshair Style",
     Desc        = "Pick the crosshair design you want to use.",
     Values      = {
-        "Purple Plus",
-        "Dot",
-        "Hollow Circle",
-        "Cross (Full)",
-        "Open Plus",
-        "T-Shape",
-        "X Shape",
-        "Dot + Ring",
-        "Square",
-        "Chevron",
+        "Purple Plus", "Dot", "Hollow Circle", "Cross (Full)", "Open Plus",
+        "T-Shape", "X Shape", "Dot + Ring", "Square", "Chevron",
     },
     Default     = "Purple Plus",
     Callback    = function(selected)
@@ -1661,7 +1590,7 @@ VisualTab:Colorpicker({
 
 VisualTab:Toggle({
     Title = "Wounded Player ESP (Red)",
-    Desc  = "Marks players in red with a small blinking wounded icon while their health is actively dropping. Clears automatically once their health stops decreasing.",
+    Desc  = "Marks players in red with a small blinking wounded icon while their health is actively dropping.",
     Default = false,
     Callback = function(v)
         WhizConfig.WoundedEsp = v
@@ -1757,11 +1686,7 @@ ExtraTab:Toggle({
     Default = false,
     Callback = function(v)
         WhizConfig.AutoMakeBread = v
-        if v then
-            startAutoMakeBread()
-        else
-            stopAutoMakeBread()
-        end
+        if v then startAutoMakeBread() else stopAutoMakeBread() end
     end,
 })
 
@@ -1793,7 +1718,8 @@ ExtraTab:Button({
             text      = "RELOAD",
             position  = UDim2.new(0, 30, 0, 220),
             size      = UDim2.new(0, 92, 0, 34),
-            onClick = function()
+            sfx       = playReloadSfx, -- new, better sound
+            onClick   = function()
                 UniversalReload()
             end,
         })
@@ -1811,7 +1737,7 @@ ExtraTab:Button({
             text      = "CLEAN",
             position  = UDim2.new(0, 30, 0, 264),
             size      = UDim2.new(0, 92, 0, 34),
-            onClick = function()
+            onClick   = function()
                 pcall(function() RP.wipedirt:FireServer() end)
             end,
         })
@@ -1893,6 +1819,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Added Target Part selector to Silent Aim!",
+    Content  = "Instant Reload button now uses a better pop sound.",
     Duration = 5,
 })
