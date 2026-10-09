@@ -2,16 +2,85 @@
 ================================================================================
  [ WHIZZBANG ] - UNIVERSAL CLAN EDITION
 ================================================================================
-  - Combat: Silent Aim (+ FOV + Target Part), InstantProximityPrompt
-  - Visuals: NPC ESP, Crosshair, Dogtag ESP, Wounded ESP, Encrypted Msg ESP
-  - World: Custom Speed, Fullbright, No Fog
+  - Place Lock: Only runs on PlaceId 14234703115.
+                Otherwise shows "Wrong game fam" and teleports automatically
+                to the server with the most players.
+  - Combat: Silent Aim (+ FOV Input Box + Target Part Selector), InstantPrompt
+  - Visuals: NPC ESP, Crosshair (Fixed Shapes), Dogtag ESP, Wounded ESP,
+             Encrypted Message ESP (White)
+  - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
-  - Counter: Total Enemies HUD (Tank / Flamethrower / Infantry / Others)
-  - HUD: Instant Reload & Clean Button (Purple Glow, Draggable + SFX)
-  - Lock UI: Freeze all draggable HUDs
+  - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
+  - HUD: Revamped Instant Reload & Clean Button (Purple Glow, Draggable + Sharp SFX)
+  - Lock UI: Freeze all draggable HUDs with a single toggle
   - UI: WindUI (Violet Theme)
 ================================================================================
 --]]
+
+-- ===== PLACE LOCK / ANTI WRONG-GAME =====
+local EXPECTED_PLACE_ID = 14234703115
+
+if game.PlaceId ~= EXPECTED_PLACE_ID then
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService     = game:GetService("HttpService")
+    local StarterGui      = game:GetService("StarterGui")
+    local LP_LOCK         = game:GetService("Players").LocalPlayer
+
+    -- Show "Wrong game fam" message (kick-style notification)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title    = "WHIZZBANG",
+            Text     = "Wrong game fam",
+            Duration = 3,
+        })
+    end)
+
+    -- Also attempt a real client-side kick (may or may not work depending on executor)
+    pcall(function()
+        LP_LOCK:Kick("Wrong game fam")
+    end)
+
+    -- In a separate thread: find the server with the most players & teleport
+    task.spawn(function()
+        local bestJobId   = nil
+        local bestCount   = -1
+
+        pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. EXPECTED_PLACE_ID ..
+                        "/servers/Public?sortOrder=Desc&limit=100"
+            local raw = game:HttpGet(url)
+            local data = HttpService:JSONDecode(raw)
+            if data and data.data then
+                for _, srv in ipairs(data.data) do
+                    if type(srv) == "table"
+                        and type(srv.playing) == "number"
+                        and type(srv.id) == "string"
+                        and srv.playing > bestCount then
+                        bestCount = srv.playing
+                        bestJobId = srv.id
+                    end
+                end
+            end
+        end)
+
+        -- Let the notification display for a moment
+        task.wait(1.3)
+
+        if bestJobId then
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(EXPECTED_PLACE_ID, bestJobId, LP_LOCK)
+            end)
+        else
+            -- Fallback: normal teleport (Roblox will assign a server)
+            pcall(function()
+                TeleportService:Teleport(EXPECTED_PLACE_ID, LP_LOCK)
+            end)
+        end
+    end)
+
+    return
+end
+-- ===== END PLACE LOCK =====
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
@@ -689,7 +758,7 @@ local function stopWoundedEsp()
     _G.WoundedEspConns = {}
 end
 
--- ===== ENCRYPTED MESSAGE ESP =====
+-- ===== ENCRYPTED MESSAGE ESP (White) =====
 local encryptedEspData = {}
 
 local function isEncryptedPrompt(prompt)
@@ -705,8 +774,7 @@ local function isEncryptedPrompt(prompt)
     while node and node ~= workspace and depth < 6 do
         local n = string.lower(tostring(node.Name or ""))
         if n:find("encrypted", 1, true)
-            or n:find("cryptograph", 1, true)
-            or n:find("encrypted message", 1, true) then
+            or n:find("cryptograph", 1, true) then
             matchedAncestor = true
             break
         end
@@ -1523,6 +1591,7 @@ end
 local function stopAutoMakeBread()
     WhizConfig.AutoMakeBread = false
     _G.AutoMakeThread = false
+    print("[WHIZZBANG] Auto Make Bread OFF")
 end
 
 -- ===== UNIVERSAL RELOAD =====
@@ -1630,8 +1699,8 @@ local ExtraTab  = Window:Tab({ Title = "Extra Utilities", Icon = "wrench" })
 
 -- ===== COMBAT =====
 MainTab:Toggle({
-    Title = "Silent Aim",
-    Desc  = "Auto-lock kamera ke musuh terdekat.",
+    Title = "Silent Aim (Thin & Smooth)",
+    Desc  = "Locks the camera onto the nearest NPC inside the FOV. Target part can be changed below.",
     Default = false,
     Callback = function(state)
         WhizConfig.SilentAim = state
@@ -1698,7 +1767,7 @@ MainTab:Toggle({
 pcall(function()
     MainTab:Dropdown({
         Title       = "Aim Target Part",
-        Desc        = "Bagian tubuh target yang di-aim.",
+        Desc        = "Which body part the Silent Aim should lock onto.",
         Values      = { "Head", "Torso", "Leg", "Arms", "HumanoidRootPart", "Closest" },
         Default     = "Head",
         Callback    = function(selected)
@@ -1710,7 +1779,7 @@ end)
 pcall(function()
     MainTab:Input({
         Title       = "Aimbot FOV Radius",
-        Desc        = "Ukuran FOV circle (30 - 800).",
+        Desc        = "FOV circle size (30 - 800).",
         Value       = "150",
         Placeholder = "e.g. 150",
         Type        = "Input",
@@ -1728,8 +1797,8 @@ pcall(function()
 end)
 
 MainTab:Toggle({
-    Title = "Instant ProximityPrompt",
-    Desc  = "Prompt jadi instant, kecuali long-hold.",
+    Title = "Instant ProximityPrompt (Hold = 0)",
+    Desc  = "Makes most prompts instant. Long-hold actions are left untouched.",
     Default = false,
     Callback = function(state)
         WhizConfig.InstantPrompt = state
@@ -1740,21 +1809,21 @@ MainTab:Toggle({
 -- ===== VISUALS =====
 VisualTab:Toggle({
     Title = "NPC Tracker (Box ESP)",
-    Desc  = "ESP kotak di semua NPC.",
+    Desc  = "Displays a highlight box on every living NPC around you.",
     Default = false,
     Callback = function(v) WhizConfig.EspActive = v end,
 })
 
 VisualTab:Toggle({
     Title = "Show Crosshair",
-    Desc  = "Tampilkan crosshair custom.",
+    Desc  = "Enables the custom crosshair in the middle of your screen.",
     Default = false,
     Callback = function(v) setCrosshairVisible(v) end,
 })
 
 VisualTab:Dropdown({
     Title       = "Crosshair Style",
-    Desc        = "Pilih bentuk crosshair.",
+    Desc        = "Pick the crosshair design you want to use.",
     Values      = {
         "Purple Plus", "Dot", "Hollow Circle", "Cross (Full)", "Open Plus",
         "T-Shape", "X Shape", "Dot + Ring", "Square", "Chevron",
@@ -1770,7 +1839,7 @@ VisualTab:Dropdown({
 
 VisualTab:Colorpicker({
     Title    = "Crosshair Color",
-    Desc     = "Warna crosshair.",
+    Desc     = "Choose a color for your crosshair.",
     Default  = Color3.fromRGB(150, 0, 255),
     Callback = function(color)
         WhizConfig.CrosshairColor = color
@@ -1779,8 +1848,8 @@ VisualTab:Colorpicker({
 })
 
 VisualTab:Toggle({
-    Title = "Wounded Player ESP",
-    Desc  = "Merah + icon wounded saat HP turun.",
+    Title = "Wounded Player ESP (Red)",
+    Desc  = "Marks players in red with a small blinking wounded icon while their health is actively dropping.",
     Default = false,
     Callback = function(v)
         WhizConfig.WoundedEsp = v
@@ -1789,8 +1858,8 @@ VisualTab:Toggle({
 })
 
 VisualTab:Toggle({
-    Title = "Dogtag ESP",
-    Desc  = "Highlight kuning ke corpse ber-dogtag.",
+    Title = "Dogtag ESP (Yellow Body Highlight)",
+    Desc  = "Marks corpses that still hold a dogtag so you can find them easily.",
     Default = false,
     Callback = function(v)
         WhizConfig.DogtagEsp = v
@@ -1799,8 +1868,8 @@ VisualTab:Toggle({
 })
 
 VisualTab:Toggle({
-    Title = "Encrypted Message ESP",
-    Desc  = "Highlight putih ke objek encrypted message.",
+    Title = "Encrypted Message ESP (White)",
+    Desc  = "Marks encrypted message objects in the map with a white highlight and label.",
     Default = false,
     Callback = function(v)
         WhizConfig.EncryptedEsp = v
@@ -1810,7 +1879,7 @@ VisualTab:Toggle({
 
 VisualTab:Toggle({
     Title = "Total Enemies (Real-Time HUD)",
-    Desc  = "Counter musuh secara real-time.",
+    Desc  = "Live counter of all verified enemies currently on the map.",
     Default = false,
     Callback = function(v)
         WhizConfig.EnemyCountHud = v
@@ -1832,7 +1901,7 @@ VisualTab:Toggle({
 pcall(function()
     WorldTab:Input({
         Title       = "Custom Speed Value",
-        Desc        = "Nilai walk speed (1 - 200).",
+        Desc        = "Type a numeric walk speed value (1 - 200).",
         Value       = "16",
         Placeholder = "e.g. 25",
         Type        = "Input",
@@ -1845,7 +1914,7 @@ end)
 
 WorldTab:Toggle({
     Title = "Enable Custom Speed",
-    Desc  = "Aktifkan speed custom.",
+    Desc  = "Applies your own walk speed. Turns off back to default when disabled.",
     Default = false,
     Callback = function(v)
         WhizConfig.CustomSpeedEnabled = v
@@ -1861,7 +1930,7 @@ WorldTab:Toggle({
 
 WorldTab:Toggle({
     Title = "Perfect Fullbright",
-    Desc  = "Map selalu terang.",
+    Desc  = "Keeps the entire map fully bright at all times.",
     Default = false,
     Callback = function(v)
         WhizConfig.Fullbright = v
@@ -1871,7 +1940,7 @@ WorldTab:Toggle({
 
 WorldTab:Toggle({
     Title = "No Fog",
-    Desc  = "Hilangkan fog & atmosphere.",
+    Desc  = "Clears fog and atmosphere so you can see farther.",
     Default = false,
     Callback = function(v)
         WhizConfig.NoFog = v
@@ -1881,8 +1950,8 @@ WorldTab:Toggle({
 
 -- ===== EXTRA =====
 ExtraTab:Toggle({
-    Title = "Auto Make Bread",
-    Desc  = "Bikin bread otomatis.",
+    Title = "Auto Make Bread (Whizzbang)",
+    Desc  = "Keeps making bread for you automatically.",
     Default = false,
     Callback = function(v)
         WhizConfig.AutoMakeBread = v
@@ -1891,8 +1960,8 @@ ExtraTab:Toggle({
 })
 
 ExtraTab:Toggle({
-    Title = "Auto-Clean Dirt",
-    Desc  = "Bersihkan kotoran otomatis.",
+    Title = "Auto-Clean Dirt (Loop)",
+    Desc  = "Keeps cleaning dirt for you automatically.",
     Default = false,
     Callback = function(v)
         WhizConfig.AutoClean = v
@@ -1909,7 +1978,7 @@ ExtraTab:Toggle({
 
 ExtraTab:Button({
     Title = "Instant Reload",
-    Desc  = "Reload cepat.",
+    Desc  = "Reloads your weapon quickly.",
     Callback = function()
         if LP.PlayerGui:FindFirstChild("WhizReloadHUD") then return end
         createPurpleButtonHUD({
@@ -1927,7 +1996,7 @@ ExtraTab:Button({
 
 ExtraTab:Button({
     Title = "Spawn Clean Button (Manual)",
-    Desc  = "Tombol clean manual.",
+    Desc  = "Cleans dirt for you.",
     Callback = function()
         if LP.PlayerGui:FindFirstChild("WhizCleanHUD") then return end
         createPurpleButtonHUD({
@@ -1945,11 +2014,12 @@ ExtraTab:Button({
 
 ExtraTab:Toggle({
     Title = "Lock UI",
-    Desc  = "Kunci posisi semua HUD.",
+    Desc  = "Freezes every on-screen HUD so it can't be moved by accident.",
     Default = false,
     Callback = function(v)
         WhizConfig.UiLocked = v
         applyLockState()
+        print(string.format("[WHIZZBANG] Lock UI: %s", v and "ON" or "OFF"))
     end,
 })
 
@@ -2030,6 +2100,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Descriptions shortened. Cleaner UI.",
+    Content  = "Place Lock active: script only runs on 14234703115.",
     Duration = 5,
 })
