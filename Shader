@@ -1,0 +1,1684 @@
+--[[
+	NEON SUITE v1.0.1  ::  Visual Shader Engine
+	Client-side only. No remote calls. Auto-restore on unload.
+	Hotkeys: RightShift = toggle panel, RightControl = hide toggle button.
+]]
+
+--// NEON SUITE :: header & guards
+local genv = (getgenv and getgenv()) or _G
+if type(genv) ~= "table" then genv = _G end
+if genv.__NeonSuite and type(genv.__NeonSuite.Unload) == "function" then
+	pcall(genv.__NeonSuite.Unload)
+	genv.__NeonSuite = nil
+end
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local NeonSuite = { Version = "1.0.1", _unloading = false }
+genv.__NeonSuite = NeonSuite
+
+--// SERVICES (cloneref-aware)
+local function svc(name)
+	local ok, s = pcall(game.GetService, game, name)
+	if not ok or not s then return nil end
+	if cloneref then
+		local ok2, c = pcall(cloneref, s)
+		if ok2 and c then return c end
+	end
+	return s
+end
+
+local Players      = svc("Players")
+local RunService   = svc("RunService")
+local TweenService = svc("TweenService")
+local UIS          = svc("UserInputService")
+local Lighting     = svc("Lighting")
+local SoundService = svc("SoundService")
+local GuiService   = svc("GuiService")
+local HttpService  = svc("HttpService")
+local CoreGui      = svc("CoreGui")
+local Workspace    = svc("Workspace")
+
+-- [FIX] Guard: LocalPlayer bisa nil di beberapa executor
+local function getLocalPlayer()
+	if Players.LocalPlayer then return Players.LocalPlayer end
+	local ok, lp = pcall(function()
+		return Players:WaitForChild("LocalPlayer", 15)
+	end)
+	return ok and lp or Players.LocalPlayer
+end
+
+local Caps = {
+	gethui    = type(gethui) == "function",
+	writefile = type(writefile) == "function" and type(readfile) == "function" and type(isfile) == "function",
+	protect   = (type(syn) == "table" and type(syn.protect_gui) == "function") or type(protect_gui) == "function",
+	setfpscap = type(setfpscap) == "function",
+}
+
+local function executorName()
+	local ok, n = pcall(function()
+		if identifyexecutor then return (identifyexecutor()) end
+	end)
+	return (ok and n) and tostring(n) or "Unknown"
+end
+
+--// MODULE TABLES
+local Config, Util, Cleanup, Signal, Store, Persist = {}, {}, {}, {}, nil, {}
+local Sound, Animate, Drag, Shader, UI, Core = {}, {}, {}, {}, {}, {}
+NeonSuite.Config, NeonSuite.Util, NeonSuite.Signal = Config, Util, Signal
+NeonSuite.Sound, NeonSuite.Animate, NeonSuite.Drag = Sound, Animate, Drag
+NeonSuite.Shader, NeonSuite.UI, NeonSuite.Core = Shader, UI, Core
+
+--// CONFIG
+local function hex(h)
+	h = h:gsub("#", "")
+	return Color3.fromRGB(tonumber(h:sub(1, 2), 16), tonumber(h:sub(3, 4), 16), tonumber(h:sub(5, 6), 16))
+end
+
+Config.Name          = "NEON SUITE"
+Config.GuiName       = "NeonSuite_UI"
+Config.SaveFile      = "NeonSuite_State.json"
+Config.SavePosition  = true
+Config.Debug         = false
+Config.W, Config.H, Config.Header, Config.Footer = 560, 380, 48, 24
+Config.ToggleSize    = 48
+Config.Margin        = 8
+Config.Hotkeys       = { Toggle = Enum.KeyCode.RightShift, HideToggle = Enum.KeyCode.RightControl }
+Config.Colors = {
+	deep = hex("1A0033"), midnight = hex("2D0059"), royal = hex("6A0DAD"), magenta = hex("FF00FF"),
+	electric = hex("8A2BE2"), lavender = hex("C77DFF"), indigo = hex("4B0082"), orchid = hex("DA70D6"),
+	text = hex("F6EDFF"), sub = hex("CDB8EA"), danger = hex("FF4D8D"),
+}
+Config.Sfx = {
+	hover       = { id = 6895085925, vol = 0.18, pitch = 1, speed = 1.7 },
+	click       = { id = 6895085960, vol = 0.35, pitch = 1, speed = 1.2 },
+	toggleOn    = { id = 6895085868, vol = 0.4,  pitch = 1, speed = 1.25 },
+	toggleOff   = { id = 6895085868, vol = 0.4,  pitch = 1, speed = 0.8 },
+	open        = { id = 6895085647, vol = 0.45, pitch = 1, speed = 1.1 },
+	close       = { id = 6895085647, vol = 0.4,  pitch = 1, speed = 0.8 },
+	shaderApply = { id = 6895085960, vol = 0.55, pitch = 1, speed = 0.7 },
+	notify      = { id = 6895085925, vol = 0.4,  pitch = 1, speed = 1.0 },
+	error       = { id = 6895085868, vol = 0.45, pitch = 1, speed = 0.55 },
+	slider      = { id = 6895085925, vol = 0.1,  pitch = 1, speed = 2.1 },
+	drag        = { id = 6895085647, vol = 0.2,  pitch = 1, speed = 1.5 },
+}
+local C  = Config.Colors
+local W, H, HEADER, FOOT = Config.W, Config.H, Config.Header, Config.Footer
+
+--// UTIL
+Util.hex = hex
+function Util.new(class, props, parent)
+	local o = Instance.new(class)
+	if props then
+		for k, v in pairs(props) do
+			pcall(function() o[k] = v end)
+		end
+	end
+	if parent then o.Parent = parent end
+	return o
+end
+function Util.lerp(a, b, t) return a + (b - a) * t end
+function Util.seq(cols)
+	local n, kp = #cols, {}
+	for i, c in ipairs(cols) do kp[i] = ColorSequenceKeypoint.new((i - 1) / (n - 1), c) end
+	return ColorSequence.new(kp)
+end
+
+local cursorDepth, savedIcon = 0, nil
+function Util.cursor(on, icon)
+	if UIS.TouchEnabled and not UIS.MouseEnabled then return end
+	pcall(function()
+		if on then
+			if cursorDepth == 0 then savedIcon = UIS.MouseIcon end
+			cursorDepth += 1
+			UIS.MouseIcon = icon or "rbxasset://SystemCursors/PointingHand"
+		else
+			cursorDepth = math.max(0, cursorDepth - 1)
+			if cursorDepth == 0 then UIS.MouseIcon = savedIcon or "" end
+		end
+	end)
+end
+function Util.cursorReset()
+	cursorDepth = 0
+	pcall(function() UIS.MouseIcon = savedIcon or "" end)
+end
+
+--// CLEANUP REGISTRY
+function Cleanup.new()
+	local self = { items = {} }
+	function self.add(x) table.insert(self.items, x) return x end
+	function self.run()
+		for i = #self.items, 1, -1 do
+			local x = self.items[i]
+			pcall(function()
+				local t = typeof(x)
+				if t == "RBXScriptConnection" then x:Disconnect()
+				elseif t == "Instance" then x:Destroy()
+				elseif t == "thread" then task.cancel(x)
+				elseif t == "function" then x()
+				elseif t == "table" then
+					if x.Destroy then x:Destroy() elseif x.Disconnect then x:Disconnect() end
+				end
+			end)
+		end
+		table.clear(self.items)
+	end
+	return self
+end
+local MainC, UiC = Cleanup.new(), Cleanup.new()
+
+--// SIGNAL / EVENT BUS
+Signal.__index = Signal
+function Signal.new() return setmetatable({ _h = {} }, Signal) end
+function Signal:Connect(fn)
+	local h = { fn = fn }
+	table.insert(self._h, h)
+	return { Disconnect = function()
+		h.dead = true
+		local i = table.find(self._h, h)
+		if i then table.remove(self._h, i) end
+	end }
+end
+function Signal:Fire(...)
+	for _, h in ipairs(table.clone(self._h)) do
+		if not h.dead then task.spawn(h.fn, ...) end
+	end
+end
+function Signal:Destroy() table.clear(self._h) end
+Signal.Bus = {}
+function Signal.On(name, fn)
+	Signal.Bus[name] = Signal.Bus[name] or Signal.new()
+	return Signal.Bus[name]:Connect(fn)
+end
+function Signal.Emit(name, ...)
+	if Signal.Bus[name] then Signal.Bus[name]:Fire(...) end
+end
+
+--// REACTIVE STATE
+local State = {}
+State.__index = State
+function State.new(init) return setmetatable({ _d = init, _s = Signal.new() }, State) end
+function State:Get(k) return self._d[k] end
+function State:Set(k, v)
+	if self._d[k] == v then return end
+	self._d[k] = v
+	self._s:Fire(k, v)
+end
+function State:Subscribe(fn) return self._s:Connect(fn) end
+
+local DEF = {
+	sfx = true, sfxVol = 1, ambient = true, reduced = false, toasts = true, snap = false, save = true,
+	intensity = 1, brightness = 0, contrast = 0, saturation = 0, bloom = 1, blur = 0,
+	shader = false, open = false, collapsed = false, toggleHidden = false,
+}
+Store = State.new(table.clone(DEF))
+local PERSIST_KEYS = { "sfx", "sfxVol", "ambient", "reduced", "toasts", "snap", "save", "intensity",
+	"brightness", "contrast", "saturation", "bloom", "blur", "shader", "toggleHidden" }
+local Pos = {}
+
+--// PERSISTENCE
+function Persist.load()
+	if not Caps.writefile then return end
+	local ok, raw = pcall(function()
+		if isfile(Config.SaveFile) then return readfile(Config.SaveFile) end
+	end)
+	if not ok or not raw then return end
+	local ok2, d = pcall(function() return HttpService:JSONDecode(raw) end)
+	if not ok2 or type(d) ~= "table" then return end
+	for _, k in ipairs(PERSIST_KEYS) do
+		local v = d[k]
+		if v ~= nil and type(v) == type(DEF[k]) and k ~= "shader" then Store._d[k] = v end
+	end
+	if type(d.shader) == "string" then Persist.savedShader = d.shader end
+	if type(d.pos) == "table" then
+		for _, k in ipairs({ "panel", "toggle" }) do
+			local p = d.pos[k]
+			if type(p) == "table" and type(p.x) == "number" and type(p.y) == "number" then
+				Pos[k] = { x = math.clamp(p.x, 0, 1), y = math.clamp(p.y, 0, 1) }
+			end
+		end
+	end
+end
+function Persist.save()
+	if not Caps.writefile or not Config.SavePosition or not Store:Get("save") or Persist.pending then return end
+	Persist.pending = true
+	task.delay(0.6, function()
+		Persist.pending = false
+		if NeonSuite._unloading then return end
+		local d = { v = 1, pos = Pos }
+		for _, k in ipairs(PERSIST_KEYS) do d[k] = Store:Get(k) end
+		pcall(function() writefile(Config.SaveFile, HttpService:JSONEncode(d)) end)
+	end)
+end
+
+--// SOUND MANAGER
+Sound.cache, Sound.last = {}, {}
+function Sound.init()
+	pcall(function() local _ = SoundService.RespectFilteringEnabled end)
+	local grp = Util.new("SoundGroup", { Name = "NeonSuite_SFX", Volume = 1 }, SoundService)
+	MainC.add(grp)
+	Sound.group = grp
+	for name, cfg in pairs(Config.Sfx) do
+		local s = Util.new("Sound", {
+			Name = name, SoundId = "rbxassetid://" .. cfg.id, Volume = cfg.vol,
+			PlaybackSpeed = cfg.speed or 1, SoundGroup = grp,
+		}, grp)
+		if cfg.pitch and cfg.pitch ~= 1 then
+			Util.new("PitchShiftSoundEffect", { Octave = cfg.pitch }, s)
+		end
+		Sound.cache[name] = s
+	end
+	Sound.refreshVolume()
+end
+function Sound.refreshVolume()
+	if Sound.group then Sound.group.Volume = Store:Get("sfx") and Store:Get("sfxVol") or 0 end
+end
+function Sound.play(name)
+	if not Store:Get("sfx") then return end
+	local s, now = Sound.cache[name], os.clock()
+	if not s or (Sound.last[name] and now - Sound.last[name] < 0.05) then return end
+	Sound.last[name] = now
+	pcall(function() s.TimePosition = 0 s:Play() end)
+end
+
+--// ANIMATE MANAGER
+local EASE = { Quint = Enum.EasingStyle.Quint, Sine = Enum.EasingStyle.Sine, Expo = Enum.EasingStyle.Expo }
+Animate.active = {}
+function Animate.tween(inst, props, dur, style, dir)
+	if Store:Get("reduced") then dur = math.min(dur, 0.01) end
+	local tw = TweenService:Create(inst, TweenInfo.new(dur, EASE[style or "Quint"], dir or Enum.EasingDirection.Out), props)
+	Animate.active[tw] = true
+	tw.Completed:Once(function() Animate.active[tw] = nil end)
+	tw:Play()
+	return tw
+end
+function Animate.stopAll()
+	for tw in pairs(Animate.active) do pcall(function() tw:Cancel() end) end
+	table.clear(Animate.active)
+end
+
+--// DRAG MANAGER
+function Drag.viewport() return UI.viewport() end
+function Drag.clamp(v, size)
+	local vp, M, half = Drag.viewport(), Config.Margin, size / 2
+	local minx, maxx, miny, maxy = M + half.X, vp.X - M - half.X, M + half.Y, vp.Y - M - half.Y
+	if maxx < minx then minx, maxx = vp.X / 2, vp.X / 2 end
+	if maxy < miny then miny, maxy = vp.Y / 2, vp.Y / 2 end
+	return Vector2.new(math.clamp(v.X, minx, maxx), math.clamp(v.Y, miny, maxy))
+end
+function Drag.make(handle, target, o)
+	o = o or {}
+	local dragging, input0, mouse0, pos0, goal, cur, moved, hb = false, nil, nil, nil, nil, nil, 0, nil
+	local function sizeV() return o.size() end
+	local function setPos(v) target.Position = UDim2.fromOffset(v.X, v.Y) end
+	local function snapGoal(g)
+		if not (o.snap and o.snap()) then return g end
+		local vp, half, M, T = Drag.viewport(), sizeV() / 2, Config.Margin, 28
+		local x, y = g.X, g.Y
+		if x - half.X - M < T then x = M + half.X elseif vp.X - (x + half.X) - M < T then x = vp.X - M - half.X end
+		if y - half.Y - M < T then y = M + half.Y elseif vp.Y - (y + half.Y) - M < T then y = vp.Y - M - half.Y end
+		return Vector2.new(x, y)
+	end
+	local function step(dt)
+		cur = cur:Lerp(goal, 1 - math.exp(-dt * 24))
+		setPos(cur)
+		if not dragging and (cur - goal).Magnitude < 0.4 then
+			cur = goal
+			setPos(cur)
+			if hb then hb:Disconnect() hb = nil end
+			if o.onEnd then o.onEnd(cur, moved) end
+		end
+	end
+	local function finish()
+		if not dragging then return end
+		dragging = false
+		Util.cursor(false)
+		if moved < 6 then
+			if o.onClick then o.onClick() end
+		else
+			goal = snapGoal(goal)
+		end
+	end
+	handle.InputBegan:Connect(function(input)
+		local t = input.UserInputType
+		if (t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch) and not dragging then
+			dragging, input0, moved = true, input, 0
+			mouse0 = Vector2.new(input.Position.X, input.Position.Y)
+			pos0 = Vector2.new(target.Position.X.Offset, target.Position.Y.Offset)
+			goal, cur = pos0, pos0
+			Util.cursor(true, "rbxasset://SystemCursors/ClosedHand")
+			Sound.play("drag")
+			if not hb then hb = RunService.Heartbeat:Connect(step) end
+		end
+	end)
+	MainC.add(UIS.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input == input0) then
+			local d = Vector2.new(input.Position.X, input.Position.Y) - mouse0
+			moved = math.max(moved, d.Magnitude)
+			if moved >= 6 then goal = Drag.clamp(pos0 + d, sizeV()) end
+		end
+	end))
+	MainC.add(UIS.InputEnded:Connect(function(input)
+		if dragging and (input == input0 or (input.UserInputType == Enum.UserInputType.MouseButton1
+			and input0.UserInputType == Enum.UserInputType.MouseButton1)) then
+			finish()
+		end
+	end))
+	MainC.add(function() if hb then hb:Disconnect() end end)
+end
+
+--// SHADER MANAGER
+local BASE = {
+	amb = "464646", out = "646464", br = 2, clock = 14, top = "000000", bot = "000000", diff = 1, spec = 1, sh = true,
+	fog = "C0C0C0", fs = 0, fe = 100000, ccB = 0, ccC = 0, ccS = 0, tint = "FFFFFF", bl = 0.4, bs = 24, bt = 1.5,
+	blur = 0, dofF = 0, dofD = 50, dofR = 30, dofN = 0, ray = 0, rsp = 0.2, ad = 0.3, ao = 0, ac = "C7C7C7",
+	adc = "6A6A6A", ag = 0, ah = 0,
+}
+local COLOR_KEYS = { "amb", "out", "top", "bot", "fog", "tint", "ac", "adc" }
+local RAW = {}
+local function preset(name, desc, thumb, o)
+	o.name, o.desc, o.thumb = name, desc, thumb
+	table.insert(RAW, o)
+end
+preset("NeonDream", "Purple-magenta glow, heavy bloom", { "FF00FF", "8A2BE2", "1A0033" }, {
+	amb = "5A1A8C", out = "8A2BE2", br = 2.2, clock = 0, top = "FF00FF", bot = "4B0082", diff = 0.8, spec = 1.5,
+	fog = "6A0DAD", fs = 40, fe = 650, ccB = 0.02, ccC = 0.25, ccS = 0.45, tint = "F2D0FF", bl = 1.6, bs = 40, bt = 0.8,
+	dofF = 0.1, dofD = 80, dofR = 40, ray = 0.12, rsp = 0.4, ad = 0.38, ao = 0.1, ac = "C77DFF", adc = "4B0082", ag = 1.2, ah = 1.2 })
+preset("PurpleHaze", "Dense violet air, soft blur", { "C77DFF", "6A0DAD", "2D0059" }, {
+	amb = "4B0082", out = "6A0DAD", br = 1.6, clock = 18.5, top = "8A2BE2", bot = "2D0059", fog = "4B0082", fs = 20, fe = 420,
+	ccB = -0.02, ccC = 0.15, ccS = 0.3, tint = "E0B8FF", bl = 0.8, bs = 30, bt = 1.1, blur = 6, dofF = 0.25, dofD = 60,
+	ad = 0.5, ao = 0.2, ac = "C77DFF", adc = "2D0059", ag = 0.4, ah = 2 })
+preset("Cyberpunk", "Magenta and cyan, sharp contrast", { "FF00FF", "00E5FF", "1A0033" }, {
+	amb = "2A0A4A", out = "3B0F66", br = 1.8, clock = 0, top = "FF00FF", bot = "00FFFF", spec = 2, fog = "1A0033", fs = 30, fe = 700,
+	ccC = 0.45, ccS = 0.55, tint = "FFD6FF", bl = 1.3, bs = 36, bt = 0.9, dofF = 0.08, ray = 0.05,
+	ad = 0.35, ac = "FF00FF", adc = "00E5FF", ag = 1, ah = 1.4 })
+preset("Vaporwave", "Pink lavender sunset haze", { "FF71CE", "B967FF", "01CDFE" }, {
+	amb = "8A5CC8", out = "FFB3E6", br = 2.4, clock = 17.5, top = "FF71CE", bot = "01CDFE", fog = "DA70D6", fs = 60, fe = 900,
+	ccB = 0.05, ccC = 0.1, ccS = 0.4, tint = "FFD1F5", bl = 0.9, bs = 30, bt = 1.2, blur = 2, ray = 0.2, rsp = 0.5,
+	ad = 0.42, ac = "FFB3E6", adc = "B967FF", ag = 0.8, ah = 2.2 })
+preset("Midnight", "Dark indigo, restrained bloom", { "4B0082", "1A0033", "000000" }, {
+	amb = "140A33", out = "1E0F4D", br = 1, clock = 0, top = "4B0082", bot = "000000", fog = "0B0420", fs = 50, fe = 900,
+	ccB = -0.06, ccC = 0.2, ccS = 0.1, tint = "C2B0FF", bl = 0.3, bs = 20, bt = 1.8, ad = 0.3, ac = "4B0082", adc = "0B0420", ah = 0.6 })
+preset("Galaxy", "Deep purple cosmos, dense atmosphere", { "C77DFF", "6A0DAD", "1A0033" }, {
+	amb = "2D0059", out = "4B0082", br = 1.4, clock = 0, top = "C77DFF", bot = "6A0DAD", fog = "2D0059", fs = 10, fe = 380,
+	ccC = 0.3, ccS = 0.6, tint = "E6C8FF", bl = 2, bs = 48, bt = 0.6, dofF = 0.15, dofD = 70, dofR = 35, ray = 0.08,
+	ad = 0.6, ao = 0.3, ac = "8A2BE2", adc = "1A0033", ag = 1.5, ah = 2.5 })
+preset("Toxic", "Acid green over violet", { "39FF14", "6A0DAD", "1A0033" }, {
+	amb = "1F5A1F", out = "3A7A2A", br = 2, clock = 20, top = "39FF14", bot = "6A0DAD", fog = "2D5A1E", fs = 20, fe = 500,
+	ccC = 0.6, ccS = 0.7, tint = "D8FFC8", bl = 1.2, bs = 30, bt = 1, ad = 0.45, ac = "7CFF4F", adc = "4B0082", ag = 0.6, ah = 1.8 })
+preset("Crystal", "Clear blue-violet", { "A0C4FF", "C77DFF", "FFFFFF" }, {
+	amb = "7080C0", out = "A0B0FF", br = 2.6, clock = 13, top = "A0C4FF", bot = "C77DFF", fog = "C8D8FF", fs = 100, fe = 2500,
+	ccB = 0.04, ccC = 0.2, ccS = 0.35, tint = "E8EEFF", bl = 0.6, bs = 24, bt = 1.4, ray = 0.15,
+	ad = 0.2, ac = "BFD4FF", adc = "9AA8FF", ag = 0.3, ah = 0.3 })
+preset("Eclipse", "Near black with violet rim light", { "8A2BE2", "0A0014", "000000" }, {
+	amb = "0A0014", out = "100020", br = 0.5, clock = 0, top = "8A2BE2", bot = "000000", spec = 2, fog = "05000A", fs = 5, fe = 300,
+	ccB = -0.12, ccC = 0.5, ccS = 0.15, tint = "B58CFF", bl = 1.1, bs = 28, bt = 0.7, ray = 0.2, rsp = 0.15,
+	ad = 0.55, ao = 0.25, ac = "2D0059", adc = "000000", ag = 1.8, ah = 1 })
+preset("Aurora", "Animated shifting color bands", { "00FFAA", "8A2BE2", "102040" }, {
+	amb = "1A3A5A", out = "2A2A6A", br = 1.6, clock = 0, top = "00FFAA", bot = "8A2BE2", fog = "102040", fs = 30, fe = 800,
+	ccC = 0.25, ccS = 0.5, tint = "C8FFF0", bl = 1.1, bs = 34, bt = 1, ad = 0.38, ac = "7DFFD0", adc = "4B0082", ag = 1, ah = 1.2, aurora = true })
+preset("Inferno", "Orange fire, violet shadows", { "FF6A00", "6A0DAD", "2D0059" }, {
+	amb = "6A2A10", out = "8A3A1A", br = 2.3, clock = 17, top = "FF6A00", bot = "6A0DAD", fog = "5A1A2A", fs = 20, fe = 500,
+	ccB = 0.04, ccC = 0.4, ccS = 0.5, tint = "FFC8A0", bl = 2.2, bs = 48, bt = 0.5, blur = 2, ray = 0.25,
+	ad = 0.5, ac = "FF8C42", adc = "6A0DAD", ag = 1.5, ah = 2.4 })
+preset("Frost", "Cold white-blue, high fog", { "C8E0FF", "C77DFF", "FFFFFF" }, {
+	amb = "90A8D8", out = "B8C8F0", br = 2.4, clock = 12, top = "C8E0FF", bot = "C77DFF", fog = "D8E4FF", fs = 15, fe = 350,
+	ccB = 0.06, ccC = 0.05, ccS = -0.15, tint = "E6F0FF", bl = 0.7, bs = 26, bt = 1.3, blur = 3, ray = 0.1,
+	ad = 0.55, ac = "E0ECFF", adc = "A8B8E8", ag = 0.2, ah = 2.5 })
+preset("Anime", "Bright, saturated, soft bloom", { "FFB6F0", "B6E0FF", "C8B8FF" }, {
+	amb = "A090E0", out = "C8B8FF", br = 3, clock = 14, top = "FFB6F0", bot = "B6E0FF", fog = "F0E0FF", fs = 200, fe = 3000,
+	ccB = 0.05, ccC = 0.1, ccS = 0.6, tint = "FFF0FF", bl = 0.9, bs = 28, bt = 1.3, ray = 0.18,
+	ad = 0.15, ac = "FFE0FF", adc = "C8D0FF", ag = 0.2, ah = 0.2 })
+preset("Cinematic", "Teal and purple film grade, letterbox", { "00B4B4", "8A2BE2", "20303A" }, {
+	amb = "2A4A5A", out = "4A3A6A", br = 1.8, clock = 16.8, top = "00B4B4", bot = "8A2BE2", fog = "20303A", fs = 50, fe = 1200,
+	ccB = -0.03, ccC = 0.5, ccS = 0.1, tint = "D8F0F0", bl = 0.6, bs = 28, bt = 1.5, dofF = 0.25, dofD = 60, dofR = 25, ray = 0.1,
+	ad = 0.38, ac = "5AB4C8", adc = "4B0082", ag = 0.5, ah = 1.2, letterbox = true })
+preset("Matrix", "Green code rain over violet, scanlines", { "00FF66", "6A0DAD", "002A10" }, {
+	amb = "003B1A", out = "0A4A2A", br = 1.2, clock = 0, top = "00FF66", bot = "6A0DAD", fog = "002A10", fs = 20, fe = 400,
+	ccB = -0.04, ccC = 0.6, ccS = 0.2, tint = "B8FFD0", bl = 1.2, bs = 30, bt = 0.9,
+	ad = 0.4, ac = "00FF66", adc = "1A0033", ag = 0.5, ah = 1.5, scan = true })
+preset("Custom", "Your game lighting, you control the sliders", { "C77DFF", "FFFFFF", "4B0082" }, {
+	bl = 0.5, bs = 24, bt = 1.5, ad = 0, ah = 0, ag = 0, useOrig = true })
+
+local LMAP = {
+	{ "Ambient", "amb", "c" }, { "OutdoorAmbient", "out", "c" }, { "Brightness", "br", "n" }, { "ClockTime", "clock", "n" },
+	{ "ColorShift_Top", "top", "c" }, { "ColorShift_Bottom", "bot", "c" }, { "EnvironmentDiffuseScale", "diff", "n" },
+	{ "EnvironmentSpecularScale", "spec", "n" }, { "FogColor", "fog", "c" }, { "FogStart", "fs", "n" }, { "FogEnd", "fe", "n" },
+}
+
+Shader.list, Shader.byName, Shader.fx, Shader.stash = {}, {}, {}, {}
+Shader.active, Shader.orig, Shader.lastTarget = nil, nil, nil
+Shader.transitionUntil, Shader.restoreUntil, Shader.scanOn = 0, 0, false
+
+function Shader.compile()
+	for _, r in ipairs(RAW) do
+		local p = {}
+		for k, v in pairs(BASE) do p[k] = v end
+		for k, v in pairs(r) do p[k] = v end
+		for _, ck in ipairs(COLOR_KEYS) do p[ck] = hex(p[ck]) end
+		for i, t in ipairs(p.thumb) do p.thumb[i] = hex(t) end
+		table.insert(Shader.list, p)
+		Shader.byName[p.name] = p
+	end
+end
+
+function Shader.snapshot()
+	local o = {}
+	for _, m in ipairs(LMAP) do
+		local ok, v = pcall(function() return Lighting[m[1]] end)
+		if ok then o[m[1]] = v end
+	end
+	pcall(function() o.GlobalShadows = Lighting.GlobalShadows end)
+	Shader.orig = o
+end
+
+function Shader.ensureFx()
+	local fx = Shader.fx
+	local function mk(class, key, props)
+		local e = fx[key]
+		if e and e.Parent == Lighting then return end
+		if e then pcall(e.Destroy, e) end
+		for _, c in ipairs(Lighting:GetChildren()) do
+			if c.Name == "NeonSuite_" .. key then pcall(c.Destroy, c) end
+		end
+		e = Instance.new(class)
+		e.Name = "NeonSuite_" .. key
+		for k, v in pairs(props) do pcall(function() e[k] = v end) end
+		e.Parent = Lighting
+		fx[key] = e
+	end
+	mk("ColorCorrectionEffect", "CC", { Brightness = 0, Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) })
+	mk("BloomEffect", "Bloom", { Intensity = 0, Size = 24, Threshold = 2 })
+	mk("BlurEffect", "Blur", { Size = 0 })
+	mk("DepthOfFieldEffect", "DOF", { FarIntensity = 0, FocusDistance = 50, InFocusRadius = 30, NearIntensity = 0 })
+	mk("SunRaysEffect", "Rays", { Intensity = 0, Spread = 0.2 })
+	mk("Atmosphere", "Atmo", { Density = 0, Offset = 0, Color = Color3.fromRGB(199, 199, 199), Decay = Color3.fromRGB(106, 106, 106), Glare = 0, Haze = 0 })
+end
+
+function Shader.stashAtmo()
+	for _, c in ipairs(Lighting:GetChildren()) do
+		if c:IsA("Atmosphere") and c ~= Shader.fx.Atmo and c.Name ~= "NeonSuite_Atmo" then
+			table.insert(Shader.stash, c)
+			pcall(function() c.Parent = nil end)
+		end
+	end
+end
+function Shader.restoreAtmo()
+	for _, c in ipairs(Shader.stash) do pcall(function() c.Parent = Lighting end) end
+	table.clear(Shader.stash)
+end
+function Shader.destroyFx()
+	for k, e in pairs(Shader.fx) do
+		pcall(e.Destroy, e)
+		Shader.fx[k] = nil
+	end
+	for _, c in ipairs(Lighting:GetChildren()) do
+		if string.sub(c.Name, 1, 10) == "NeonSuite_" then pcall(c.Destroy, c) end
+	end
+end
+
+local function neutralFx()
+	return {
+		CC = { Brightness = 0, Contrast = 0, Saturation = 0, TintColor = Color3.new(1, 1, 1) },
+		Bloom = { Intensity = 0 }, Blur = { Size = 0 }, DOF = { FarIntensity = 0, NearIntensity = 0 },
+		Rays = { Intensity = 0 }, Atmo = { Density = 0, Glare = 0, Haze = 0 },
+	}
+end
+
+function Shader.target(p)
+	local o, S = Shader.orig, Store
+	local k = S:Get("intensity")
+	local kc = math.clamp(k, 0, 1)
+	local L = {}
+	for _, m in ipairs(LMAP) do
+		local prop, key, kind = m[1], m[2], m[3]
+		local ov = o[prop]
+		if ov ~= nil then
+			if p.useOrig then L[prop] = ov
+			elseif kind == "c" then L[prop] = ov:Lerp(p[key], kc)
+			else L[prop] = Util.lerp(ov, p[key], kc) end
+		end
+	end
+	local fx = {
+		CC = {
+			Brightness = p.ccB * k + S:Get("brightness"), Contrast = p.ccC * k + S:Get("contrast"),
+			Saturation = p.ccS * k + S:Get("saturation"), TintColor = Color3.new(1, 1, 1):Lerp(p.tint, kc),
+		},
+		Bloom = { Intensity = math.max(0, p.bl * k * S:Get("bloom")), Size = p.bs, Threshold = p.bt },
+		Blur = { Size = math.max(0, p.blur * k + S:Get("blur")) },
+		DOF = { FarIntensity = p.dofF * kc, FocusDistance = p.dofD, InFocusRadius = p.dofR, NearIntensity = p.dofN * kc },
+		Rays = { Intensity = math.clamp(p.ray * k, 0, 1), Spread = p.rsp },
+		Atmo = {
+			Density = math.clamp(p.ad * k, 0, 1), Offset = p.ao, Color = p.ac, Decay = p.adc,
+			Glare = math.max(0, p.ag * k), Haze = math.max(0, p.ah * k),
+		},
+	}
+	return { L = L, fx = fx }
+end
+
+function Shader.tweenTo(T, dur)
+	for prop, val in pairs(T.L) do
+		pcall(function() Animate.tween(Lighting, { [prop] = val }, dur, "Sine") end)
+	end
+	for key, props in pairs(T.fx) do
+		local e = Shader.fx[key]
+		if e then pcall(function() Animate.tween(e, props, dur, "Sine") end) end
+	end
+end
+
+function Shader.apply(name, quiet, dur)
+	local p = Shader.byName[name]
+	if not p then return end
+	dur = dur or 0.4
+	if not Shader.orig or (not Shader.active and os.clock() > Shader.restoreUntil) then Shader.snapshot() end
+	Shader.ensureFx()
+	Shader.stashAtmo()
+	Shader.active = name
+	local T = Shader.target(p)
+	Shader.lastTarget = T
+	Shader.transitionUntil = os.clock() + dur + 0.1
+	Shader.tweenTo(T, dur)
+	pcall(function() Lighting.GlobalShadows = p.sh end)
+	UI.setLetterbox(p.letterbox == true)
+	Shader.scanOn = p.scan == true
+	Store:Set("shader", name)
+	if not quiet then
+		Sound.play("shaderApply")
+		UI.notify("Shader applied", name, "success")
+	end
+end
+
+function Shader.requestRefresh()
+	if Shader.refreshPending then return end
+	Shader.refreshPending = true
+	task.delay(0.07, function()
+		Shader.refreshPending = false
+		if Shader.active and not NeonSuite._unloading then Shader.apply(Shader.active, true, 0.15) end
+	end)
+end
+
+function Shader.disable(quiet)
+	if not Shader.active then return end
+	Shader.active, Shader.lastTarget, Shader.scanOn = nil, nil, false
+	local o, dur = Shader.orig or {}, 0.4
+	Shader.restoreUntil = os.clock() + dur + 0.1
+	for prop, val in pairs(o) do
+		if prop ~= "GlobalShadows" then pcall(function() Animate.tween(Lighting, { [prop] = val }, dur, "Sine") end) end
+	end
+	pcall(function() if o.GlobalShadows ~= nil then Lighting.GlobalShadows = o.GlobalShadows end end)
+	for key, props in pairs(neutralFx()) do
+		local e = Shader.fx[key]
+		if e then pcall(function() Animate.tween(e, props, dur, "Sine") end) end
+	end
+	UI.setLetterbox(false)
+	Store:Set("shader", false)
+	task.delay(dur + 0.05, function()
+		if not Shader.active then
+			Shader.destroyFx()
+			Shader.restoreAtmo()
+		end
+	end)
+	if not quiet then
+		Sound.play("toggleOff")
+		UI.notify("Shader off", "Lighting restored", "info")
+	end
+end
+
+function Shader.restoreImmediate()
+	local o = Shader.orig
+	if o then
+		for prop, val in pairs(o) do pcall(function() Lighting[prop] = val end) end
+	end
+	Shader.destroyFx()
+	Shader.restoreAtmo()
+	Shader.active = nil
+end
+
+function Shader.init()
+	Shader.compile()
+	Shader.snapshot()
+	for _, c in ipairs(Lighting:GetChildren()) do
+		if string.sub(c.Name, 1, 10) == "NeonSuite_" then pcall(c.Destroy, c) end
+	end
+end
+
+local function differs(a, b)
+	if typeof(a) == "Color3" then return math.abs(a.R - b.R) + math.abs(a.G - b.G) + math.abs(a.B - b.B) > 0.03 end
+	if type(a) == "number" then return math.abs(a - b) > math.max(0.02, math.abs(b) * 0.02) end
+	return a ~= b
+end
+function Shader.watch()
+	if not Shader.active or os.clock() < Shader.transitionUntil then return end
+	Shader.ensureFx()
+	Shader.stashAtmo()
+	local T = Shader.lastTarget
+	if not T then return end
+	for prop, val in pairs(T.L) do
+		local ok, cur = pcall(function() return Lighting[prop] end)
+		if ok and differs(cur, val) then pcall(function() Lighting[prop] = val end) end
+	end
+	for key, props in pairs(T.fx) do
+		local e = Shader.fx[key]
+		if e then
+			for prop, val in pairs(props) do
+				local ok, cur = pcall(function() return e[prop] end)
+				if ok and differs(cur, val) then pcall(function() e[prop] = val end) end
+			end
+		end
+	end
+	-- [FIX] sebelumnya `p.GlobalShadows` (selalu nil). Sekarang pakai `p.sh`.
+	local p = Shader.byName[Shader.active]
+	if p and p.sh ~= nil then pcall(function() Lighting.GlobalShadows = p.sh end) end
+end
+
+function Shader.aurora(t)
+	local p = Shader.active and Shader.byName[Shader.active]
+	if not p or not p.aurora or os.clock() < Shader.transitionUntil or not Shader.lastTarget then return end
+	local kc = math.clamp(Store:Get("intensity"), 0, 1)
+	local h = 0.45 + 0.25 * (0.5 + 0.5 * math.sin(t * 0.35))
+	local a, b = Color3.fromHSV(h, 0.7, 1), Color3.fromHSV((h + 0.2) % 1, 0.7, 0.9)
+	local o, L = Shader.orig, Shader.lastTarget.L
+	L.ColorShift_Top = o.ColorShift_Top:Lerp(a, kc)
+	L.ColorShift_Bottom = o.ColorShift_Bottom:Lerp(b, kc)
+	L.FogColor = o.FogColor:Lerp(Color3.fromHSV(h, 0.6, 0.25), kc)
+	pcall(function()
+		Lighting.ColorShift_Top, Lighting.ColorShift_Bottom, Lighting.FogColor = L.ColorShift_Top, L.ColorShift_Bottom, L.FogColor
+		local tint = Color3.new(1, 1, 1):Lerp(a:Lerp(Color3.new(1, 1, 1), 0.75), kc)
+		Shader.lastTarget.fx.CC.TintColor = tint
+		Shader.fx.CC.TintColor = tint
+		Shader.lastTarget.fx.Atmo.Color = a
+		Shader.fx.Atmo.Color = a
+	end)
+end
+
+--// UI HELPERS
+local function corner(p, r) return Util.new("UICorner", { CornerRadius = UDim.new(0, r) }, p) end
+local function stroke(p, th, col, tr)
+	return Util.new("UIStroke", { Thickness = th, Color = col or C.magenta, Transparency = tr or 0,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, p)
+end
+local function grad(p, cols, rot)
+	return Util.new("UIGradient", { Color = Util.seq(cols), Rotation = rot or 0 }, p)
+end
+local function label(p, text, size, col, font, xa)
+	return Util.new("TextLabel", {
+		BackgroundTransparency = 1, Text = text, TextSize = size, TextColor3 = col or C.text,
+		Font = font or Enum.Font.GothamMedium, TextXAlignment = xa or Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center, BorderSizePixel = 0,
+	}, p)
+end
+local orders = setmetatable({}, { __mode = "k" })
+local function nextOrder(sc)
+	orders[sc] = (orders[sc] or 0) + 1
+	return orders[sc]
+end
+
+UI.sliders, UI.cards, UI.pages, UI.tabs = {}, {}, {}, {}
+UI.base, UI.tab, UI.fps = 1, nil, 60
+
+function UI.viewport()
+	if UI.gui and UI.gui.AbsoluteSize.X > 0 then return UI.gui.AbsoluteSize end
+	local cam = Workspace.CurrentCamera
+	return cam and cam.ViewportSize or Vector2.new(1280, 720)
+end
+function UI.panelSize()
+	return Vector2.new(W, Store:Get("collapsed") and HEADER or H) * UI.base
+end
+
+function UI.purge()
+	local cands = {}
+	if Caps.gethui then pcall(function() table.insert(cands, gethui()) end) end
+	if CoreGui then table.insert(cands, CoreGui) end
+	local lp = getLocalPlayer()
+	if lp then pcall(function() table.insert(cands, lp:FindFirstChildOfClass("PlayerGui")) end) end
+	for _, p in ipairs(cands) do
+		if p then
+			pcall(function()
+				for _, c in ipairs(p:GetChildren()) do
+					if c.Name == Config.GuiName then c:Destroy() end
+				end
+			end)
+		end
+	end
+end
+
+function UI.mount(gui)
+	local tries = {}
+	if Caps.gethui then table.insert(tries, function() return gethui() end) end
+	table.insert(tries, function() return CoreGui end)
+	table.insert(tries, function() return getLocalPlayer():WaitForChild("PlayerGui", 10) end)
+	for _, f in ipairs(tries) do
+		local ok, p = pcall(f)
+		if ok and p then
+			local ok2 = pcall(function() gui.Parent = p end)
+			if ok2 and gui.Parent ~= nil then return true end
+		end
+	end
+	return false
+end
+
+function UI.ripple(host, input)
+	if Store:Get("reduced") then return end
+	local ap, as = host.AbsolutePosition, host.AbsoluteSize
+	if as.X < 1 or as.Y < 1 then return end
+	local fx, fy = 0.5, 0.5
+	if input then
+		-- [FIX] GuiService:GetGuiInset bisa error di beberapa executor
+		local inset = Vector2.zero
+		pcall(function() inset = GuiService:GetGuiInset() end)
+		fx = math.clamp((input.Position.X - ap.X) / as.X, 0, 1)
+		fy = math.clamp((input.Position.Y + inset.Y - ap.Y) / as.Y, 0, 1)
+	end
+	local r = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(fx, fy), Size = UDim2.fromScale(0, 0),
+		BackgroundColor3 = C.lavender, BackgroundTransparency = 0.55, BorderSizePixel = 0, ZIndex = 1,
+	}, host)
+	Util.new("UICorner", { CornerRadius = UDim.new(0.5, 0) }, r)
+	Animate.tween(r, { Size = UDim2.fromScale(2.4, 2.4), BackgroundTransparency = 1 }, 0.55, "Quint").Completed:Once(function()
+		r:Destroy()
+	end)
+end
+
+function UI.bind(btn, o)
+	o = o or {}
+	local target = o.target or btn
+	local sc = (not o.noScale) and Util.new("UIScale", { Scale = 1 }, target) or nil
+	local st = o.stroke
+	local baseTh, baseTr = st and st.Thickness or 0, st and st.Transparency or 0
+	local inside = false
+	btn.MouseEnter:Connect(function()
+		inside = true
+		Sound.play("hover")
+		Util.cursor(true)
+		if sc then Animate.tween(sc, { Scale = 1.04 }, 0.18, "Quint") end
+		if st then Animate.tween(st, { Thickness = baseTh + 1.5, Transparency = math.max(0, baseTr - 0.3) }, 0.18, "Sine") end
+	end)
+	btn.MouseLeave:Connect(function()
+		if inside then Util.cursor(false) end
+		inside = false
+		if sc then Animate.tween(sc, { Scale = 1 }, 0.22, "Quint") end
+		if st then Animate.tween(st, { Thickness = baseTh, Transparency = baseTr }, 0.22, "Sine") end
+	end)
+	btn.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			if sc then Animate.tween(sc, { Scale = 0.96 }, 0.08, "Sine") end
+			UI.ripple(target, i)
+		end
+	end)
+	btn.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			if sc then Animate.tween(sc, { Scale = inside and 1.04 or 1 }, 0.25, "Quint") end
+		end
+	end)
+	if not o.noActivate then
+		btn.Activated:Connect(function()
+			Sound.play("click")
+			if o.onClick then o.onClick() end
+		end)
+	end
+end
+
+function UI.button(parent, text, size, onClick, order)
+	local wrap = Util.new("Frame", {
+		Size = size, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+		ClipsDescendants = true, LayoutOrder = order or 0,
+	}, parent)
+	corner(wrap, 8)
+	grad(wrap, { C.indigo, C.royal, C.electric }, 0)
+	local st = stroke(wrap, 1, C.lavender, 0.45)
+	local b = Util.new("TextButton", {
+		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = text, Font = Enum.Font.GothamBold,
+		TextSize = 13, TextColor3 = Color3.new(1, 1, 1), AutoButtonColor = false, ZIndex = 2,
+	}, wrap)
+	UI.bind(b, { target = wrap, stroke = st, onClick = onClick })
+	return wrap, b
+end
+
+function UI.switch(parent, default, onToggle)
+	local hit = Util.new("TextButton", {
+		BackgroundTransparency = 1, Text = "", Size = UDim2.fromOffset(44, 44), AutoButtonColor = false,
+	}, parent)
+	local track = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(40, 22), BackgroundColor3 = default and C.electric or C.midnight, BorderSizePixel = 0,
+	}, hit)
+	corner(track, 11)
+	local st = stroke(track, 1.5, default and C.magenta or C.electric, 0.3)
+	local knob = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = default and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+		Size = UDim2.fromOffset(16, 16), BackgroundColor3 = default and C.magenta or C.lavender, BorderSizePixel = 0,
+	}, track)
+	corner(knob, 8)
+	local api = { on = default, hit = hit }
+	function api.set(on, silent)
+		api.on = on
+		Animate.tween(knob, {
+			Position = on and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0),
+			BackgroundColor3 = on and C.magenta or C.lavender
+		}, 0.25, "Quint")
+		Animate.tween(track, { BackgroundColor3 = on and C.electric or C.midnight }, 0.25, "Sine")
+		Animate.tween(st, { Color = on and C.magenta or C.electric }, 0.25, "Sine")
+		if not silent and onToggle then onToggle(on) end
+	end
+	hit.Activated:Connect(function()
+		Sound.play(api.on and "toggleOff" or "toggleOn")
+		api.set(not api.on)
+	end)
+	hit.MouseEnter:Connect(function() Sound.play("hover") Util.cursor(true) end)
+	hit.MouseLeave:Connect(function() Util.cursor(false) end)
+	return api
+end
+
+function UI.scroller(page)
+	local sc = Util.new("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3,
+		ScrollBarImageColor3 = C.magenta, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Never,
+	}, page)
+	Util.new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center }, sc)
+	Util.new("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }, sc)
+	return sc
+end
+
+function UI.section(sc, text)
+	local l = label(sc, "// " .. text, 12, C.orchid, Enum.Font.Code)
+	l.Size, l.LayoutOrder = UDim2.new(1, -8, 0, 22), nextOrder(sc)
+	return l
+end
+
+function UI.slider(sc, o)
+	local row = Util.new("Frame", {
+		BackgroundTransparency = 1, Size = UDim2.new(1, -8, 0, 44), LayoutOrder = nextOrder(sc)
+	}, sc)
+	local lab = label(row, o.label, 13, C.text, Enum.Font.GothamMedium)
+	lab.Position, lab.Size = UDim2.new(0, 6, 0, 2), UDim2.new(0.6, 0, 0, 18)
+	local val = label(row, "", 12, C.lavender, Enum.Font.Code, Enum.TextXAlignment.Right)
+	val.Position, val.Size = UDim2.new(0.6, 0, 0, 2), UDim2.new(0.4, -6, 0, 18)
+	local hit = Util.new("TextButton", {
+		BackgroundTransparency = 1, Text = "", Position = UDim2.new(0, 0, 0, 20),
+		Size = UDim2.new(1, 0, 0, 24), AutoButtonColor = false
+	}, row)
+	local track = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 6, 0.5, 0),
+		Size = UDim2.new(1, -12, 0, 6), BackgroundColor3 = C.midnight, BorderSizePixel = 0,
+	}, hit)
+	corner(track, 3)
+	local fill = Util.new("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, track)
+	corner(fill, 3)
+	grad(fill, { C.indigo, C.electric, C.magenta }, 0)
+	local knob = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(14, 14), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+	}, track)
+	corner(knob, 7)
+	local api = { key = o.key }
+	local lastSfx = 0
+	function api.set(v, fire, instant)
+		v = math.clamp(math.floor(v / o.step + 0.5) * o.step, o.min, o.max)
+		local a = (v - o.min) / (o.max - o.min)
+		val.Text = string.format("%." .. o.dec .. "f", v)
+		if instant then
+			fill.Size, knob.Position = UDim2.fromScale(a, 1), UDim2.fromScale(a, 0.5)
+		else
+			Animate.tween(fill, { Size = UDim2.fromScale(a, 1) }, 0.12, "Sine")
+			Animate.tween(knob, { Position = UDim2.fromScale(a, 0.5) }, 0.12, "Sine")
+		end
+		if fire then
+			if Store:Get(o.key) ~= v and os.clock() - lastSfx > 0.06 then
+				lastSfx = os.clock() Sound.play("slider")
+			end
+			Store:Set(o.key, v)
+			Shader.requestRefresh()
+		end
+	end
+	local function fromInput(input)
+		local a = math.clamp((input.Position.X - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X), 0, 1)
+		api.set(o.min + (o.max - o.min) * a, true, true)
+	end
+	hit.InputBegan:Connect(function(input)
+		local t = input.UserInputType
+		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+			UI.activeSlider = { input = input, update = fromInput, finish = function()
+				UI.activeSlider = nil
+				if o.scroller then o.scroller.ScrollingEnabled = true end
+				Animate.tween(knob, { Size = UDim2.fromOffset(14, 14) }, 0.15, "Quint")
+			end }
+			if o.scroller then o.scroller.ScrollingEnabled = false end
+			Animate.tween(knob, { Size = UDim2.fromOffset(20, 20) }, 0.15, "Quint")
+			fromInput(input)
+		end
+	end)
+	hit.MouseEnter:Connect(function() Util.cursor(true) end)
+	hit.MouseLeave:Connect(function() Util.cursor(false) end)
+	api.set(Store:Get(o.key), false, true)
+	UI.sliders[o.key] = api
+	return api
+end
+
+function UI.notify(title, msg, kind)
+	local host = UI.toastHost
+	if not host or not host.Parent then return end
+	if kind ~= "error" and not Store:Get("toasts") then return end
+	local kids = host:GetChildren()
+	local count = 0
+	for _, k in ipairs(kids) do if k:IsA("Frame") then count += 1 end end
+	if count >= 4 then
+		for _, k in ipairs(kids) do if k:IsA("Frame") then k:Destroy() break end end
+	end
+	local accent = kind == "error" and C.danger or (kind == "success" and C.lavender or C.magenta)
+	UI.toastId = (UI.toastId or 0) + 1
+	local wrap = Util.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 56), LayoutOrder = UI.toastId }, host)
+	local toast = Util.new("CanvasGroup", {
+		Size = UDim2.fromScale(1, 1), Position = UDim2.new(1.2, 0, 0, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+	}, wrap)
+	corner(toast, 10)
+	grad(toast, { C.deep, C.midnight, C.indigo }, 0)
+	local bar = Util.new("Frame", { Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = accent, BorderSizePixel = 0 }, toast)
+	local t = label(toast, string.upper(title), 12, accent, Enum.Font.GothamBold)
+	t.Position, t.Size = UDim2.new(0, 14, 0, 8), UDim2.new(1, -22, 0, 16)
+	local m = label(toast, msg, 12, C.text, Enum.Font.Gotham)
+	m.Position, m.Size = UDim2.new(0, 14, 0, 28), UDim2.new(1, -22, 0, 18)
+	m.TextTruncate = Enum.TextTruncate.AtEnd
+	toast.Parent = wrap
+	local st = stroke(wrap, 1, accent, 0.5)
+	st.Enabled = false
+	Animate.tween(toast, { Position = UDim2.new(0, 0, 0, 0) }, 0.45, "Expo")
+	Sound.play(kind == "error" and "error" or "notify")
+	task.delay(3, function()
+		if not toast.Parent then return end
+		Animate.tween(toast, { Position = UDim2.new(1.2, 0, 0, 0), GroupTransparency = 1 }, 0.4, "Quint", Enum.EasingDirection.In)
+		task.delay(0.45, function() if wrap.Parent then wrap:Destroy() end end)
+	end)
+end
+
+function UI.setLetterbox(on)
+	local top, bot = UI.lbTop, UI.lbBot
+	if not top or not top.Parent then return end
+	local vp = UI.viewport()
+	local h = on and math.floor(vp.Y * 0.1) or 0
+	Animate.tween(top, { Size = UDim2.new(1, 0, 0, h) }, 0.6, "Quint")
+	Animate.tween(bot, { Size = UDim2.new(1, 0, 0, h) }, 0.6, "Quint")
+end
+
+function UI.setTab(name, silent)
+	if UI.tab == name then return end
+	local oldName = UI.tab
+	UI.tab = name
+	local old, new = UI.pages[oldName], UI.pages[name]
+	if old then
+		Animate.tween(old, { GroupTransparency = 1 }, 0.18, "Sine")
+		task.delay(0.2, function() if UI.tab ~= oldName and old.Parent then old.Visible = false end end)
+	end
+	new.Visible = true
+	new.GroupTransparency = old and 1 or 0
+	if old then Animate.tween(new, { GroupTransparency = 0 }, 0.3, "Quint") end
+	for n, t in pairs(UI.tabs) do
+		Animate.tween(t.btn, { TextColor3 = n == name and C.text or C.sub }, 0.2, "Sine")
+	end
+	Animate.tween(UI.indicator, { Position = UDim2.new(0, 2, 0, UI.tabs[name].cy) }, 0.35, "Expo")
+	if not silent then Sound.play("click") end
+end
+
+function UI.card(sc, p)
+	local card = Util.new("Frame", {
+		Name = "Card_" .. p.name, Size = UDim2.new(1, -8, 0, 64), BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.2, BorderSizePixel = 0, LayoutOrder = nextOrder(sc),
+	}, sc)
+	corner(card, 10)
+	grad(card, { C.midnight, C.deep, C.indigo }, 0)
+	local st = stroke(card, 1, C.electric, 0.55)
+	local thumb = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 8, 0.5, 0), Size = UDim2.fromOffset(48, 48),
+		BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+	}, card)
+	corner(thumb, 8)
+	grad(thumb, p.thumb, 45)
+	local name = label(card, p.name, 14, C.text, Enum.Font.GothamBold)
+	name.Position, name.Size = UDim2.new(0, 66, 0, 10), UDim2.new(1, -190, 0, 18)
+	local desc = label(card, p.desc, 11, C.sub, Enum.Font.Gotham)
+	desc.Position, desc.Size = UDim2.new(0, 66, 0, 30), UDim2.new(1, -190, 0, 24)
+	desc.TextWrapped, desc.TextYAlignment = true, Enum.TextYAlignment.Top
+	local sw = UI.switch(card, false, function(on)
+		if on then Shader.apply(p.name) else Shader.disable() end
+	end)
+	sw.hit.AnchorPoint, sw.hit.Position = Vector2.new(1, 0.5), UDim2.new(1, -4, 0.5, 0)
+	local apply = UI.button(card, "APPLY", UDim2.fromOffset(64, 32), function() Shader.apply(p.name) end)
+	apply.AnchorPoint, apply.Position = Vector2.new(1, 0.5), UDim2.new(1, -52, 0.5, 0)
+	UI.cards[p.name] = { stroke = st, switch = sw }
+end
+
+function UI.refreshCards()
+	local act = Store:Get("shader")
+	for n, c in pairs(UI.cards) do
+		local on = act == n
+		if c.switch.on ~= on then c.switch.set(on, true) end
+		Animate.tween(c.stroke, {
+			Color = on and C.magenta or C.electric,
+			Thickness = on and 2 or 1,
+			Transparency = on and 0.1 or 0.55
+		}, 0.3, "Sine")
+	end
+	if UI.status then
+		UI.status.Text = act and ("> " .. string.upper(act) .. " ACTIVE") or "> IDLE"
+	end
+end
+
+function UI.setOpen(on)
+	if Store:Get("open") == on or not UI.holder then return end
+	Store:Set("open", on)
+	local h = UI.holder
+	Sound.play(on and "open" or "close")
+	Animate.tween(UI.tCorner, { CornerRadius = UDim.new(0, on and 12 or Config.ToggleSize / 2) }, 0.4, "Quint")
+	Animate.tween(UI.tGlowCorner, { CornerRadius = UDim.new(0, on and 16 or (Config.ToggleSize + 18) / 2) }, 0.4, "Quint")
+	Animate.tween(UI.tIcon, { Rotation = on and 45 or 0 }, 0.45, "Expo")
+	if on then
+		h.Visible = true
+		local final = Vector2.new(h.Position.X.Offset, h.Position.Y.Offset)
+		local tpos = Vector2.new(UI.tHolder.Position.X.Offset, UI.tHolder.Position.Y.Offset)
+		local dir = tpos - final
+		dir = dir.Magnitude > 1 and dir.Unit * 60 or Vector2.zero
+		h.Position = UDim2.fromOffset(final.X + dir.X, final.Y + dir.Y)
+		UI.scale.Scale = UI.base * 0.7
+		UI.panel.GroupTransparency, UI.under.GroupTransparency = 1, 1
+		Animate.tween(h, { Position = UDim2.fromOffset(final.X, final.Y) }, 0.5, "Quint")
+		Animate.tween(UI.scale, { Scale = UI.base }, 0.5, "Expo")
+		Animate.tween(UI.panel, { GroupTransparency = 0 }, 0.35, "Sine")
+		Animate.tween(UI.under, { GroupTransparency = 0 }, 0.45, "Sine")
+	else
+		Animate.tween(UI.scale, { Scale = UI.base * 0.8 }, 0.3, "Quint", Enum.EasingDirection.In)
+		Animate.tween(UI.panel, { GroupTransparency = 1 }, 0.28, "Sine")
+		Animate.tween(UI.under, { GroupTransparency = 1 }, 0.28, "Sine")
+		task.delay(0.32, function()
+			if not Store:Get("open") and h.Parent then h.Visible = false end
+		end)
+	end
+end
+
+function UI.setCollapsed(on)
+	Store:Set("collapsed", on)
+	Sound.play(on and "close" or "open")
+	Animate.tween(UI.holder, { Size = UDim2.fromOffset(W, on and HEADER or H) }, 0.4, "Quint")
+	UI.minBtn.Text = on and "+" or "-"
+	local cur = Vector2.new(UI.holder.Position.X.Offset, UI.holder.Position.Y.Offset)
+	local c = Drag.clamp(cur, UI.panelSize())
+	if (c - cur).Magnitude > 0.5 then
+		Animate.tween(UI.holder, { Position = UDim2.fromOffset(c.X, c.Y) }, 0.4, "Quint")
+	end
+end
+
+function UI.placeAll()
+	if not UI.holder then return end
+	local vp, S = UI.viewport(), Config.ToggleSize
+	local pc = Pos.panel and Vector2.new(Pos.panel.x * vp.X, Pos.panel.y * vp.Y) or vp / 2
+	pc = Drag.clamp(pc, UI.panelSize())
+	UI.holder.Position = UDim2.fromOffset(pc.X, pc.Y)
+	local tc = Pos.toggle and Vector2.new(Pos.toggle.x * vp.X, Pos.toggle.y * vp.Y)
+		or Vector2.new(vp.X - (S / 2 + 16), vp.Y * 0.42)
+	tc = Drag.clamp(tc, Vector2.new(S, S))
+	UI.tHolder.Position = UDim2.fromOffset(tc.X, tc.Y)
+end
+
+function UI.relayout()
+	if not UI.holder then return end
+	local vp = UI.viewport()
+	UI.base = math.clamp(math.min((vp.X - 16) / W, (vp.Y - 16) / H), 0.45, 1)
+	if Store:Get("open") and UI.scale then UI.scale.Scale = UI.base end
+	-- [FIX] guard hostScale
+	if UI.hostScale then
+		local mobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
+		UI.hostScale.Scale = mobile and 0.85 or math.min(1, vp.X / 700)
+	end
+	UI.placeAll()
+	local activeP = Shader.active and Shader.byName[Shader.active]
+	if UI.lbTop and activeP and activeP.letterbox then UI.setLetterbox(true) end
+end
+
+function UI.destroy()
+	UiC.run()
+	UI.gui, UI.holder = nil, nil
+	table.clear(UI.sliders)
+	table.clear(UI.cards)
+	table.clear(UI.pages)
+	table.clear(UI.tabs)
+	UI.tab, UI.activeSlider = nil, nil
+end
+
+--// UI BUILD
+function UI.build()
+	UI.purge()
+	local gui = Util.new("ScreenGui", {
+		Name = Config.GuiName, ResetOnSpawn = false, IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 999999,
+	})
+	pcall(function() gui.ScreenInsets = Enum.ScreenInsets.None end)
+	if type(syn) == "table" and syn.protect_gui then pcall(syn.protect_gui, gui)
+	elseif type(protect_gui) == "function" then pcall(protect_gui, gui) end
+	UI.mount(gui)
+	UI.gui = gui
+	UiC.add(gui)
+	UiC.add(gui.AncestryChanged:Connect(function(_, parent)
+		if NeonSuite._unloading or parent then return end
+		task.defer(function()
+			if not NeonSuite._unloading and gui and not gui.Parent then pcall(UI.mount, gui) end
+		end)
+	end))
+	UiC.add(gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() UI.relayout() end))
+
+	-- screen overlays
+	UI.lbTop = Util.new("Frame", {
+		Name = "LetterTop", Size = UDim2.new(1, 0, 0, 0),
+		BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0
+	}, gui)
+	UI.lbBot = Util.new("Frame", {
+		Name = "LetterBot", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 0), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0
+	}, gui)
+	UI.scanBar = Util.new("Frame", {
+		Name = "Scan", Visible = false, Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = hex("00FF66"), BackgroundTransparency = 0.85, BorderSizePixel = 0
+	}, gui)
+
+	-- toast host
+	UI.toastHost = Util.new("Frame", {
+		Name = "Toasts", AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 64),
+		Size = UDim2.fromOffset(260, 280), BackgroundTransparency = 1
+	}, gui)
+	Util.new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right }, UI.toastHost)
+	UI.hostScale = Util.new("UIScale", { Scale = 1 }, UI.toastHost)
+
+	-- panel holder
+	local holder = Util.new("Frame", {
+		Name = "Holder", AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(W, H),
+		BackgroundTransparency = 1, Visible = false
+	}, gui)
+	UI.holder = holder
+	UI.scale = Util.new("UIScale", { Scale = 1 }, holder)
+	Util.new("UISizeConstraint", { MinSize = Vector2.new(360, 52), MaxSize = Vector2.new(720, 520) }, holder)
+
+	local under = Util.new("CanvasGroup", {
+		Name = "Under", Position = UDim2.fromOffset(-24, -24),
+		Size = UDim2.new(1, 48, 1, 48), BackgroundTransparency = 1
+	}, holder)
+	UI.under = under
+	local shadow = Util.new("Frame", {
+		Position = UDim2.fromOffset(24, 32), Size = UDim2.new(1, -48, 1, -48),
+		BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.55, BorderSizePixel = 0
+	}, under)
+	corner(shadow, 16)
+	local glow = Util.new("Frame", {
+		Position = UDim2.fromOffset(16, 16), Size = UDim2.new(1, -32, 1, -32),
+		BackgroundColor3 = C.magenta, BackgroundTransparency = 0.88, BorderSizePixel = 0
+	}, under)
+	corner(glow, 18)
+	UI.glowStroke = stroke(glow, 6, Color3.new(1, 1, 1), 0.8)
+	grad(UI.glowStroke, { C.magenta, C.electric, C.lavender, C.magenta }, 0)
+	local border = Util.new("Frame", {
+		Position = UDim2.fromOffset(24, 24), Size = UDim2.new(1, -48, 1, -48), BackgroundTransparency = 1
+	}, under)
+	corner(border, 14)
+	UI.borderStroke = stroke(border, 2, Color3.new(1, 1, 1), 0)
+	UI.borderGrad = grad(UI.borderStroke, { C.magenta, C.electric, C.lavender, C.indigo, C.magenta }, 0)
+
+	local panel = Util.new("CanvasGroup", {
+		Name = "Panel", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.04, BorderSizePixel = 0, Active = true
+	}, holder)
+	UI.panel = panel
+	corner(panel, 14)
+	grad(panel, { C.deep, C.midnight, C.indigo, C.deep }, 60)
+
+	-- grid overlay
+	UI.hLines, UI.vLines = {}, {}
+	local grid = Util.new("Frame", { Name = "Grid", Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1, ClipsDescendants = true }, panel)
+	for i = 1, 7 do
+		UI.hLines[i] = Util.new("Frame", { Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = C.lavender,
+			BackgroundTransparency = 0.93, BorderSizePixel = 0 }, grid)
+	end
+	for i = 1, 9 do
+		UI.vLines[i] = Util.new("Frame", { Size = UDim2.new(0, 1, 1, 0), BackgroundColor3 = C.lavender,
+			BackgroundTransparency = 0.94, BorderSizePixel = 0 }, grid)
+	end
+	UI.scanline = Util.new("Frame", { Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = C.magenta,
+		BackgroundTransparency = 0.9, BorderSizePixel = 0 }, grid)
+
+	-- header
+	local header = Util.new("Frame", {
+		Name = "Header", Size = UDim2.new(1, 0, 0, HEADER), BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.3, BorderSizePixel = 0, Active = true
+	}, panel)
+	grad(header, { C.indigo, C.midnight, C.deep }, 0)
+	local title = label(header, Config.Name, 20, C.text, Enum.Font.GothamBlack)
+	title.Position, title.Size = UDim2.new(0, 16, 0, 4), UDim2.new(0, 200, 0, 26)
+	UI.titleStroke = Util.new("UIStroke", { Color = C.magenta, Thickness = 1.5, Transparency = 0.5,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, title)
+	local sub = label(header, "SHADER ENGINE // v" .. NeonSuite.Version, 11, C.lavender, Enum.Font.Code)
+	sub.Position, sub.Size = UDim2.new(0, 16, 0, 29), UDim2.new(0, 240, 0, 14)
+	UI.fpsLabel = label(header, "-- FPS", 12, C.orchid, Enum.Font.Code, Enum.TextXAlignment.Right)
+	UI.fpsLabel.Position, UI.fpsLabel.Size = UDim2.new(1, -176, 0, 0), UDim2.new(0, 80, 1, 0)
+	local hline = Util.new("Frame", {
+		Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0
+	}, header)
+	grad(hline, { C.indigo, C.magenta, C.electric, C.indigo }, 0)
+
+	local function hbtn(text, x, onClick)
+		local b = Util.new("TextButton", {
+			Position = UDim2.new(1, x, 0, 2), Size = UDim2.fromOffset(44, 44),
+			BackgroundColor3 = C.royal, BackgroundTransparency = 1,
+			Text = text, Font = Enum.Font.GothamBold, TextSize = 20, TextColor3 = C.text,
+			AutoButtonColor = false, ClipsDescendants = true,
+		}, header)
+		corner(b, 10)
+		b.MouseEnter:Connect(function() Sound.play("hover") Util.cursor(true)
+			Animate.tween(b, { BackgroundTransparency = 0.4 }, 0.15, "Sine") end)
+		b.MouseLeave:Connect(function() Util.cursor(false)
+			Animate.tween(b, { BackgroundTransparency = 1 }, 0.2, "Sine") end)
+		b.InputBegan:Connect(function(i)
+			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+				UI.ripple(b, i)
+			end
+		end)
+		b.Activated:Connect(function() Sound.play("click") onClick() end)
+		return b
+	end
+	UI.minBtn = hbtn("-", -96, function() UI.setCollapsed(not Store:Get("collapsed")) end)
+	hbtn("x", -50, function() UI.setOpen(false) end)
+
+	-- sidebar
+	local side = Util.new("Frame", {
+		Name = "Sidebar", Position = UDim2.new(0, 8, 0, 56), Size = UDim2.new(0, 112, 1, -88),
+		BackgroundColor3 = C.deep, BackgroundTransparency = 0.45, BorderSizePixel = 0
+	}, panel)
+	corner(side, 10)
+	stroke(side, 1, C.electric, 0.6)
+	UI.indicator = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 2, 0, 26),
+		Size = UDim2.fromOffset(3, 26), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0
+	}, side)
+	corner(UI.indicator, 2)
+	grad(UI.indicator, { C.magenta, C.lavender, C.electric }, 90)
+
+	local content = Util.new("Frame", {
+		Name = "Content", Position = UDim2.new(0, 128, 0, 56),
+		Size = UDim2.new(1, -136, 1, -88), BackgroundTransparency = 1, ClipsDescendants = true
+	}, panel)
+	local function page(name)
+		local cg = Util.new("CanvasGroup", {
+			Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false
+		}, content)
+		UI.pages[name] = cg
+		return UI.scroller(cg)
+	end
+
+	local names = { "SHADER", "SETTINGS", "INFO" }
+	local pageNames = { SHADER = "Shader", SETTINGS = "Settings", INFO = "Info" }
+	for i, n in ipairs(names) do
+		local cy = 4 + (i - 1) * 50 + 22
+		local b = Util.new("TextButton", {
+			Position = UDim2.new(0, 8, 0, 4 + (i - 1) * 50), Size = UDim2.new(1, -12, 0, 44),
+			BackgroundColor3 = C.royal, BackgroundTransparency = 1,
+			Text = n, Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = C.sub,
+			AutoButtonColor = false, ClipsDescendants = true,
+		}, side)
+		corner(b, 8)
+		b.MouseEnter:Connect(function() Sound.play("hover") Util.cursor(true)
+			Animate.tween(b, { BackgroundTransparency = 0.7 }, 0.15, "Sine") end)
+		b.MouseLeave:Connect(function() Util.cursor(false)
+			Animate.tween(b, { BackgroundTransparency = 1 }, 0.2, "Sine") end)
+		b.InputBegan:Connect(function(inp)
+			if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+				UI.ripple(b, inp)
+			end
+		end)
+		b.Activated:Connect(function() UI.setTab(pageNames[n]) end)
+		UI.tabs[pageNames[n]] = { btn = b, cy = cy }
+	end
+
+	-- shader page
+	local sh = page("Shader")
+	UI.section(sh, "GLOBAL CONTROLS")
+	local sl = {
+		{ "intensity", "Intensity", 0, 2, 0.01, 2 },
+		{ "brightness", "Brightness", -0.5, 0.5, 0.01, 2 },
+		{ "contrast", "Contrast", -1, 1, 0.01, 2 },
+		{ "saturation", "Saturation", -1, 1, 0.01, 2 },
+		{ "bloom", "Bloom", 0, 3, 0.01, 2 },
+		{ "blur", "Blur", 0, 24, 0.5, 1 },
+	}
+	for _, s in ipairs(sl) do
+		UI.slider(sh, { key = s[1], label = s[2], min = s[3], max = s[4], step = s[5], dec = s[6], scroller = sh })
+	end
+	UI.button(sh, "RESET TO DEFAULT", UDim2.new(1, -8, 0, 36), function()
+		for _, k in ipairs({ "intensity", "brightness", "contrast", "saturation", "bloom", "blur" }) do
+			UI.sliders[k].set(DEF[k], true)
+		end
+		if Shader.active then Shader.disable(true) end
+		UI.notify("Reset", "Sliders and shader restored to default", "info")
+	end, nextOrder(sh))
+	UI.section(sh, "PRESETS (" .. #Shader.list .. ")")
+	for _, p in ipairs(Shader.list) do UI.card(sh, p) end
+
+	-- settings page
+	local se = page("Settings")
+	UI.section(se, "AUDIO")
+	local function row(text, key, extra)
+		local r = Util.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -8, 0, 44),
+			LayoutOrder = nextOrder(se) }, se)
+		local l = label(r, text, 13, C.text, Enum.Font.GothamMedium)
+		l.Position, l.Size = UDim2.new(0, 6, 0, 0), UDim2.new(1, -60, 1, 0)
+		local sw = UI.switch(r, Store:Get(key), function(on)
+			Store:Set(key, on)
+			if extra then extra(on) end
+		end)
+		sw.hit.AnchorPoint, sw.hit.Position = Vector2.new(1, 0.5), UDim2.new(1, 0, 0.5, 0)
+	end
+	row("Sound effects", "sfx")
+	UI.slider(se, { key = "sfxVol", label = "SFX volume", min = 0, max = 1, step = 0.05, dec = 2, scroller = se })
+	UI.section(se, "VISUAL")
+	row("Ambient animation", "ambient")
+	row("Reduced motion", "reduced")
+	row("Notifications", "toasts")
+	UI.section(se, "BEHAVIOR")
+	row("Snap to screen edge", "snap")
+	row("Save position and state", "save", function(on) if on then Persist.save() end end)
+	UI.section(se, "ACTIONS")
+	UI.button(se, "RESET POSITIONS", UDim2.new(1, -8, 0, 36), function()
+		Pos.panel, Pos.toggle = nil, nil
+		UI.placeAll()
+		Persist.save()
+		UI.notify("Positions reset", "Panel and button re-centered", "info")
+	end, nextOrder(se))
+	UI.button(se, "UNLOAD AND RESTORE", UDim2.new(1, -8, 0, 36), function() Core.Unload() end, nextOrder(se))
+
+	-- info page
+	local inf = page("Info")
+	UI.section(inf, "ABOUT")
+	local il = label(inf, "", 13, C.text, Enum.Font.Gotham)
+	il.Size, il.AutomaticSize, il.TextWrapped = UDim2.new(1, -8, 0, 0), Enum.AutomaticSize.Y, true
+	il.RichText, il.TextYAlignment = true, Enum.TextYAlignment.Top
+	il.LayoutOrder = nextOrder(inf)
+	il.Text = string.format(
+		'<font color="#DA70D6">NEON SUITE</font>  v%s\n<font color="#C77DFF">Executor</font>   %s\n' ..
+		'<font color="#C77DFF">Toggle panel</font>   RightShift\n<font color="#C77DFF">Hide button</font>   RightControl\n' ..
+		'<font color="#C77DFF">Presets</font>   %d\n\nVisual-only client-side shader engine. ' ..
+		'No game scripts are touched, no remotes are fired, and no network access is used.\n\n' ..
+		'All post-processing instances and lighting changes are reverted on unload.',
+		NeonSuite.Version, executorName(), #Shader.list)
+
+	-- footer
+	local footer = Util.new("Frame", {
+		Name = "Footer", AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, FOOT), BackgroundColor3 = C.deep, BackgroundTransparency = 0.35, BorderSizePixel = 0
+	}, panel)
+	UI.status = label(footer, "> IDLE", 11, C.orchid, Enum.Font.Code)
+	UI.status.Position, UI.status.Size = UDim2.new(0, 14, 0, 0), UDim2.new(0.6, 0, 1, 0)
+	local cr = label(footer, "v" .. NeonSuite.Version .. " // NeonSuite", 11, C.sub, Enum.Font.Code, Enum.TextXAlignment.Right)
+	cr.Position, cr.Size = UDim2.new(0.5, 0, 0, 0), UDim2.new(0.5, -14, 1, 0)
+
+	-- boot overlay
+	local boot = Util.new("CanvasGroup", {
+		Name = "Boot", Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0, ZIndex = 100, Active = true
+	}, panel)
+	grad(boot, { C.deep, C.indigo, C.deep }, 90)
+	UI.boot = boot
+	local bt = label(boot, Config.Name, 28, C.text, Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+	bt.AnchorPoint, bt.Position, bt.Size, bt.ZIndex = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.4), UDim2.fromOffset(320, 40), 101
+	Util.new("UIStroke", { Color = C.magenta, Thickness = 2, Transparency = 0.4,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, bt)
+	local btrack = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.56),
+		Size = UDim2.new(0.6, 0, 0, 6), BackgroundColor3 = C.midnight, BorderSizePixel = 0, ZIndex = 101
+	}, boot)
+	corner(btrack, 3)
+	UI.bootFill = Util.new("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0, ZIndex = 102 }, btrack)
+	corner(UI.bootFill, 3)
+	grad(UI.bootFill, { C.indigo, C.magenta, C.lavender }, 0)
+	UI.bootText = label(boot, "BOOTING", 12, C.orchid, Enum.Font.Code, Enum.TextXAlignment.Center)
+	UI.bootText.AnchorPoint, UI.bootText.Position, UI.bootText.Size, UI.bootText.ZIndex =
+		Vector2.new(0.5, 0), UDim2.fromScale(0.5, 0.62), UDim2.fromOffset(320, 20), 101
+
+	-- floating toggle button
+	local S = Config.ToggleSize
+	local tH = Util.new("Frame", {
+		Name = "ToggleHolder", AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(S, S), BackgroundTransparency = 1
+	}, gui)
+	UI.tHolder = tH
+	UI.tScale = Util.new("UIScale", { Scale = Store:Get("toggleHidden") and 0 or 1 }, tH)
+	tH.Visible = not Store:Get("toggleHidden")
+	local tGlow = Util.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(S + 18, S + 18), BackgroundColor3 = C.magenta,
+		BackgroundTransparency = 0.8, BorderSizePixel = 0
+	}, tH)
+	UI.tGlow = tGlow
+	UI.tGlowCorner = corner(tGlow, (S + 18) / 2)
+	local tb = Util.new("TextButton", {
+		Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1),
+		Text = "", AutoButtonColor = false, BorderSizePixel = 0, ClipsDescendants = true
+	}, tH)
+	UI.tCorner = corner(tb, S / 2)
+	grad(tb, { C.indigo, C.royal, C.electric }, 45)
+	local tst = stroke(tb, 2, Color3.new(1, 1, 1), 0.1)
+	UI.tStrokeGrad = grad(tst, { C.magenta, C.lavender, C.electric, C.magenta }, 0)
+	UI.tIcon = label(tb, "+", 30, C.text, Enum.Font.GothamBlack, Enum.TextXAlignment.Center)
+	UI.tIcon.AnchorPoint, UI.tIcon.Position, UI.tIcon.Size, UI.tIcon.ZIndex =
+		Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromScale(1, 1), 2
+	UI.bind(tb, { stroke = tst, noActivate = true })
+
+	-- drag wiring
+	Drag.make(header, holder, {
+		size = UI.panelSize, snap = function() return Store:Get("snap") end,
+		onEnd = function(p, moved)
+			if moved >= 6 then
+				local vp = UI.viewport()
+				Pos.panel = { x = p.X / vp.X, y = p.Y / vp.Y }
+				Persist.save()
+			end
+		end,
+	})
+	Drag.make(tb, tH, {
+		size = function() return Vector2.new(S, S) end, snap = function() return Store:Get("snap") end,
+		onClick = function() UI.setOpen(not Store:Get("open")) end,
+		onEnd = function(p, moved)
+			if moved >= 6 then
+				local vp = UI.viewport()
+				Pos.toggle = { x = p.X / vp.X, y = p.Y / vp.Y }
+				Persist.save()
+			end
+		end,
+	})
+
+	UiC.add(Store:Subscribe(function(k)
+		if k == "shader" then UI.refreshCards() end
+	end))
+	UI.setTab("Shader", true)
+	UI.refreshCards()
+	UI.relayout()
+end
+
+--// CORE
+local loopT, acc, fpsN, fpsT, watchT, dogT = 0, 0, 0, 0, 0, 0
+
+function Core.loop(dt)
+	loopT += dt
+	acc += dt
+	fpsN += 1
+	fpsT += dt
+	if fpsT >= 0.5 then
+		UI.fps = fpsN / fpsT
+		fpsN, fpsT = 0, 0
+		if UI.fpsLabel and Store:Get("open") then
+			UI.fpsLabel.Text = string.format("%d FPS", math.floor(UI.fps + 0.5))
+		end
+	end
+	if acc < 1 / 30 then return end
+	acc = 0
+	local t = loopT
+	local anim = Store:Get("ambient") and not Store:Get("reduced")
+	if anim then
+		if Store:Get("open") and UI.borderGrad then
+			UI.borderGrad.Rotation = (t * 45) % 360
+			UI.glowStroke.Transparency = 0.8 + 0.1 * math.sin(t * 1.6)
+			UI.titleStroke.Transparency = 0.5 + 0.25 * math.sin(t * 1.6)
+			UI.scanline.Position = UDim2.new(0, 0, (t * 0.12) % 1, 0)
+			for i, l in ipairs(UI.hLines) do
+				l.Position = UDim2.new(0, 0, ((i - 1) / #UI.hLines + t * 0.03) % 1, 0)
+			end
+			for i, l in ipairs(UI.vLines) do
+				l.Position = UDim2.new(((i - 1) / #UI.vLines + t * 0.02) % 1, 0, 0, 0)
+			end
+		end
+		if UI.tGlow and UI.tHolder.Visible then
+			UI.tGlow.BackgroundTransparency = 0.78 + 0.12 * math.sin(t * 2.4)
+			UI.tStrokeGrad.Rotation = (t * 60) % 360
+		end
+		if Shader.scanOn and UI.scanBar then
+			UI.scanBar.Visible = true
+			UI.scanBar.Position = UDim2.new(0, 0, (t * 0.18) % 1, 0)
+		elseif UI.scanBar then
+			UI.scanBar.Visible = false
+		end
+		Shader.aurora(t)
+	elseif UI.scanBar then
+		UI.scanBar.Visible = false
+	end
+	watchT += 1 / 30
+	if watchT >= 0.75 then
+		watchT = 0
+		pcall(Shader.watch)
+	end
+	dogT += 1 / 30
+	if dogT >= 1.5 then
+		dogT = 0
+		-- [FIX] IsDescendantOf(game) bisa false meski GUI valid di gethui.
+		if UI.gui and UI.gui.Parent == nil then
+			local ok = pcall(UI.mount, UI.gui)
+			if not ok or UI.gui.Parent == nil then
+				local wasOpen = Store:Get("open")
+				UI.destroy()
+				Store:Set("open", false)
+				UI.build()
+				if wasOpen then UI.setOpen(true) end
+			end
+		end
+	end
+end
+
+function Core.runBoot()
+	local steps = {
+		{ "INITIALIZING CORE", 0.15 }, { "MOUNTING AUDIO", 0.3 }, { "COMPILING SHADERS", 0.55 },
+		{ "BINDING POST EFFECTS", 0.75 }, { "SYNCING STATE", 0.9 }, { "READY", 1 },
+	}
+	for _, s in ipairs(steps) do
+		if NeonSuite._unloading or not UI.boot or not UI.boot.Parent then return end
+		UI.bootText.Text = s[1]
+		Animate.tween(UI.bootFill, { Size = UDim2.fromScale(s[2], 1) }, 0.25, "Quint")
+		task.wait(0.22)
+	end
+	task.wait(0.15)
+	if UI.boot and UI.boot.Parent then
+		Animate.tween(UI.boot, { GroupTransparency = 1 }, 0.4, "Sine")
+		task.wait(0.45)
+		if UI.boot then UI.boot.Visible = false end
+	end
+end
+
+function Core.bind()
+	MainC.add(RunService.Heartbeat:Connect(function(dt)
+		local ok = pcall(Core.loop, dt)
+		if not ok and Config.Debug then warn("[NeonSuite] loop error") end
+	end))
+	MainC.add(UIS.InputChanged:Connect(function(input)
+		local a = UI.activeSlider
+		if a and (input.UserInputType == Enum.UserInputType.MouseMovement or input == a.input) then
+			a.update(input)
+		end
+	end))
+	MainC.add(UIS.InputEnded:Connect(function(input)
+		local a = UI.activeSlider
+		if a and (input == a.input or (input.UserInputType == Enum.UserInputType.MouseButton1
+			and a.input.UserInputType == Enum.UserInputType.MouseButton1)) then
+			a.finish()
+		end
+	end))
+	MainC.add(UIS.InputBegan:Connect(function(input, gp)
+		if UIS:GetFocusedTextBox() then return end
+		if input.KeyCode == Config.Hotkeys.Toggle then
+			UI.setOpen(not Store:Get("open"))
+		elseif input.KeyCode == Config.Hotkeys.HideToggle then
+			Store:Set("toggleHidden", not Store:Get("toggleHidden"))
+		end
+	end))
+	MainC.add(Store:Subscribe(function(k, v)
+		if k == "sfx" or k == "sfxVol" then Sound.refreshVolume() end
+		if k == "toggleHidden" and UI.tHolder then
+			if v then
+				Animate.tween(UI.tScale, { Scale = 0 }, 0.3, "Quint", Enum.EasingDirection.In)
+				task.delay(0.32, function()
+					if Store:Get("toggleHidden") and UI.tHolder then UI.tHolder.Visible = false end
+				end)
+			else
+				UI.tHolder.Visible = true
+				Animate.tween(UI.tScale, { Scale = 1 }, 0.4, "Expo")
+			end
+		end
+		for _, pk in ipairs(PERSIST_KEYS) do
+			if pk == k then Persist.save() break end
+		end
+	end))
+	-- [FIX] Guard LocalPlayer
+	local lp = getLocalPlayer()
+	if lp then
+		MainC.add(lp.CharacterAdded:Connect(function()
+			task.wait(0.5)
+			if UI.gui and UI.gui.Parent == nil then pcall(UI.mount, UI.gui) end
+			Shader.watch()
+		end))
+	end
+	local cam = Workspace.CurrentCamera
+	if cam then
+		MainC.add(cam:GetPropertyChangedSignal("ViewportSize"):Connect(function() UI.relayout() end))
+	end
+end
+
+function Core.Unload()
+	if NeonSuite._unloading then return end
+	NeonSuite._unloading = true
+	pcall(Shader.restoreImmediate)
+	pcall(Util.cursorReset)
+	pcall(Animate.stopAll)
+	UiC.run()
+	MainC.run()
+	if genv.__NeonSuite == NeonSuite then genv.__NeonSuite = nil end
+end
+NeonSuite.Unload = Core.Unload
+
+function Core.start()
+	pcall(Persist.load)
+	Sound.init()
+	Shader.init()
+	UI.build()
+	Core.bind()
+	task.spawn(function()
+		UI.setOpen(true)
+		Core.runBoot()
+		local saved = Persist.savedShader
+		if saved and Shader.byName[saved] then Shader.apply(saved, true, 0.8) end
+		UI.notify(Config.Name, "Ready. RightShift toggles the panel.", "info")
+	end)
+end
+
+-- [FIX] Selalu tampilkan error apapun, tidak hanya saat Debug
+local ok, err = pcall(Core.start)
+if not ok then
+	warn("[NeonSuite] start failed: " .. tostring(err))
+	pcall(Core.Unload)
+end
