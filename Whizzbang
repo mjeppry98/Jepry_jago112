@@ -3,11 +3,12 @@
  [ WHIZZBANG ] - UNIVERSAL CLAN EDITION
 ================================================================================
   - Combat: Silent Aim (+ FOV Input Box + Target Part Selector), InstantPrompt
-  - Visuals: NPC ESP, Crosshair (Fixed Shapes), Dogtag ESP, Wounded ESP
+  - Visuals: NPC ESP, Crosshair (Fixed Shapes), Dogtag ESP, Wounded ESP,
+             Encrypted Message ESP (Unique Cyan Style)
   - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
   - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
-  - HUD: Revamped Instant Reload & Clean Button (Purple Glow, Draggable + Sharp SFX)
+  - HUD: Revamped Instant Reload & Clean Button (Purple Glow, Draggable + SFX)
   - Lock UI: Freeze all draggable HUDs with a single toggle
   - UI: WindUI (Violet Theme)
 ================================================================================
@@ -31,10 +32,15 @@ local WOUNDED_TEXTURE_ID = "rbxassetid://10797750927"
 local WOUNDED_ICON_SIZE  = UDim2.new(0, 24, 0, 24)
 
 -- Sound effects
--- Both buttons use the same sharp "pop" sound (higher pitch + slightly louder)
-local HUD_BUTTON_SFX_ID    = "rbxassetid://6895079853"   -- crisp pop sound
-local HUD_BUTTON_SFX_PITCH = 1.45                        -- sharper / nyaring
-local HUD_BUTTON_SFX_VOL   = 0.9                         -- louder
+local HUD_BUTTON_SFX_ID    = "rbxassetid://6895079853"
+local HUD_BUTTON_SFX_PITCH = 1.45
+local HUD_BUTTON_SFX_VOL   = 0.9
+
+-- Encrypted Message ESP theme colors (electric cyan - unique)
+local ENC_ESP_FILL      = Color3.fromRGB(0, 220, 255)
+local ENC_ESP_OUTLINE   = Color3.fromRGB(180, 255, 255)
+local ENC_ESP_TEXT      = Color3.fromRGB(0, 255, 255)
+local ENC_ESP_TEXT_DARK = Color3.fromRGB(0, 60, 90)
 
 local WhizConfig = {
     EspActive          = false,
@@ -51,6 +57,7 @@ local WhizConfig = {
     BoxColor           = Color3.fromRGB(0, 255, 255),
     AutoMakeBread      = false,
     DogtagEsp          = false,
+    EncryptedEsp       = false,
     Fullbright         = false,
     NoFog              = false,
     InstantPrompt      = false,
@@ -124,6 +131,11 @@ pcall(function()
     end
 end)
 pcall(function()
+    if _G.EncryptedEspConns then
+        for _, conn in ipairs(_G.EncryptedEspConns) do pcall(function() conn:Disconnect() end) end
+    end
+end)
+pcall(function()
     if _G.EnemyHudConns then
         for _, conn in ipairs(_G.EnemyHudConns) do pcall(function() conn:Disconnect() end) end
     end
@@ -151,6 +163,7 @@ pcall(function()
 end)
 _G.AutoMakeThread = false
 _G.DogtagEspConns = {}
+_G.EncryptedEspConns = {}
 _G.EnemyHudConns = {}
 _G.WoundedEspConns = {}
 
@@ -475,7 +488,6 @@ local function createPurpleButtonHUD(config)
     end)
 
     btn.MouseButton1Click:Connect(function()
-        -- Both HUD buttons use the same sharp pop SFX now
         playHudButtonSfx()
         if config.onClick then config.onClick(btn) end
     end)
@@ -684,6 +696,191 @@ local function stopWoundedEsp()
     end)
     _G.WoundedEspConns = {}
 end
+
+-- ===== ENCRYPTED MESSAGE ESP (Unique Cyan Style) =====
+-- Looks for objects (models) whose name contains "encrypted" or whose ancestor
+-- folder is "Cryptography", and that have a ProximityPrompt inside (usually
+-- "PickupPrompt"). Adds a unique cyan highlight + a floating "ENCRYPTED MSG"
+-- label with an icon-style frame to differentiate from other ESPs.
+
+local encryptedEspTags = {} -- [model] = { highlight = ..., billboard = ..., conn = ... }
+
+local function isEncryptedMessageModel(model)
+    if not model or not model:IsA("Model") or not model.Parent then return false end
+
+    -- Must contain a ProximityPrompt (typically "PickupPrompt")
+    local hasPrompt = model:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+    if not hasPrompt then return false end
+
+    -- Match by name or ancestor folder name
+    local name = string.lower(tostring(model.Name or ""))
+    if name:find("encrypted", 1, true) or name:find("message", 1, true) then
+        return true
+    end
+
+    local node = model.Parent
+    local depth = 0
+    while node and node ~= workspace and depth < 4 do
+        local pn = string.lower(tostring(node.Name or ""))
+        if pn:find("cryptograph", 1, true) or pn:find("encrypted", 1, true) then
+            return true
+        end
+        node = node.Parent
+        depth = depth + 1
+    end
+
+    return false
+end
+
+local function destroyEncryptedEsp(model)
+    local data = encryptedEspTags[model]
+    if not data then return end
+    pcall(function() if data.highlight then data.highlight:Destroy() end end)
+    pcall(function() if data.billboard then data.billboard:Destroy() end end)
+    pcall(function() if data.conn then data.conn:Disconnect() end end)
+    encryptedEspTags[model] = nil
+end
+
+local function removeAllEncryptedEsp()
+    local models = {}
+    for m, _ in pairs(encryptedEspTags) do table.insert(models, m) end
+    for _, m in ipairs(models) do
+        destroyEncryptedEsp(m)
+    end
+    encryptedEspTags = {}
+
+    -- Clean any leftover named objects
+    pcall(function()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj.Name == "EncryptedHighlight" or obj.Name == "EncryptedBillboard" then
+                obj:Destroy()
+            end
+        end
+    end)
+end
+
+local function createEncryptedEsp(model)
+    if not model or not model.Parent then return end
+    if encryptedEspTags[model] then return end
+
+    -- Highlight on the model (cyan, always-on-top)
+    local highlight = Instance.new("Highlight")
+    highlight.Name                = "EncryptedHighlight"
+    highlight.Adornee             = model
+    highlight.FillColor           = ENC_ESP_FILL
+    highlight.OutlineColor        = ENC_ESP_OUTLINE
+    highlight.FillTransparency    = 0.55
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent              = model
+
+    -- Billboard label above the model
+    local billboard
+    local anchor = model.PrimaryPart
+        or model:FindFirstChild("Handle")
+        or model:FindFirstChildWhichIsA("BasePart", true)
+    if anchor then
+        billboard = Instance.new("BillboardGui")
+        billboard.Name        = "EncryptedBillboard"
+        billboard.Adornee     = anchor
+        billboard.Size        = UDim2.new(0, 160, 0, 40)
+        billboard.StudsOffset = Vector3.new(0, 2.4, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 800
+        billboard.Parent      = anchor
+
+        -- Background pill
+        local bg = Instance.new("Frame")
+        bg.Name              = "Bg"
+        bg.Size              = UDim2.new(0, 150, 0, 22)
+        bg.Position          = UDim2.new(0.5, 0, 0.5, 0)
+        bg.AnchorPoint       = Vector2.new(0.5, 0.5)
+        bg.BackgroundColor3  = Color3.fromRGB(6, 20, 30)
+        bg.BackgroundTransparency = 0.15
+        bg.BorderSizePixel   = 0
+        bg.Parent            = billboard
+        Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+
+        local bgStroke = Instance.new("UIStroke", bg)
+        bgStroke.Color = ENC_ESP_TEXT
+        bgStroke.Thickness = 1.4
+        bgStroke.Transparency = 0.1
+
+        -- Blinking subtle pulse on outline
+        task.spawn(function()
+            local info = TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+            TweenService:Create(bgStroke, info, { Transparency = 0.55, Thickness = 2.2 }):Play()
+        end)
+
+        -- Small label text
+        local label = Instance.new("TextLabel")
+        label.Name                   = "Label"
+        label.Size                   = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text                   = "ENCRYPTED MESSAGE"
+        label.TextColor3             = ENC_ESP_TEXT
+        label.TextStrokeTransparency = 0
+        label.TextStrokeColor3       = ENC_ESP_TEXT_DARK
+        label.TextScaled             = true
+        label.Font                   = Enum.Font.GothamBold
+        label.Parent                 = bg
+    end
+
+    -- Auto-cleanup when prompt gets triggered / model destroyed
+    local removed = false
+    local function onRemoved()
+        if removed then return end
+        removed = true
+        destroyEncryptedEsp(model)
+    end
+
+    local prompt = model:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if prompt then
+        table.insert(_G.EncryptedEspConns, prompt.Destroying:Connect(onRemoved))
+        table.insert(_G.EncryptedEspConns, prompt:GetPropertyChangedSignal("Enabled"):Connect(function()
+            if prompt.Enabled == false then onRemoved() end
+        end))
+    end
+    table.insert(_G.EncryptedEspConns, model.Destroying:Connect(onRemoved))
+    table.insert(_G.EncryptedEspConns, model.AncestryChanged:Connect(function(_, parent)
+        if parent == nil then onRemoved() end
+    end))
+
+    encryptedEspTags[model] = {
+        highlight = highlight,
+        billboard = billboard,
+    }
+end
+
+local function scanEncryptedMessages()
+    pcall(function()
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and isEncryptedMessageModel(obj) then
+                createEncryptedEsp(obj)
+            end
+        end
+    end)
+end
+
+-- Also remove ESP when LP picks up the encrypted message
+pcall(function()
+    if _G.EncryptedTriggerConn then _G.EncryptedTriggerConn:Disconnect() end
+    _G.EncryptedTriggerConn = ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+        if player ~= LP then return end
+        if not prompt or not prompt.Parent then return end
+
+        -- Walk up to find the encrypted model
+        local node = prompt.Parent
+        while node and node ~= workspace do
+            if node:IsA("Model") and encryptedEspTags[node] then
+                task.wait(0.1)
+                destroyEncryptedEsp(node)
+                return
+            end
+            node = node.Parent
+        end
+    end)
+end)
 
 -- ===== ENEMY CATEGORIZATION =====
 local TANK_AI    = { ["ai_tank"]      = true }
@@ -1599,6 +1796,16 @@ VisualTab:Toggle({
 })
 
 VisualTab:Toggle({
+    Title = "Encrypted Message ESP (Cyan)",
+    Desc  = "Highlights encrypted messages (ProximityPrompt with PickupPrompt) with a unique cyan glow and 'ENCRYPTED MESSAGE' tag. Auto-clears when picked up.",
+    Default = false,
+    Callback = function(v)
+        WhizConfig.EncryptedEsp = v
+        if v then scanEncryptedMessages() else removeAllEncryptedEsp() end
+    end,
+})
+
+VisualTab:Toggle({
     Title = "Total Enemies (Real-Time HUD)",
     Desc  = "Live counter of all verified enemies currently on the map.",
     Default = false,
@@ -1800,6 +2007,17 @@ task.spawn(function()
             end)
         end
 
+        if WhizConfig.EncryptedEsp then
+            scanEncryptedMessages()
+            pcall(function()
+                for model, data in pairs(encryptedEspTags) do
+                    if not model or not model.Parent then
+                        destroyEncryptedEsp(model)
+                    end
+                end
+            end)
+        end
+
         task.wait(1)
     end
 end)
@@ -1808,6 +2026,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Reload & Clean buttons now share the same sharp pop sound.",
+    Content  = "Added Encrypted Message ESP (cyan style) + shared sharp pop SFX.",
     Duration = 5,
 })
