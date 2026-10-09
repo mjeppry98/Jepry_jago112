@@ -3,11 +3,9 @@
  [ WHIZZBANG ] - UNIVERSAL CLAN EDITION
 ================================================================================
   - Place Lock: Only runs on PlaceId 14234703115.
-                Otherwise shows "Wrong game fam" and teleports automatically
-                to the server with the most players.
   - Combat: Silent Aim (+ FOV Input Box + Target Part Selector), InstantPrompt
   - Visuals: NPC ESP, Crosshair (Fixed Shapes), Dogtag ESP, Wounded ESP,
-             Encrypted Message ESP (White)
+             Decrypted Fragment ESP (White)
   - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
   - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
@@ -26,7 +24,6 @@ if game.PlaceId ~= EXPECTED_PLACE_ID then
     local StarterGui      = game:GetService("StarterGui")
     local LP_LOCK         = game:GetService("Players").LocalPlayer
 
-    -- Show "Wrong game fam" message (kick-style notification)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title    = "WHIZZBANG",
@@ -35,12 +32,10 @@ if game.PlaceId ~= EXPECTED_PLACE_ID then
         })
     end)
 
-    -- Also attempt a real client-side kick (may or may not work depending on executor)
     pcall(function()
         LP_LOCK:Kick("Wrong game fam")
     end)
 
-    -- In a separate thread: find the server with the most players & teleport
     task.spawn(function()
         local bestJobId   = nil
         local bestCount   = -1
@@ -63,7 +58,6 @@ if game.PlaceId ~= EXPECTED_PLACE_ID then
             end
         end)
 
-        -- Let the notification display for a moment
         task.wait(1.3)
 
         if bestJobId then
@@ -71,7 +65,6 @@ if game.PlaceId ~= EXPECTED_PLACE_ID then
                 TeleportService:TeleportToPlaceInstance(EXPECTED_PLACE_ID, bestJobId, LP_LOCK)
             end)
         else
-            -- Fallback: normal teleport (Roblox will assign a server)
             pcall(function()
                 TeleportService:Teleport(EXPECTED_PLACE_ID, LP_LOCK)
             end)
@@ -758,76 +751,56 @@ local function stopWoundedEsp()
     _G.WoundedEspConns = {}
 end
 
--- ===== ENCRYPTED MESSAGE ESP (White) =====
-local encryptedEspData = {}
+-- ===== ENCRYPTED MESSAGE ESP (White) - target: workspace.Cryptography["decrypted fragment"] =====
+local encryptedEspData = {} -- [BasePart] = { highlight, billboard }
 
-local function isEncryptedPrompt(prompt)
-    if not prompt or not prompt:IsA("ProximityPrompt") then return false end
-    local pname = string.lower(tostring(prompt.Name or ""))
-    local isPickupLike = pname:find("pickup", 1, true)
-        or pname:find("encrypted", 1, true)
-        or pname:find("message", 1, true)
-
-    local node = prompt.Parent
-    local depth = 0
-    local matchedAncestor = false
-    while node and node ~= workspace and depth < 6 do
-        local n = string.lower(tostring(node.Name or ""))
-        if n:find("encrypted", 1, true)
-            or n:find("cryptograph", 1, true) then
-            matchedAncestor = true
-            break
-        end
-        node = node.Parent
-        depth = depth + 1
-    end
-
-    if matchedAncestor and isPickupLike then return true end
-    if matchedAncestor and pname == "pickupprompt" then return true end
-    return false
+local function getCryptographyFolder()
+    return workspace:FindFirstChild("Cryptography")
 end
 
-local function getEncryptedTargetModel(prompt)
-    if not prompt then return nil end
-    local node = prompt.Parent
-    local best = nil
-    local depth = 0
-    while node and node ~= workspace and depth < 6 do
-        if node:IsA("Model") then
-            local n = string.lower(tostring(node.Name or ""))
-            if n:find("encrypted", 1, true) or n:find("message", 1, true) then
-                best = node
-            end
+local function getDecryptedFragment()
+    local folder = getCryptographyFolder()
+    if not folder then return nil end
+    -- try direct child first
+    local df = folder:FindFirstChild("decrypted fragment")
+    if df then return df end
+    -- normalized name search (in case casing/spacing differs)
+    for _, child in ipairs(folder:GetChildren()) do
+        local n = string.lower(string.gsub(tostring(child.Name or ""), "[%s_%-]", ""))
+        if n == "decryptedfragment" then
+            return child
         end
-        node = node.Parent
-        depth = depth + 1
     end
-    if not best and prompt.Parent and prompt.Parent:IsA("BasePart") then
-        best = prompt.Parent
-    end
-    return best
+    return nil
 end
 
-local function destroyEncryptedEsp(prompt)
-    local data = encryptedEspData[prompt]
+local function destroyEncryptedEsp(target)
+    local data = encryptedEspData[target]
     if not data then return end
     pcall(function() if data.highlight then data.highlight:Destroy() end end)
     pcall(function() if data.billboard then data.billboard:Destroy() end end)
-    encryptedEspData[prompt] = nil
+    encryptedEspData[target] = nil
 end
 
 local function removeAllEncryptedEsp()
-    for p, _ in pairs(encryptedEspData) do destroyEncryptedEsp(p) end
+    for t, _ in pairs(encryptedEspData) do destroyEncryptedEsp(t) end
     encryptedEspData = {}
 end
 
-local function createEncryptedEsp(prompt)
-    if not prompt or not prompt.Parent then return end
-    if encryptedEspData[prompt] then return end
+local function createEncryptedEsp(target)
+    if not target or not target.Parent then return end
+    if encryptedEspData[target] then return end
 
-    local target = getEncryptedTargetModel(prompt)
-    if not target then return end
+    -- Resolve the BasePart we'll attach visuals to
+    local adornee = target
+    if target:IsA("Model") then
+        adornee = target.PrimaryPart
+            or target:FindFirstChildWhichIsA("BasePart", true)
+            or target
+    end
+    if not (adornee and adornee:IsA("BasePart")) then return end
 
+    -- White highlight
     local hl = Instance.new("Highlight")
     hl.Name                = "EncryptedHighlight"
     hl.Adornee             = target
@@ -838,68 +811,50 @@ local function createEncryptedEsp(prompt)
     hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
     hl.Parent              = target
 
-    local adornee = target
-    if target:IsA("Model") then
-        adornee = target.PrimaryPart
-            or target:FindFirstChildWhichIsA("BasePart", true)
-            or target
-    end
+    -- Label above the object
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name        = "EncryptedBillboard"
+    billboard.Adornee     = adornee
+    billboard.Size        = UDim2.new(0, 170, 0, 22)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = 500
+    billboard.Parent      = adornee
 
-    local billboard
-    if adornee and adornee:IsA("BasePart") then
-        billboard = Instance.new("BillboardGui")
-        billboard.Name        = "EncryptedBillboard"
-        billboard.Adornee     = adornee
-        billboard.Size        = UDim2.new(0, 160, 0, 22)
-        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-        billboard.AlwaysOnTop = true
-        billboard.MaxDistance = 500
-        billboard.Parent      = adornee
+    local label = Instance.new("TextLabel")
+    label.Size                   = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text                   = "ENCRYPTED MESSAGE"
+    label.TextColor3             = Color3.fromRGB(255, 255, 255)
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
+    label.TextScaled             = true
+    label.Font                   = Enum.Font.GothamBold
+    label.Parent                 = billboard
 
-        local label = Instance.new("TextLabel")
-        label.Size                   = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text                   = "ENCRYPTED MESSAGE"
-        label.TextColor3             = Color3.fromRGB(255, 255, 255)
-        label.TextStrokeTransparency = 0
-        label.TextStrokeColor3       = Color3.fromRGB(0, 0, 0)
-        label.TextScaled             = true
-        label.Font                   = Enum.Font.GothamBold
-        label.Parent                 = billboard
-    end
-
-    encryptedEspData[prompt] = {
+    encryptedEspData[target] = {
         highlight = hl,
         billboard = billboard,
-        model     = target,
     }
 
     local removed = false
     local function onRemoved()
         if removed then return end
         removed = true
-        destroyEncryptedEsp(prompt)
+        destroyEncryptedEsp(target)
     end
 
-    for _, c in ipairs({
-        prompt.Destroying:Connect(onRemoved),
-        prompt.AncestryChanged:Connect(function(_, parent) if parent == nil then onRemoved() end end),
-        prompt:GetPropertyChangedSignal("Enabled"):Connect(function()
-            if prompt.Enabled == false then onRemoved() end
-        end),
-        target.Destroying:Connect(onRemoved),
-        target.AncestryChanged:Connect(function(_, parent) if parent == nil then onRemoved() end end),
-    }) do
-        table.insert(_G.EncryptedEspConns, c)
-    end
+    table.insert(_G.EncryptedEspConns, target.Destroying:Connect(onRemoved))
+    table.insert(_G.EncryptedEspConns, target.AncestryChanged:Connect(function(_, parent)
+        if parent == nil then onRemoved() end
+    end))
 end
 
 local function scanEncrypted()
     pcall(function()
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") and obj.Enabled and isEncryptedPrompt(obj) then
-                createEncryptedEsp(obj)
-            end
+        local target = getDecryptedFragment()
+        if target then
+            createEncryptedEsp(target)
         end
     end)
 end
@@ -907,24 +862,37 @@ end
 local function startEncryptedEsp()
     scanEncrypted()
 
-    table.insert(_G.EncryptedEspConns, workspace.DescendantAdded:Connect(function(obj)
-        if obj:IsA("ProximityPrompt") and WhizConfig.EncryptedEsp then
+    -- Watch for the folder / object appearing
+    table.insert(_G.EncryptedEspConns, workspace.ChildAdded:Connect(function(obj)
+        if not WhizConfig.EncryptedEsp then return end
+        if obj.Name == "Cryptography" then
             task.wait(0.05)
-            if obj.Parent and obj.Enabled and isEncryptedPrompt(obj) then
-                createEncryptedEsp(obj)
-            end
+            scanEncrypted()
         end
     end))
 
+    pcall(function()
+        local folder = getCryptographyFolder()
+        if folder then
+            table.insert(_G.EncryptedEspConns, folder.ChildAdded:Connect(function(obj)
+                if not WhizConfig.EncryptedEsp then return end
+                local n = string.lower(string.gsub(tostring(obj.Name or ""), "[%s_%-]", ""))
+                if n == "decryptedfragment" then
+                    task.wait(0.05)
+                    createEncryptedEsp(obj)
+                end
+            end))
+        end
+    end)
+
+    -- Fallback polling loop
     task.spawn(function()
         while WhizConfig.EncryptedEsp do
-            scanEncrypted()
+            pcall(scanEncrypted)
             pcall(function()
-                for prompt, data in pairs(encryptedEspData) do
-                    if not prompt or not prompt.Parent or prompt.Enabled == false then
-                        destroyEncryptedEsp(prompt)
-                    elseif data.model and (not data.model.Parent) then
-                        destroyEncryptedEsp(prompt)
+                for target, _ in pairs(encryptedEspData) do
+                    if not target or not target.Parent then
+                        destroyEncryptedEsp(target)
                     end
                 end
             end)
@@ -942,17 +910,6 @@ local function stopEncryptedEsp()
     end)
     _G.EncryptedEspConns = {}
 end
-
-pcall(function()
-    if _G.EncryptedTriggerConn then _G.EncryptedTriggerConn:Disconnect() end
-    _G.EncryptedTriggerConn = ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
-        if player ~= LP then return end
-        if prompt and encryptedEspData[prompt] then
-            task.wait(0.05)
-            destroyEncryptedEsp(prompt)
-        end
-    end)
-end)
 
 -- ===== ENEMY CATEGORIZATION =====
 local TANK_AI    = { ["ai_tank"]      = true }
@@ -1869,7 +1826,7 @@ VisualTab:Toggle({
 
 VisualTab:Toggle({
     Title = "Encrypted Message ESP (White)",
-    Desc  = "Marks encrypted message objects in the map with a white highlight and label.",
+    Desc  = "Marks the 'decrypted fragment' in workspace.Cryptography with a white highlight and label.",
     Default = false,
     Callback = function(v)
         WhizConfig.EncryptedEsp = v
@@ -2082,11 +2039,9 @@ task.spawn(function()
         if WhizConfig.EncryptedEsp then
             scanEncrypted()
             pcall(function()
-                for prompt, data in pairs(encryptedEspData) do
-                    if not prompt or not prompt.Parent or prompt.Enabled == false then
-                        destroyEncryptedEsp(prompt)
-                    elseif data.model and (not data.model.Parent) then
-                        destroyEncryptedEsp(prompt)
+                for target, _ in pairs(encryptedEspData) do
+                    if not target or not target.Parent then
+                        destroyEncryptedEsp(target)
                     end
                 end
             end)
@@ -2100,6 +2055,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Place Lock active: script only runs on 14234703115.",
+    Content  = "Encrypted ESP now only targets 'decrypted fragment'.",
     Duration = 5,
 })
