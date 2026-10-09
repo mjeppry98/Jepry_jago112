@@ -7,7 +7,7 @@
   - World: Custom Speed (Input Box), Perfect Fullbright, No Fog
   - Extra: Auto Make Bread, Auto-Clean Dirt
   - Counter: Total Enemies HUD - Tank / Flamethrower / Infantry / Others
-  - HUD: Revamped Instant Reload (Better SFX) & Clean Button (Purple Glow, Draggable)
+  - HUD: Revamped Instant Reload & Clean Button (Purple Glow, Draggable + Sharp SFX)
   - Lock UI: Freeze all draggable HUDs with a single toggle
   - UI: WindUI (Violet Theme)
 ================================================================================
@@ -31,8 +31,10 @@ local WOUNDED_TEXTURE_ID = "rbxassetid://10797750927"
 local WOUNDED_ICON_SIZE  = UDim2.new(0, 24, 0, 24)
 
 -- Sound effects
-local BUTTON_SFX_ID      = "rbxassetid://9120386436"   -- generic button click (clean button)
-local RELOAD_SFX_ID      = "rbxassetid://6895079853"   -- nicer pop/notification for reload
+-- Both buttons use the same sharp "pop" sound (higher pitch + slightly louder)
+local HUD_BUTTON_SFX_ID    = "rbxassetid://6895079853"   -- crisp pop sound
+local HUD_BUTTON_SFX_PITCH = 1.45                        -- sharper / nyaring
+local HUD_BUTTON_SFX_VOL   = 0.9                         -- louder
 
 local WhizConfig = {
     EspActive          = false,
@@ -178,27 +180,18 @@ local function applyLockState()
     end
 end
 
-local function playSfx(id, volume, pitch)
+local function playHudButtonSfx()
     pcall(function()
         local s = Instance.new("Sound")
-        s.SoundId = id
-        s.Volume = volume or 0.6
-        s.PlaybackSpeed = pitch or 1
-        s.Parent = SoundService
+        s.SoundId        = HUD_BUTTON_SFX_ID
+        s.Volume         = HUD_BUTTON_SFX_VOL
+        s.PlaybackSpeed  = HUD_BUTTON_SFX_PITCH
+        s.Parent         = SoundService
         s:Play()
         task.delay(3, function()
             pcall(function() s:Destroy() end)
         end)
     end)
-end
-
-local function playButtonSfx()
-    playSfx(BUTTON_SFX_ID, 0.6, 1)
-end
-
-local function playReloadSfx()
-    -- Slightly louder + pitch up for a satisfying "pop"
-    playSfx(RELOAD_SFX_ID, 0.75, 1.05)
 end
 
 local DEFAULT_SPEED = 16
@@ -482,11 +475,8 @@ local function createPurpleButtonHUD(config)
     end)
 
     btn.MouseButton1Click:Connect(function()
-        if config.sfx then
-            config.sfx()
-        else
-            playButtonSfx()
-        end
+        -- Both HUD buttons use the same sharp pop SFX now
+        playHudButtonSfx()
         if config.onClick then config.onClick(btn) end
     end)
 
@@ -1718,7 +1708,6 @@ ExtraTab:Button({
             text      = "RELOAD",
             position  = UDim2.new(0, 30, 0, 220),
             size      = UDim2.new(0, 92, 0, 34),
-            sfx       = playReloadSfx, -- new, better sound
             onClick   = function()
                 UniversalReload()
             end,
@@ -1819,6 +1808,6 @@ pcall(function() Window:SelectTab(1) end)
 
 WindUI:Notify({
     Title    = "WHIZZBANG",
-    Content  = "Instant Reload button now uses a better pop sound.",
+    Content  = "Reload & Clean buttons now share the same sharp pop sound.",
     Duration = 5,
 })
