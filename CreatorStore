@@ -23,7 +23,7 @@ local CATEGORIES = {
 
 local SUB_ICONS = {
     ["All"] = "rbxassetid://15567843390", ["Building"] = "rbxassetid://102384750306029",
-    ["Nature"] = "rbxassetid://114717328431686", ["Props"] = "rbxassetid://106218455818049",
+    ["Nature"] = "rbxassetid://76744041179777", ["Props"] = "rbxassetid://122840673622286",
     ["Weapons"] = "rbxassetid://7485051715", ["Vehicles"] = "rbxassetid://101646918234834",
     ["Characters"] = "rbxassetid://13285615740", ["Clothing"] = "rbxassetid://11955919597",
     ["Accessories"] = "rbxassetid://94785180212209", ["Body Parts"] = "rbxassetid://126499349331034",
@@ -605,12 +605,16 @@ U.viewportFrame = new("ViewportFrame", {
 U.vpCamera = new("Camera", { FieldOfView = 40 }, U.viewportFrame)
 U.viewportFrame.CurrentCamera = U.vpCamera
 
-U.vpStatus = txt(U.thumbFrame, "", 10, U.TEXT_DIM, U.GOTHAM_B, UDim2.fromScale(1, 1), UDim2.new(), U.CENTER, { Visible = false, ZIndex = 3 })
+U.vpStatus = txt(U.thumbFrame, "", 10, U.TEXT_DIM, U.GOTHAM_B, UDim2.fromScale(1, 1), UDim2.new(), U.CENTER, { Visible = false, ZIndex = 3, TextWrapped = true, TextTruncate = Enum.TextTruncate.None })
 U.vpHint = txt(U.thumbFrame, U.IS_NARROW and "Drag: rotate  |  Pinch: zoom" or "Drag: rotate  |  Wheel/Pinch: zoom  |  Right-drag: pan", 8, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -120, 0, 12), UDim2.new(0, 8, 1, -18), U.LEFT, { Visible = false, ZIndex = 4 })
 
 U.toggle3DBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(66, 22), UDim2.new(1, -39, 0, 17), U.TONE_OFF, "3D VIEW", U.TEXT_LIGHT)
 U.toggle3DBtn.Visible = false
 U.toggle3DBtn.ZIndex = 5
+U.useDummy = false
+U.dummyBtn, U.dummyApi = plainBtn(U.thumbFrame, UDim2.fromOffset(84, 22), UDim2.new(1, -118, 0, 17), U.TONE_OFF, "DUMMY: OFF", U.TEXT_LIGHT)
+U.dummyBtn.Visible = false
+U.dummyBtn.ZIndex = 5
 U.zoomInBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(24, 24), UDim2.new(1, -18, 1, -18), U.TONE_OFF, "+", U.TEXT_LIGHT, nil, 14)
 U.zoomOutBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(24, 24), UDim2.new(1, -46, 1, -18), U.TONE_OFF, "-", U.TEXT_LIGHT, nil, 14)
 U.resetBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(24, 24), UDim2.new(1, -74, 1, -18), U.TONE_OFF, "R", U.TEXT_LIGHT, nil, 10)
@@ -699,13 +703,15 @@ U.HELP_TEXT = table.concat({
     "",
     "6. Audio: press PLAY to listen and STOP to end. Drag the slider to jump to any part of the track.",
     "",
-    "7. Models and Meshes: press 3D VIEW. Drag to rotate, scroll wheel or pinch to zoom, right-drag to pan, use + / - / R for zoom and reset.",
+    "7. Models, Meshes and Catalog: press 3D VIEW. Drag to rotate, scroll wheel or pinch to zoom, right-drag to pan, use + / - / R for zoom and reset.",
     "",
-    "8. Press LOAD MORE below the list to fetch more results.",
+    "8. Catalog items have a 3D button next to VIEW that opens the 3D preview directly. Inside the preview, press DUMMY: OFF to try the item on a dummy character (DUMMY: ON). The default is 3D only, without the dummy.",
     "",
-    "9. Press < BACK or tap the active category to return to the sub-category tiles.",
+    "9. Press LOAD MORE below the list to fetch more results.",
     "",
-    "10. Drag the header to move the window. Minimize hides it and X closes it.",
+    "10. Press < BACK or tap the active category to return to the sub-category tiles.",
+    "",
+    "11. Drag the header to move the window. Minimize hides it and X closes it.",
     "",
     "If you see a Failed message, check BASE_URL at the top of the script and make sure your Vercel API is deployed."
 }, "\n")
@@ -910,6 +916,181 @@ local function fetch3D(id, kind)
     return obj
 end
 
+-- ===== Catalog 3D (with optional dummy) =====
+local function buildDummy()
+    local model
+    pcall(function()
+        local desc = Instance.new("HumanoidDescription")
+        model = Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+    end)
+    if not model then return nil end
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("LuaSourceContainer") then
+            pcall(function() d:Destroy() end)
+        end
+    end
+    for _, d in ipairs(model:GetDescendants()) do
+        if d:IsA("BasePart") then pcall(function() d.Anchored = true end) end
+    end
+    -- remove any default clothing so items are visible clearly
+    for _, d in ipairs(model:GetChildren()) do
+        if d:IsA("Accessory") or d:IsA("Shirt") or d:IsA("Pants") or d:IsA("ShirtGraphic") then
+            pcall(function() d:Destroy() end)
+        end
+    end
+    return model
+end
+
+local function placeAccessory(dummy, acc)
+    local handle = acc:FindFirstChild("Handle")
+    if not (handle and handle:IsA("BasePart")) then return false end
+    local att1 = handle:FindFirstChildOfClass("Attachment")
+    local placed = false
+    if att1 then
+        for _, p in ipairs(dummy:GetDescendants()) do
+            if p:IsA("Attachment") and p.Name == att1.Name and p.Parent ~= handle and p.Parent:IsA("BasePart") and not p.Parent:IsDescendantOf(acc) then
+                handle.CFrame = p.Parent.CFrame * p.CFrame * att1.CFrame:Inverse()
+                placed = true
+                break
+            end
+        end
+    end
+    if not placed then
+        local head = dummy:FindFirstChild("Head")
+        if head then
+            handle.CFrame = head.CFrame * CFrame.new(0, head.Size.Y / 2 + handle.Size.Y / 2, 0)
+        end
+    end
+    handle.Anchored = true
+    acc.Parent = dummy
+    return true
+end
+
+local function applyToDummy(dummy, obj)
+    local applied = false
+    local list = { obj }
+    for _, d in ipairs(obj:GetDescendants()) do table.insert(list, d) end
+    for _, d in ipairs(list) do
+        if d:IsA("Accessory") then
+            local ok = placeAccessory(dummy, d)
+            applied = applied or ok
+        elseif d:IsA("Shirt") or d:IsA("Pants") or d:IsA("ShirtGraphic") then
+            for _, old in ipairs(dummy:GetChildren()) do
+                if old.ClassName == d.ClassName then old:Destroy() end
+            end
+            d.Parent = dummy
+            applied = true
+        end
+    end
+    -- face decal
+    local head = dummy:FindFirstChild("Head")
+    if head then
+        for _, d in ipairs(obj:GetDescendants()) do
+            if d:IsA("Decal") and not d:IsDescendantOf(head) then
+                local face = head:FindFirstChildOfClass("Decal")
+                if face then face.Texture = d.Texture else d.Parent = head end
+                applied = true
+                break
+            end
+        end
+        if obj:IsA("Decal") then
+            local face = head:FindFirstChildOfClass("Decal")
+            if face then face.Texture = obj.Texture else obj.Parent = head end
+            applied = true
+        end
+    end
+    -- body part meshes (match by name)
+    for _, d in ipairs(obj:GetDescendants()) do
+        if d:IsA("MeshPart") and not d:FindFirstAncestorOfClass("Accessory") then
+            local target = dummy:FindFirstChild(d.Name)
+            if target and target:IsA("MeshPart") then
+                pcall(function()
+                    target.MeshId = d.MeshId
+                    if d.TextureID ~= "" then target.TextureID = d.TextureID end
+                end)
+                applied = true
+            end
+        end
+    end
+    return applied
+end
+
+local function catalogIds(item)
+    local ids = {}
+    if item.bundledItems and #item.bundledItems > 0 then
+        for n, b in ipairs(item.bundledItems) do
+            if n > 12 then break end
+            if b.id and (b.type == nil or b.type == "" or b.type == "Asset") then
+                table.insert(ids, b.id)
+            end
+        end
+    end
+    if #ids == 0 and item.kind ~= "Bundle" then ids[1] = item.id end
+    return ids
+end
+
+-- returns object (or nil) and optional message
+local function loadCatalog3D(item, my)
+    local ids = catalogIds(item)
+    if #ids == 0 then return nil, "3D preview unavailable for this bundle" end
+
+    local dummy
+    if U.useDummy then
+        dummy = buildDummy()
+        if not dummy then return nil, "Dummy could not be created in this executor" end
+    end
+
+    local loaded = {}
+    for _, id in ipairs(ids) do
+        if my ~= U.vpToken then
+            if dummy then dummy:Destroy() end
+            return nil
+        end
+        local obj = fetch3D(id, "Model")
+        if obj then table.insert(loaded, obj) end
+    end
+    if my ~= U.vpToken then
+        if dummy then dummy:Destroy() end
+        for _, o in ipairs(loaded) do pcall(function() o:Destroy() end) end
+        return nil
+    end
+    if #loaded == 0 then
+        if dummy then dummy:Destroy() end
+        return nil, "3D preview unavailable for this asset"
+    end
+
+    if dummy then
+        local any = false
+        for _, o in ipairs(loaded) do
+            for _, d in ipairs(o:GetDescendants()) do
+                if d:IsA("LuaSourceContainer") then pcall(function() d:Destroy() end) end
+            end
+            for _, d in ipairs(o:GetDescendants()) do
+                if d:IsA("BasePart") then pcall(function() d.Anchored = true end) end
+            end
+            if applyToDummy(dummy, o) then any = true end
+            pcall(function() o:Destroy() end)
+        end
+        if not any then
+            return dummy, nil
+        end
+        return dummy, nil
+    end
+
+    -- no dummy: show the first loaded object that has visible geometry
+    for _, o in ipairs(loaded) do
+        local center = computeBounds(o)
+        if center then
+            for _, other in ipairs(loaded) do
+                if other ~= o then pcall(function() other:Destroy() end) end
+            end
+            return o, nil
+        end
+    end
+    for _, o in ipairs(loaded) do pcall(function() o:Destroy() end) end
+    return nil, "No 3D geometry. Turn DUMMY on to preview this item"
+end
+
 local function load3D(item)
     U.vpToken += 1
     local my = U.vpToken
@@ -917,13 +1098,18 @@ local function load3D(item)
     U.vpStatus.Text = "Loading 3D preview..."
     U.vpStatus.Visible = true
     task.spawn(function()
-        local obj = fetch3D(item.id, item.kind)
+        local obj, msg
+        if item.source == "catalog" then
+            obj, msg = loadCatalog3D(item, my)
+        else
+            obj = fetch3D(item.id, item.kind)
+        end
         if my ~= U.vpToken or not U.is3D then
             if obj then pcall(function() obj:Destroy() end) end
             return
         end
         if not obj then
-            U.vpStatus.Text = "3D preview unavailable for this asset"
+            U.vpStatus.Text = msg or "3D preview unavailable for this asset"
             return
         end
         for _, d in ipairs(obj:GetDescendants()) do
@@ -938,7 +1124,7 @@ local function load3D(item)
         local center, size = computeBounds(obj)
         if not center then
             obj:Destroy()
-            U.vpStatus.Text = "3D preview unavailable for this asset"
+            U.vpStatus.Text = msg or "3D preview unavailable for this asset"
             return
         end
         U.vpModel = obj
@@ -950,6 +1136,10 @@ local function load3D(item)
     end)
 end
 
+local function refreshDummyBtn()
+    U.dummyBtn.Visible = U.is3D and U.selectedItem ~= nil and U.selectedItem.source == "catalog"
+end
+
 local function set3D(on)
     U.is3D = on
     U.thumbImg.Visible = not on
@@ -957,6 +1147,7 @@ local function set3D(on)
     U.vpHint.Visible = on
     for _, b in ipairs({ U.zoomInBtn, U.zoomOutBtn, U.resetBtn }) do b.Visible = on end
     U.toggle3DBtn.Text = on and "IMAGE" or "3D VIEW"
+    refreshDummyBtn()
     if on then
         if U.selectedItem then load3D(U.selectedItem) end
     else
@@ -967,6 +1158,15 @@ local function set3D(on)
 end
 
 U.toggle3DBtn.Activated:Connect(function() set3D(not U.is3D) end)
+U.dummyBtn.Activated:Connect(function()
+    U.useDummy = not U.useDummy
+    U.dummyBtn.Text = U.useDummy and "DUMMY: ON" or "DUMMY: OFF"
+    U.dummyApi.Tone = U.useDummy and U.TONE_SUCCESS or U.TONE_OFF
+    tween(U.dummyBtn, 0.2, { BackgroundColor3 = U.dummyApi.Tone })
+    if U.is3D and U.selectedItem and U.selectedItem.source == "catalog" then
+        load3D(U.selectedItem)
+    end
+end)
 U.zoomInBtn.Activated:Connect(function() setZoom(U.zoom * 1.25) end)
 U.zoomOutBtn.Activated:Connect(function() setZoom(U.zoom / 1.25) end)
 U.resetBtn.Activated:Connect(resetCamera)
@@ -1264,7 +1464,7 @@ local function fillDetail(item)
     U.manualBox.Visible = false
 end
 
-local function can3D(item) return item.kind == "MeshPart" or item.kind == "Model" end
+local function can3D(item) return item.kind == "MeshPart" or item.kind == "Model" or item.source == "catalog" end
 
 local function updateDetailPanel(item)
     stopAudio()
@@ -1273,6 +1473,7 @@ local function updateDetailPanel(item)
     U.playerCard.Visible = isAudio
     U.toggle3DBtn.Visible = can3D(item)
     if not can3D(item) and U.is3D then set3D(false) end
+    refreshDummyBtn()
     if isAudio then setSlider(0); U.timeLabel.Text = "0:00 / " .. fmtTime(item.duration) end
 
     fillDetail(item)
@@ -1314,6 +1515,16 @@ local function toggleDetail(item)
     else
         updateDetailPanel(item)
         setDetailOpen(true)
+    end
+end
+
+local function toggleDetail3D(item)
+    if U.detailOpen and U.selectedItem and U.selectedItem.id == item.id and U.is3D then
+        closeDetail()
+    else
+        updateDetailPanel(item)
+        setDetailOpen(true)
+        if not U.is3D then set3D(true) end
     end
 end
 
@@ -1364,6 +1575,8 @@ local function showLoadMore()
 end
 
 local function createListItem(item, index)
+    local isCatalogItem = item.source == "catalog"
+    local rightReserve = isCatalogItem and 190 or 140
     local row = new("Frame", {
         BackgroundColor3 = U.CARD_BG, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 60),
         Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1, ClipsDescendants = true, LayoutOrder = index
@@ -1375,9 +1588,9 @@ local function createListItem(item, index)
     corner(icon, UDim.new(0, 8))
     safeSetImage(icon, item.thumb)
 
-    txt(row, item.name, 11, U.WHITE, U.GOTHAM_B, UDim2.new(1, -140, 0, 14), UDim2.fromOffset(60, 8), U.LEFT, { ZIndex = 2 })
+    txt(row, item.name, 11, U.WHITE, U.GOTHAM_B, UDim2.new(1, -rightReserve, 0, 14), UDim2.fromOffset(60, 8), U.LEFT, { ZIndex = 2 })
     local c = item.creator or {}
-    txt(row, "By " .. tostring(c.displayName or c.name or "?") .. "  (@" .. tostring(c.name or "?") .. ")", 9, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -140, 0, 12), UDim2.fromOffset(60, 25), U.LEFT, { ZIndex = 2 })
+    txt(row, "By " .. tostring(c.displayName or c.name or "?") .. "  (@" .. tostring(c.name or "?") .. ")", 9, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -rightReserve, 0, 12), UDim2.fromOffset(60, 25), U.LEFT, { ZIndex = 2 })
     local sub = "ID: " .. item.id
     if item.duration and item.duration > 0 then sub = sub .. "  •  " .. fmtTime(item.duration) end
     if item.votes and (item.votes.up + item.votes.down) > 0 then sub = sub .. "  •  " .. item.votes.percent .. "%" end
@@ -1386,7 +1599,7 @@ local function createListItem(item, index)
     elseif type(item.priceUsd) == "number" and item.priceUsd > 0 then
         sub = sub .. "  •  $" .. tostring(item.priceUsd)
     end
-    txt(row, sub, 8, rgb(200, 200, 206), U.GOTHAM, UDim2.new(1, -140, 0, 10), UDim2.fromOffset(60, 42), U.LEFT, { ZIndex = 2 })
+    txt(row, sub, 8, rgb(200, 200, 206), U.GOTHAM, UDim2.new(1, -rightReserve, 0, 10), UDim2.fromOffset(60, 42), U.LEFT, { ZIndex = 2 })
 
     local viewBtn = raised(row, UDim2.fromOffset(56, 28), UDim2.new(1, -10, 0.5, 0), U.TONE_ON, 2)
     viewBtn.Holder.AnchorPoint = Vector2.new(1, 0.5)
@@ -1394,6 +1607,15 @@ local function createListItem(item, index)
     viewBtn.Face.ZIndex = 3
     viewBtn.Label.ZIndex = 4
     viewBtn.Face.Activated:Connect(function() toggleDetail(item) end)
+
+    if isCatalogItem then
+        local btn3D = raised(row, UDim2.fromOffset(48, 28), UDim2.new(1, -72, 0.5, 0), U.TONE_OFF, 2)
+        btn3D.Holder.AnchorPoint = Vector2.new(1, 0.5)
+        btn3D.Label.Text = "3D"; btn3D.Label.TextSize = 10
+        btn3D.Face.ZIndex = 3
+        btn3D.Label.ZIndex = 4
+        btn3D.Face.Activated:Connect(function() toggleDetail3D(item) end)
+    end
 
     row.MouseEnter:Connect(function()
         if not (U.selectedItem and U.selectedItem.id == item.id) then tween(row, 0.2, { BackgroundColor3 = U.TONE_HOVER }) end
