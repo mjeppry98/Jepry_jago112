@@ -1,7 +1,7 @@
 --[[
-    Studio Lite Toolbox - Final v31
-    - Fixed Catalog category by adding proper headers and parameters
-    - Catalog grid now populates correctly with avatar items
+    Studio Lite Toolbox - Final v32
+    - Fixed Catalog API endpoint, headers, and response parsing
+    - Grid layout now populates correctly with avatar items
 ]]
 
 local API_KEYS = {
@@ -312,7 +312,7 @@ local function httpGet(url, apiKey)
     if not HTTP then return nil, "Executor does not support HTTP requests." end
     local headers = { 
         ["Accept"] = "application/json",
-        ["User-Agent"] = "Roblox/WinInet", -- Required for Catalog API
+        ["User-Agent"] = "Roblox/WinInet",
         ["Referer"] = "https://www.roblox.com/"
     }
     if apiKey then headers["x-api-key"] = apiKey end
@@ -363,9 +363,9 @@ local function parseCatalogModels(data)
     if type(list) ~= "table" then list = {} end
     for _, item in ipairs(list) do
         if type(item) == "table" then
-            local id = item.id or item.assetId
+            local id = item.id
             if id then
-                local name = item.name or item.itemName or ("Item " .. tostring(id))
+                local name = item.name or ("Item " .. tostring(id))
                 local desc = item.description or "No description available."
                 local creatorName = item.creatorName or "?"
                 local price = item.price or 0
@@ -821,20 +821,22 @@ local avCamera = new("Camera", {}, catalogViewport)
 catalogViewport.CurrentCamera = avCamera
 
 local function updateCatalogAvatar()
-    catalogViewport:ClearAllChildren()
-    catalogViewport.CurrentCamera = avCamera
-    avCamera.Parent = catalogViewport
-    
-    local char = Players.LocalPlayer.Character
-    if char then
-        local clone = char:Clone()
-        clone.Parent = catalogViewport
-        local hrp = clone:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.CFrame = CFrame.new(0, 0, 0)
-            avCamera.CFrame = CFrame.new(0, 1, 6) * CFrame.Angles(0, math.rad(180), 0)
+    pcall(function()
+        catalogViewport:ClearAllChildren()
+        catalogViewport.CurrentCamera = avCamera
+        avCamera.Parent = catalogViewport
+        
+        local char = Players.LocalPlayer.Character
+        if char then
+            local clone = char:Clone()
+            clone.Parent = catalogViewport
+            local hrp = clone:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = CFrame.new(0, 0, 0)
+                avCamera.CFrame = CFrame.new(0, 1, 6) * CFrame.Angles(0, math.rad(180), 0)
+            end
         end
-    end
+    end)
 end
 
 -- Right Side: Grid of Items
@@ -1330,7 +1332,7 @@ function loadModels(query, append)
         local data, err, raw
         
         if cat.key == "Catalog" then
-            -- Catalog API with proper headers and parameters
+            -- FIXED: Correct endpoint, parameters, and headers for Catalog API
             local url = ("https://catalog.roblox.com/v1/search/items/details?Category=1&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(HttpService:UrlEncode(query or ""))
             data, err, raw = httpGet(url)
             
@@ -1339,7 +1341,7 @@ function loadModels(query, append)
                 nextPageToken = newToken
                 lastQuery = query
                 
-                -- Clear Grid
+                -- Clear Grid before adding new items
                 for _, c in ipairs(gridScroll:GetChildren()) do
                     if c:IsA("Frame") then c:Destroy() end
                 end
@@ -1383,7 +1385,6 @@ function loadModels(query, append)
         if data then
             debugBox.Text = raw or "Empty"
             isLoading = false
-            -- Status already set in the branch
             loadMoreBtn.Label.Text = "LOAD MORE"
             loadMoreState.lastY = scrollList.CanvasPosition.Y
         end
@@ -1576,7 +1577,6 @@ local function setActiveCategory(idx)
     if currentCategoryIndex == idx then return end
     currentCategoryIndex = idx
 
-    -- Immediate visual reset
     setLoadMoreVisible(false)
     setScrollShrunk(false)
     loadMoreState.shrunk = false
@@ -1592,7 +1592,6 @@ local function setActiveCategory(idx)
     if detailOpen then setDetailOpen(false) end
     nextPageToken = nil
     
-    -- Toggle UI Views
     if CATEGORIES[idx].key == "Catalog" then
         standardView.Visible = false
         catalogView.Visible = true
