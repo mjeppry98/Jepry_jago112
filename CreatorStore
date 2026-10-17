@@ -1,8 +1,9 @@
 --[[
-    Studio Lite Toolbox - Final v34
-    - Integrated all provided Main Category and Sub-Category icons
-    - Perfectly aligned layouts (Icons + Text)
-    - Masonry sub-category grid remains intact
+    Studio Lite Toolbox - Final v36
+    - Sub-Categories now perfectly match their Main Category
+    - Guaranteed exactly 6 sub-categories per main category for the Masonry layout
+    - Precise gap calculations to prevent overlaps
+    - Bigger & White Icons
 ]]
 
 local API_KEYS = {
@@ -28,11 +29,11 @@ local ICON = {
 
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "Plugin",   label = "CATALOG", icon = "rbxassetid://9405933217", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Visuals"} },
-    { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712", subs = {"All", "Utility", "Building", "Animation", "Scripting", "Other"} },
-    { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955", subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
+    { key = "Model",    label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animation", "Faces"} },
+    { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
+    { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
     { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
-    { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Clothing", "Accessories", "Body Parts", "Animals", "Props"} },
+    { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
 }
 
 local SUB_ICONS = {
@@ -596,14 +597,15 @@ for i, cat in ipairs(CATEGORIES) do
         FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         VerticalAlignment = Enum.VerticalAlignment.Center,
-        Padding = UDim.new(0, 6)
+        Padding = UDim.new(0, 8)
     }, row)
     
+    -- MAIN CATEGORY ICON (Bigger & White)
     local iconImg = new("ImageLabel", {
         BackgroundTransparency = 1,
         Image = cat.icon,
-        ImageColor3 = isActive and TEXT_DARK or TEXT_LIGHT,
-        Size = UDim2.fromOffset(14, 14),
+        ImageColor3 = WHITE,
+        Size = UDim2.fromOffset(20, 20),
         LayoutOrder = 1
     }, row)
     
@@ -1371,44 +1373,41 @@ local function showSubCategories(catIndex)
     local subs = cat.subs or {"All"}
     local count = #subs
 
+    -- Perfect 3-Column Masonry Layout
     local function getLayout(i)
         local gap = 8
         local h1 = 160
-        local h2 = 76 
-        
-        if count == 1 then
-            return UDim2.new(1, 0, 0, h1 * 2), UDim2.new(0, 0, 0, 0)
-        elseif count == 2 then
-            if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
-            return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0.5, gap/2, 0, 0)
-        elseif count == 3 then
-            if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
-            if i == 2 then return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, 0) end
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1+gap)
-        end
-        
+
+        -- 6-item layout specifically matching the design
         if i == 1 then
-            return UDim2.new(0.4, -gap*2/3, 0, h1*2), UDim2.new(0, 0, 0, 0)
+            return UDim2.new(0.4, -gap*2/3, 0, h1*2+gap), UDim2.new(0, 0, 0, 0)
         elseif i == 2 then
-            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, 0)
+            return UDim2.new(0.3, -gap/3, 0, h1), UDim2.new(0.4, gap/3, 0, 0)
         elseif i == 3 then
-            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, h1+gap)
+            return UDim2.new(0.3, -gap/3, 0, h1), UDim2.new(0.4, gap/3, 0, h1+gap)
         elseif i == 4 then
-            return UDim2.new(0.3, 0, 0, h1*2), UDim2.new(0.7, gap, 0, 0)
+            return UDim2.new(0.3, 0, 0, h1*2+gap), UDim2.new(0.7, gap, 0, 0)
         elseif i == 5 then
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0, 0, 0, h1*2+gap)
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0, 0, 0, h1*2+gap*2)
         elseif i == 6 then
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1*2+gap)
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1*2+gap*2)
         else
+            -- Fallback for more than 6 items
             local row = math.floor((i-7)/2)
             local col = (i-7)%2
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(col*0.5, (col==0 and 0 or gap/2), 0, (h1*3) + gap*2 + row*(h1+gap))
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(col*0.5, (col==0 and 0 or gap/2), 0, (h1*3) + gap*3 + row*(h1+gap))
         end
     end
 
     local SUBCOLORS = {
-        rgb(45, 175, 255), rgb(220, 60, 255), rgb(255, 110, 70), rgb(45, 230, 90),
-        rgb(255, 60, 140), rgb(255, 170, 50), rgb(150, 70, 255), rgb(60, 200, 200)
+        rgb(45, 175, 255), -- Blue
+        rgb(220, 60, 255), -- Magenta
+        rgb(255, 110, 70), -- Orange
+        rgb(45, 230, 90),  -- Green
+        rgb(255, 60, 140), -- Pink
+        rgb(255, 170, 50), -- Yellow
+        rgb(150, 70, 255), -- Purple
+        rgb(60, 200, 200)  -- Cyan
     }
 
     local maxHeight = 0
@@ -1433,14 +1432,14 @@ local function showSubCategories(catIndex)
         
         new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }, btn.Face)
         
-        -- ADDED SUB CATEGORY ICON
+        -- SUB CATEGORY ICON (Bigger & White)
         local iconId = SUB_ICONS[subName]
         if iconId then
             local icn = new("ImageLabel", {
                 BackgroundTransparency = 1,
                 Image = iconId,
                 ImageColor3 = WHITE,
-                Size = UDim2.fromOffset(32, 32),
+                Size = UDim2.fromOffset(44, 44),
                 Position = UDim2.fromOffset(12, 12),
                 ZIndex = 15,
                 ImageTransparency = 1
@@ -1448,7 +1447,7 @@ local function showSubCategories(catIndex)
             
             task.delay(i * 0.06 + 0.1, function()
                 if icn.Parent then
-                    tween(icn, 0.4, { ImageTransparency = 0.1 })
+                    tween(icn, 0.4, { ImageTransparency = 0 })
                 end
             end)
         end
@@ -1490,7 +1489,7 @@ local function setActiveCategory(idx)
         local isActive = (i == idx)
         btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
         if btnData.iconObj then
-            btnData.iconObj.ImageColor3 = isActive and TEXT_DARK or TEXT_LIGHT
+            btnData.iconObj.ImageColor3 = WHITE
         end
     end
 
