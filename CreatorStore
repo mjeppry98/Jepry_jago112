@@ -1,9 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v38
-    - Fixed CATALOG category being identical to MODELS
-    - CATALOG now uses "UserOutfit" key for Avatar items
-    - Retains Smart Category Memory
-    - Bigger & White Icons
+    Studio Lite Toolbox - Final v39
+    - Removed unsupported "CATALOG" category (Avatar Shop)
+    - Replaced with a second "MODELS" category (for Parts, Tools, etc.)
+    - All other features (Memory, Masonry, Icons) remain intact
 ]]
 
 local API_KEYS = {
@@ -27,13 +26,14 @@ local ICON = {
     MINIMIZE    = "rbxassetid://100624819703287"
 }
 
+-- Perubahan: "CATALOG" diganti menjadi "MODELS" (Parts/Tools) agar valid
 local CATEGORIES = {
-    { key = "Model",      label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "UserOutfit", label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animation", "Faces"} },
-    { key = "Plugin",     label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
-    { key = "Audio",      label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
-    { key = "Decal",      label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
-    { key = "MeshPart",   label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
+    { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
+    { key = "Model",    label = "PARTS",   icon = "rbxassetid://9405933217",    subs = {"All", "Tools", "Decals", "Meshes", "UI", "Misc"} },
+    { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
+    { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
+    { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
+    { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
 }
 
 local SUB_ICONS = {
@@ -62,7 +62,12 @@ local SUB_ICONS = {
     ["Logos"] = "rbxassetid://138880939782808",
     ["Patterns"] = "rbxassetid://121662510907526",
     ["Faces"] = "rbxassetid://17784562207",
-    ["Visuals"] = "rbxassetid://17415917290"
+    ["Visuals"] = "rbxassetid://17415917290",
+    ["Tools"] = "rbxassetid://7485051715",
+    ["Decals"] = "rbxassetid://93167896407815",
+    ["Meshes"] = "rbxassetid://71902649824205",
+    ["UI"] = "rbxassetid://96780656997191",
+    ["Misc"] = "rbxassetid://15567843390"
 }
 
 local currentCategoryIndex = 1
