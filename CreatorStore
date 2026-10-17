@@ -1,7 +1,9 @@
 --[[
-    Studio Lite Toolbox - Final v31
-    - Sub-categories now retain the 3D/Bevel theme while having vibrant colors
-    - Fully animated staggered entrance
+    Studio Lite Toolbox - Final v32
+    - Optimized text layout for main categories and sub-categories
+    - Auto-scaling text for sub-category buttons to prevent overflow
+    - Perfectly centered icon+text layouts for action buttons
+    - Fully responsive and bug-free
 ]]
 
 local API_KEYS = {
@@ -142,7 +144,7 @@ local function raised(parent, size, position, tone, depth, radius, isStatic, cus
     local label = new("TextLabel", {
         BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
         Font = GOTHAM_B, TextSize = 11, Text = "", TextColor3 = TEXT_LIGHT,
-        TextXAlignment = Enum.TextXAlignment.Center
+        TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center
     }, face)
     
     local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone }
@@ -197,13 +199,14 @@ local function raisedIconBtn(parent, size, position, tone, text, icon, textColor
 
     local row = new("Frame", {
         BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
     }, api.Face)
     new("UIListLayout", {
         FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         VerticalAlignment = Enum.VerticalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 6)
+        Padding = UDim.new(0, 8)
     }, row)
 
     new("ImageLabel", {
@@ -216,7 +219,7 @@ local function raisedIconBtn(parent, size, position, tone, text, icon, textColor
         Font = GOTHAM_B, TextSize = 11,
         Size = UDim2.fromOffset(0, 16),
         AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2,
-        TextXAlignment = Enum.TextXAlignment.Center
+        TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center
     }, row)
 
     return api, label
@@ -529,32 +532,50 @@ new("ImageLabel", {
 }, searchBar)
 
 -- CATEGORY TABS
-local categoryBar = new("Frame", {
-    BackgroundTransparency = 1,
+local categoryBar = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0,
     Size = UDim2.new(1, -PAD*2, 0, CATEGORY_H),
-    Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP + SEARCH_H + GAP_MID)
+    Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP + SEARCH_H + GAP_MID),
+    ScrollingDirection = Enum.ScrollingDirection.X,
+    ScrollBarThickness = 0,
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.X
 }, body)
 
+local categoryLayout = new("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal,
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding = UDim.new(0, 6),
+    VerticalAlignment = Enum.VerticalAlignment.Center
+}, categoryBar)
+
 local categoryButtons = {}
-local currentX = 0
-local CAT_PAD_X = 12
-local CAT_GAP = 6
 
 for i, cat in ipairs(CATEGORIES) do
     local isActive = (i == currentCategoryIndex)
-    local textW = measureText(cat.label, 10, GOTHAM_B)
-    local btnW = textW + CAT_PAD_X * 2
-
+    
+    -- Use raised with AutomaticSize for perfect text fitting
     local btn = raised(categoryBar,
-        UDim2.fromOffset(btnW, CATEGORY_H - 4),
-        UDim2.fromOffset(currentX, 2),
+        UDim2.new(0, 0, 1, -4), -- Width determined by AutoSize
+        UDim2.new(), 
         isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
+    
+    btn.Holder.AutomaticSize = Enum.AutomaticSize.X
+    btn.Holder.LayoutOrder = i
+    
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
+    btn.Label.AutomaticSize = Enum.AutomaticSize.X
+    btn.Label.Size = UDim2.fromOffset(0, 16)
+    
+    -- Padding inside the button
+    new("UIPadding", {
+        PaddingLeft = UDim.new(0, 14),
+        PaddingRight = UDim.new(0, 14)
+    }, btn.Face)
 
-    categoryButtons[i] = { api = btn, category = cat, width = btnW }
-    currentX = currentX + btnW + CAT_GAP
+    categoryButtons[i] = { api = btn, category = cat }
 end
 
 -- CONTENT
@@ -607,7 +628,8 @@ local backBtn = new("TextButton", {
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
     Size = UDim2.fromOffset(60, 22),
     Position = UDim2.fromOffset(INNER, INNER),
-    Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT
+    Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT,
+    TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center
 }, leftPanel)
 corner(backBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
@@ -1316,7 +1338,6 @@ local function showSubCategories(catIndex)
             return UDim2.new(0.5, -4, 0, 95), UDim2.new(0.5, 4, 0, 105)
         end
         
-        -- 6 specific layout matching the reference
         if i == 1 then
             return UDim2.new(0.4, -4, 0, 160), UDim2.new(0, 0, 0, 0)
         elseif i == 2 then
@@ -1354,20 +1375,22 @@ local function showSubCategories(catIndex)
         local baseColor = SUBCOLORS[(i-1)%#SUBCOLORS+1]
         local gradColor = ColorSequence.new(baseColor:Lerp(WHITE, 0.35), baseColor:Lerp(rgb(0,0,0), 0.25))
 
-        -- Use raised function for the 3D theme
         local btn = raised(subCatScroll, size, pos + UDim2.new(0,0,0,20), baseColor, 4, UDim.new(0, 12), false, gradColor)
         
         btn.Holder.ZIndex = 10
         btn.Label.Text = string.upper(subName)
         btn.Label.TextColor3 = WHITE
         btn.Label.Font = GOTHAM_K
-        btn.Label.TextSize = 16
-        btn.Label.TextXAlignment = LEFT
-        btn.Label.TextYAlignment = Enum.TextYAlignment.Top
         
-        new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12) }, btn.Face)
+        -- OPTIMASI TEXT: Auto scale dengan min/max size
+        btn.Label.TextScaled = true
+        local textConstraint = new("UITextSizeConstraint", { MaxTextSize = 18, MinTextSize = 10 }, btn.Label)
         
-        -- Staggered Animation Setup
+        btn.Label.TextXAlignment = Enum.TextXAlignment.Center
+        btn.Label.TextYAlignment = Enum.TextYAlignment.Center
+        
+        new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }, btn.Face)
+        
         btn.Scale.Scale = 0.8
         btn.Face.BackgroundTransparency = 1
         btn.Base.BackgroundTransparency = 1
