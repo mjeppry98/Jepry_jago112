@@ -1,8 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v17 (Close & Minimize)
-    - Restored Close button confirmation (destroys UI)
-    - Added Minimize button (fades out UI, shows floating toggle)
-    - Toggle button restores UI
+    Studio Lite Toolbox - Final v18
+    - Custom Minimize icon (100624819703287)
+    - Minimize button matches Close button theme perfectly
+    - Toggle UI logic, 3D viewer, Audio, and Sizes remain untouched
 ]]
 
 local API_KEYS = {
@@ -16,7 +16,6 @@ local ICON = {
     SEARCH      = "rbxassetid://118685771787843",
     COPY        = "rbxassetid://103287906385313",
     CLOSE       = "rbxassetid://77577258549317",
-    MINIMIZE    = "rbxassetid://100624819703287",
     DEBUG       = "rbxassetid://5107159153",
     PLACEHOLDER = "rbxassetid://17451423471",
     MODEL_BOX   = "rbxassetid://16000149927",
@@ -24,8 +23,7 @@ local ICON = {
     DESC        = "rbxassetid://98359085392262",
     SPEAKER     = "rbxassetid://87702826291744",
     ZOOM        = "rbxassetid://13321848320",
-    EYE_OPEN    = "rbxassetid://6473251976",
-    EYE_CLOSED  = "rbxassetid://6473252651"
+    MINIMIZE    = "rbxassetid://100624819703287" -- Icon Minimize baru
 }
 
 local CATEGORIES = {
@@ -254,6 +252,16 @@ local function popIn(scale, group)
     end)
 end
 
+local function popOut(scale, group, done)
+    tween(scale, 0.1, { Scale = 1.08 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    task.delay(0.1, function()
+        if not scale.Parent then if done then done() end return end
+        tween(scale, 0.2, { Scale = 0.001 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        if group then tween(group, 0.2, { GroupTransparency = 1 }) end
+        task.delay(0.22, function() if done then done() end end)
+    end)
+end
+
 local function getHttpFunc()
     if syn and syn.request then return syn.request end
     if http and http.request then return http.request end
@@ -319,7 +327,7 @@ local function safeSetImage(elm, iconId, color)
 end
 
 -- ============================================================
--- BUILD MAIN GUI
+-- BUILD GUI
 -- ============================================================
 if CoreGui:FindFirstChild("StudioLiteToolbox") then CoreGui.StudioLiteToolbox:Destroy() end
 
@@ -359,6 +367,7 @@ local BTN_H = 38
 local CONTENT_TOP = HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID
 local CONTENT_H = FRAME_H - CONTENT_TOP - STATUS_H - 4
 
+-- SHADOW
 local shadow = new("Frame", {
     BackgroundColor3 = Color3.new(0, 0, 0),
     BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -367,6 +376,7 @@ local shadow = new("Frame", {
 }, gui)
 corner(shadow, UDim.new(0, 20))
 
+-- MAIN BODY
 local body = new("CanvasGroup", {
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5),
@@ -396,28 +406,29 @@ local statusDot = new("Frame", {
     BackgroundColor3 = rgb(90, 90, 96), BorderSizePixel = 0,
     Size = UDim2.fromOffset(8, 8),
     AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -(PAD + 118), 0.5, 0)
+    Position = UDim2.new(1, -120, 0.5, 0)
 }, header)
 corner(statusDot, UDim.new(1, 0))
 
+-- DEBUG BUTTON
 local debugBtn = new("TextButton", {
     AutoButtonColor = false, Text = "?",
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
     TextColor3 = TEXT_LIGHT, Font = GOTHAM_B, TextSize = 12,
     Size = UDim2.fromOffset(30, 30),
     AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -(PAD + 76), 0.5, 0)
+    Position = UDim2.new(1, -84, 0.5, 0)
 }, header)
 corner(debugBtn, UDim.new(0, 6))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, debugBtn)
 
--- MINIMIZE BUTTON
+-- MINIMIZE BUTTON (Menggunakan icon dan tema yang sama seperti Close)
 local minimizeBtn = new("TextButton", {
     AutoButtonColor = false, Text = "",
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
     Size = UDim2.fromOffset(30, 30),
     AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -(PAD + 36), 0.5, 0)
+    Position = UDim2.new(1, -48, 0.5, 0)
 }, header)
 corner(minimizeBtn, UDim.new(0, 6))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, minimizeBtn)
@@ -605,7 +616,7 @@ local btnRow = new("Frame", {
     Position = UDim2.fromOffset(INNER, btnRowY)
 }, rightPanel)
 
--- ONLY COPY ID AND PLAY BUTTONS EXIST
+-- BUTTONS
 local copyIdBtn, copyIdLabel = raisedIconBtn(
     btnRow, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0),
     TONE_ON, "COPY ID", ICON.COPY, TEXT_DARK, 3, 14
@@ -616,7 +627,7 @@ local playBtn, playLabel = raisedIconBtn(
 )
 playBtn.Holder.Visible = false
 
--- Scrolling Frame untuk info
+-- RIGHT SCROLL
 local rightScroll = new("ScrollingFrame", {
     BackgroundTransparency = 1, BorderSizePixel = 0,
     Position = UDim2.fromOffset(0, INNER),
@@ -647,7 +658,6 @@ local thumbStroke = new("UIStroke", {
 }, thumbFrame)
 new("UIGradient", { Color = BEVEL_INV, Rotation = 90 }, thumbStroke)
 
--- ImageLabel (2D Mode)
 local thumbImg = new("ImageLabel", {
     BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
     ScaleType = Enum.ScaleType.Fit
@@ -670,7 +680,6 @@ local vpLight = new("PointLight", {
     Brightness = 2, Range = 30, Color = Color3.new(1, 1, 1)
 }, vpCamera)
 
--- 3D / 2D Toggle Button
 local toggle3DBtn = new("TextButton", {
     Text = "3D VIEW", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT,
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
@@ -682,7 +691,6 @@ local toggle3DBtn = new("TextButton", {
 corner(toggle3DBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, toggle3DBtn)
 
--- Zoom Button
 local zoomBtn = new("ImageButton", {
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
     Image = ICON.ZOOM, ImageColor3 = TEXT_LIGHT,
@@ -695,7 +703,6 @@ local zoomBtn = new("ImageButton", {
 corner(zoomBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, zoomBtn)
 
--- Detail Text
 local detailTitle = txt(rightScroll, "Select an asset...", 12, WHITE, GOTHAM_B,
     UDim2.new(1, 0, 0, 0), UDim2.new(), LEFT, {
         AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2,
@@ -822,7 +829,6 @@ local function loadMeshToViewport(id)
     vpModel = nil
     local loaded = false
 
-    -- Layer 1: AssetService (PluginSecurity)
     if not loaded then
         local success = pcall(function()
             local mesh = AssetService:CreateMeshPartAsync("rbxassetid://"..tostring(id))
@@ -833,7 +839,6 @@ local function loadMeshToViewport(id)
         end)
     end
 
-    -- Layer 2: InsertService
     if not loaded then
         pcall(function()
             local model = InsertService:LoadAsset(tonumber(id))
@@ -848,7 +853,6 @@ local function loadMeshToViewport(id)
         end)
     end
 
-    -- Layer 3: game:GetObjects
     if not loaded then
         pcall(function()
             local objs = game:GetObjects("rbxassetid://"..tostring(id))
@@ -868,7 +872,6 @@ local function loadMeshToViewport(id)
         end)
     end
 
-    -- Layer 4: Fallback Block
     if not vpModel then
         local block = Instance.new("Part")
         block.Shape = Enum.PartType.Block
@@ -901,7 +904,6 @@ local function loadMeshToViewport(id)
     updateViewportTransform()
 end
 
--- Mouse Drag for 3D (Thumbnail)
 local draggingThumb = false
 viewportFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1042,7 +1044,6 @@ local function updateDetailPanel(model)
     stopAudio()
     selectedModel = model
     
-    -- Crossfade text update
     local fadeOutTween = tween(detailTitle, 0.15, { TextTransparency = 1 })
     tween(detailCreator, 0.15, { TextTransparency = 1 })
     tween(detailDesc, 0.15, { TextTransparency = 1 })
@@ -1055,7 +1056,6 @@ local function updateDetailPanel(model)
         tween(detailDesc, 0.15, { TextTransparency = 0 })
     end)
     
-    -- Crossfade image
     local imgFade = tween(thumbImg, 0.15, { ImageTransparency = 1 })
     imgFade.Completed:Connect(function()
         safeSetImage(thumbImg, model.thumbnail)
@@ -1094,7 +1094,7 @@ local function createListItem(model, index)
     local item = new("Frame", {
         BackgroundColor3 = rgb(40, 40, 44), BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, 60),
-        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1 -- Anim Start
+        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1
     }, scrollList)
     corner(item, UDim.new(0, 8))
     new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
@@ -1147,7 +1147,6 @@ local function createListItem(model, index)
     hit.Activated:Connect(function() toggleDetail(model) end)
     itemCards[model.id] = { Frame = item, Model = model }
     
-    -- Trigger Animasi Staggered
     task.delay((index % 10) * 0.04, function()
         if item.Parent then
             tween(item, 0.35, { Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -1220,12 +1219,85 @@ function loadModels(query, append)
 end
 
 -- ============================================================
+-- FLOATING TOGGLE BUTTON
+-- ============================================================
+local windowVisible = true
+local toggleSize = 54
+local toggleBtn = raised(gui, UDim2.fromOffset(toggleSize, toggleSize), UDim2.fromOffset(20, 200), TONE_OFF, 4, UDim.new(1, 0))
+toggleBtn.Holder.ZIndex = 100
+toggleBtn.Holder.Visible = false -- Start hidden until minimized
+
+new("ImageLabel", {
+    BackgroundTransparency = 1,
+    Image = ICON.MODEL_BOX,
+    ImageColor3 = WHITE,
+    Size = UDim2.fromOffset(28, 28),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    Position = UDim2.fromScale(0.5, 0.5)
+}, toggleBtn.Face)
+
+local toggleScale = new("UIScale", {Scale = 1}, toggleBtn.Face)
+
+local function setWindowVisible(v)
+    if windowVisible == v then return end
+    windowVisible = v
+    
+    tween(toggleScale, 0.09, {Scale = 0.72})
+    task.delay(0.09, function() if gui.Parent then tween(toggleScale, 0.35, {Scale = 1}, Enum.EasingStyle.Back) end end)
+    
+    if v then
+        toggleBtn.Holder.Visible = false -- Hide toggle button
+        body.Visible = true
+        popIn(bodyScale, body)
+        tween(shadow, 0.35, {BackgroundTransparency = 0.55})
+    else
+        popOut(bodyScale, body)
+        tween(shadow, 0.26, {BackgroundTransparency = 1})
+        task.delay(0.45, function()
+            if not windowVisible then
+                body.Visible = false
+                toggleBtn.Holder.Visible = true -- Show toggle button
+            end
+        end)
+    end
+end
+
+-- Drag Logic for Toggle Button
+local draggingToggle = false
+local toggleDragStart = nil
+local toggleStartPos = nil
+
+toggleBtn.Face.InputBegan:Connect(function(input)
+    if isPress(input) then
+        draggingToggle = true
+        toggleDragStart = input.Position
+        toggleStartPos = toggleBtn.Holder.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingToggle and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - toggleDragStart
+        toggleBtn.Holder.Position = UDim2.new(toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X, toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if isPress(input) and draggingToggle then
+        draggingToggle = false
+        local delta = input.Position - toggleDragStart
+        if delta.Magnitude < 8 then
+            setWindowVisible(true)
+        end
+    end
+end)
+
+-- ============================================================
 -- INTERACTION EVENTS
 -- ============================================================
 toggle3DBtn.MouseButton1Click:Connect(function()
     is3D = not is3D
     
-    -- Animasi Text Crossfade
     local textFade = tween(toggle3DBtn, 0.15, { TextTransparency = 1 })
     textFade.Completed:Connect(function()
         toggle3DBtn.Text = is3D and "2D VIEW" or "3D VIEW"
@@ -1237,9 +1309,8 @@ toggle3DBtn.MouseButton1Click:Connect(function()
         viewportFrame.Visible = true
         if selectedModel then loadMeshToViewport(selectedModel.id) end
         
-        -- SLIDE ANIMATION (Zoom button slides out from under the 3D button)
         zoomBtn.Visible = true
-        zoomBtn.Position = UDim2.new(1, -10, 0, 6) -- Start tucked under
+        zoomBtn.Position = UDim2.new(1, -10, 0, 6)
         zoomBtn.BackgroundTransparency = 1
         zoomBtn.ImageTransparency = 1
         
@@ -1253,7 +1324,6 @@ toggle3DBtn.MouseButton1Click:Connect(function()
         thumbImg.Visible = true
         viewportFrame.Visible = false
         
-        -- SLIDE ANIMATION (Zoom button slides back right & fades)
         local slideBack = tween(zoomBtn, 0.25, { 
             Position = UDim2.new(1, -10, 0, 6), 
             BackgroundTransparency = 1, 
@@ -1315,7 +1385,6 @@ local zoomCam = new("Camera", {}, zoomViewport)
 zoomViewport.CurrentCamera = zoomCam
 local zoomLight = new("PointLight", { Brightness = 2, Range = 50 }, zoomCam)
 
--- Drag handler for zoom
 local zoomDrag = false
 local zoomLastPos = Vector2.new()
 zoomViewport.InputBegan:Connect(function(i)
@@ -1483,119 +1552,15 @@ local function showCloseConfirm()
             stopAudio()
             local t1 = tween(body, 0.25, { GroupTransparency = 1, Size = UDim2.fromOffset(FRAME_W*0.85, FRAME_H*0.85) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
             tween(shadow, 0.25, { BackgroundTransparency = 1 })
-            t1.Completed:Connect(function()
-                if toggleGui then toggleGui:Destroy() end
-                gui:Destroy()
-            end)
+            t1.Completed:Connect(function() gui:Destroy() end)
         end)
     end)
 end
 
 closeBtn.MouseButton1Click:Connect(showCloseConfirm)
+minimizeBtn.MouseButton1Click:Connect(function() setWindowVisible(false) end)
 
--- ============================================================
--- TOGGLE UI (Floating Eye Button & Minimize Logic)
--- ============================================================
-local toggleGui = new("ScreenGui", {
-    Name = "StudioLiteToolbox_Toggle",
-    ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    DisplayOrder = 101,
-    Enabled = false
-}, CoreGui)
-
-local toggleBtnSize = 54
-local toggleBtn = raised(toggleGui, UDim2.fromOffset(toggleBtnSize, toggleBtnSize), UDim2.fromOffset(14, math.floor(screenSize.Y * 0.42)), rgb(48, 48, 52), 4, UDim.new(1, 0))
-toggleBtn.Holder.ZIndex = 10
-
-local eyeScale = new("UIScale", { Scale = 1 }, toggleBtn.Face)
-
-local eyeOpen = new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.EYE_OPEN,
-    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromScale(0.58, 0.58), ImageTransparency = 1, ZIndex = 3
-}, toggleBtn.Face)
-
-local eyeClosed = new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.EYE_CLOSED,
-    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromScale(0.58, 0.58), ImageTransparency = 0, ZIndex = 3
-}, toggleBtn.Face)
-
-local isDraggingToggle = false
-local toggleStartPos = Vector2.new(0, 0)
-local toggleDragStart = Vector2.new(0, 0)
-
-local function minimizeUI()
-    if not body.Visible then return end
-    toggleGui.Enabled = true
-    
-    local t1 = tween(body, 0.25, {
-        GroupTransparency = 1,
-        Size = UDim2.fromOffset(FRAME_W * 0.85, FRAME_H * 0.85)
-    }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    
-    tween(shadow, 0.25, { BackgroundTransparency = 1 })
-    
-    t1.Completed:Connect(function()
-        body.Visible = false
-        body.Size = UDim2.fromOffset(FRAME_W, FRAME_H)
-        body.GroupTransparency = 0
-    end)
-end
-
-local function restoreUI()
-    if body.Visible then return end
-    toggleGui.Enabled = false
-    body.Visible = true
-    
-    tween(shadow, 0.4, { BackgroundTransparency = 0.55 })
-    popIn(bodyScale, body)
-end
-
-toggleBtn.Face.InputBegan:Connect(function(input)
-    if isPress(input) then
-        isDraggingToggle = true
-        toggleStartPos = toggleBtn.Holder.Position
-        toggleDragStart = input.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if isDraggingToggle and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - toggleDragStart
-        toggleBtn.Holder.Position = UDim2.new(
-            toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X,
-            toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if isDraggingToggle and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-        isDraggingToggle = false
-        local pos = toggleBtn.Holder.AbsolutePosition
-        toggleBtn.Holder.Position = UDim2.fromOffset(
-            math.clamp(pos.X, 0, screenSize.X - toggleBtnSize),
-            math.clamp(pos.Y, 0, screenSize.Y - toggleBtnSize)
-        )
-    end
-end)
-
-local toggleClickTime = 0
-toggleBtn.Face.Activated:Connect(function()
-    if tick() - toggleClickTime < 0.2 then return end
-    toggleClickTime = tick()
-    restoreUI()
-end)
-
--- Link Minimize Button
-minimizeBtn.MouseButton1Click:Connect(minimizeUI)
-
--- Initialize UI state
-toggleGui.Enabled = false
-body.Visible = true
+task.wait(0.1)
 popIn(bodyScale, body)
 tween(shadow, 0.4, { BackgroundTransparency = 0.55 })
 
