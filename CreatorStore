@@ -1,105 +1,89 @@
---[[
-    Studio Lite Toolbox - Final v39
-    - Fixed Minimize button (Re-added Floating Toggle)
-    - Fixed Back button functionality
-    - Added Smooth View Transitions (Fade & Slide between Sub-Category and List)
-]]
-
-local API_KEYS = {
-    main = {
-        store = "HDeecbzlHUuJ8dljbWkQIMF5rSTOEOzuB8cvxtxog2xzKM/uZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluTnBaeTB5TURJeExUQTNMVEV6VkRFNE9qVXhPalE1V2lJc0luUjVjQ0k2SWtwWFZDSjkuZXlKaGRXUWlPaUpTYjJKc2IzaEpiblJsY201aGJDSXNJbWx6Y3lJNklrTnNiM1ZrUVhWMGFHVnVkR2xqWVhScGIyNVRaWEoyYVdObElpd2lZbUZ6WlVGd2FVdGxlU0k2SWtoRVpXVmpZbnBzU0ZWMVNqaGtiR3BpVjJ0UlNVMUdOWEpUVkU5RlQzcDFRamhqZG5oMGVHOW5Nbmg2UzAwdmRTSXNJbTkzYm1WeVNXUWlPaUl4TURFeE1qRTVOelE0TnlJc0ltVjRjQ0k2TVRjNU1qRTBPVEU1T1N3aWFXRjBJam94TnpreU1UUTFOVGs1TENKdVltWWlPakUzT1RJeE5EVTFPVGw5LmlBNENZZDcwUG95QUZjVTM0VU01MWpicTRJVEJjSDdCeG1BOUZhSXlSZUpHcHJFZGtzU2E5Zkc3c1FRT2FzVkdiN2k2VDM5UzV5bFdNX1pXM1hIN0FaQmdjcFdncVhFVFZIMWd0V1dmXzRHMXl4X0ttVzFTQ0NianNnclpqMlplVTBlaHI5THdDMXJXbVRwaGVIQjZ6eGxKTTl5dmllSW5oQmRQSHY0QnE3S252WVBnQzJKcUtJNVM2VzhyWWNDQ1V0TDU4ZkdiUXpOWkxQSU5uSXptNU8tYVJqTHQzRW56Z0Z2Z3J0dldoTUVHeTFxS3hfX1pHRXdlV2dXSkJVdGtiWmkxV1RPcE0yWmVoMHk2NENiOC1oZG5tOFhiVWpRVEZBWDI0WldkRTJSYkhWbU1paUpPNV9ZVVhzRFpvbVlRdWQ4elBoYWc3OVVDT2tiQWZDbW5vdw=="
-    }
-}
-local currentKeyMode = "main"
+local BASE_URL = "https://asset-store-roblox.vercel.app/api/store"
+local CREATOR_NAME = "jepry_jago112"
+local CLICK_SOUND = "rbxassetid://139009780109934"
 
 local ICON = {
-    SEARCH      = "rbxassetid://118685771787843",
-    COPY        = "rbxassetid://103287906385313",
-    CLOSE       = "rbxassetid://77577258549317",
-    DEBUG       = "rbxassetid://5107159153",
-    PLACEHOLDER = "rbxassetid://17451423471",
-    MODEL_BOX   = "rbxassetid://16000149927",
-    CREATOR     = "rbxassetid://6288094436",
-    DESC        = "rbxassetid://98359085392262",
-    SPEAKER     = "rbxassetid://87702826291744",
-    ZOOM        = "rbxassetid://13321848320",
-    MINIMIZE    = "rbxassetid://100624819703287"
+    SEARCH = "rbxassetid://118685771787843", COPY = "rbxassetid://103287906385313",
+    CLOSE = "rbxassetid://77577258549317", PLACEHOLDER = "rbxassetid://5099063588",
+    MODEL_BOX = "rbxassetid://16000149927", CREATOR = "rbxassetid://6288094436",
+    DESC = "rbxassetid://98359085392262", SPEAKER = "rbxassetid://87702826291744",
+    MINIMIZE = "rbxassetid://100624819703287", LOGO = "rbxassetid://127658126700190",
+    LIKE = "rbxassetid://7266579431", DISLIKE = "rbxassetid://12625422045",
+    ROBUX = "rbxassetid://11560341132", FAVORITE = "rbxassetid://10643414846"
 }
 
 local CATEGORIES = {
-    { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
-    { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
-    { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
-    { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
+    { source = "search",  type = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
+    { source = "catalog", type = "Catalog",  label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animation", "Faces"} },
+    { source = "search",  type = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
+    { source = "search",  type = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
+    { source = "search",  type = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
+    { source = "search",  type = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
 }
 
 local SUB_ICONS = {
-    ["All"] = "rbxassetid://15567843390",
-    ["Building"] = "rbxassetid://102384750306029",
-    ["Nature"] = "rbxassetid://114717328431686",
-    ["Props"] = "rbxassetid://106218455818049",
-    ["Weapons"] = "rbxassetid://7485051715",
-    ["Vehicles"] = "rbxassetid://101646918234834",
-    ["Characters"] = "rbxassetid://13285615740",
-    ["Clothing"] = "rbxassetid://11955919597",
-    ["Accessories"] = "rbxassetid://94785180212209",
-    ["Body Parts"] = "rbxassetid://126499349331034",
-    ["Animals"] = "rbxassetid://6938215837",
-    ["Utility"] = "rbxassetid://113364344425009",
-    ["Scripting"] = "rbxassetid://9405930424",
-    ["UI/UX"] = "rbxassetid://96780656997191",
-    ["Animation"] = "rbxassetid://8370845871",
-    ["Music"] = "rbxassetid://7059338404",
-    ["SFX"] = "rbxassetid://4773247666",
-    ["Ambient"] = "rbxassetid://16149050754",
-    ["Voice"] = "rbxassetid://14333877451",
-    ["Podcasts"] = "rbxassetid://14802853867",
-    ["Textures"] = "rbxassetid://93167896407815",
-    ["Signs"] = "rbxassetid://92559495578198",
-    ["Logos"] = "rbxassetid://138880939782808",
-    ["Patterns"] = "rbxassetid://121662510907526",
-    ["Faces"] = "rbxassetid://17784562207",
-    ["Visuals"] = "rbxassetid://17415917290"
+    ["All"] = "rbxassetid://15567843390", ["Building"] = "rbxassetid://102384750306029",
+    ["Nature"] = "rbxassetid://114717328431686", ["Props"] = "rbxassetid://106218455818049",
+    ["Weapons"] = "rbxassetid://7485051715", ["Vehicles"] = "rbxassetid://101646918234834",
+    ["Characters"] = "rbxassetid://13285615740", ["Clothing"] = "rbxassetid://11955919597",
+    ["Accessories"] = "rbxassetid://94785180212209", ["Body Parts"] = "rbxassetid://126499349331034",
+    ["Animals"] = "rbxassetid://6938215837", ["Utility"] = "rbxassetid://113364344425009",
+    ["Scripting"] = "rbxassetid://9405930424", ["UI/UX"] = "rbxassetid://96780656997191",
+    ["Animation"] = "rbxassetid://8370845871", ["Music"] = "rbxassetid://7059338404",
+    ["SFX"] = "rbxassetid://4773247666", ["Ambient"] = "rbxassetid://16149050754",
+    ["Voice"] = "rbxassetid://14333877451", ["Podcasts"] = "rbxassetid://14802853867",
+    ["Textures"] = "rbxassetid://93167896407815", ["Signs"] = "rbxassetid://92559495578198",
+    ["Logos"] = "rbxassetid://138880939782808", ["Patterns"] = "rbxassetid://121662510907526",
+    ["Faces"] = "rbxassetid://17784562207", ["Visuals"] = "rbxassetid://17415917290"
 }
+
+local CATALOG_TAXONOMY = {}
 
 local currentCategoryIndex = 1
 local currentSubCategory = nil
 local currentQuery = ""
 local categoryHistory = {}
-local currentView = "subcat" -- "subcat" atau "list"
-local isTransitioning = false
 
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
-local TextService = game:GetService("TextService")
 local SoundService = game:GetService("SoundService")
 local AssetService = game:GetService("AssetService")
 local InsertService = game:GetService("InsertService")
+local RunService = game:GetService("RunService")
+local okCore, CoreGui = pcall(function() return game:GetService("CoreGui") end)
+if not okCore then CoreGui = nil end
 
-local WHITE = Color3.new(1, 1, 1)
+local U = {}
+U.WHITE = Color3.new(1, 1, 1)
+U.BLACK = Color3.new(0, 0, 0)
 local function rgb(r, g, b) return Color3.fromRGB(r, g, b) end
-local SHADE      = ColorSequence.new(WHITE, rgb(138, 138, 142))
-local SHADE_INV  = ColorSequence.new(rgb(112, 112, 116), WHITE)
-local BEVEL      = ColorSequence.new(rgb(205, 205, 210), rgb(34, 34, 38))
-local BEVEL_INV  = ColorSequence.new(rgb(30, 30, 34), rgb(120, 120, 126))
-local TONE_ON    = rgb(212, 212, 218)
-local TONE_OFF   = rgb(44, 44, 48)
-local TONE_HOVER = rgb(60, 60, 66)
-local TONE_SUCCESS = rgb(80, 160, 100)
-local TONE_DANGER = rgb(140, 60, 60)
-local TEXT_DARK  = rgb(20, 20, 22)
-local TEXT_LIGHT = rgb(236, 236, 240)
-local TEXT_DIM   = rgb(138, 138, 146)
-local GOTHAM     = Enum.Font.Gotham
-local GOTHAM_B   = Enum.Font.GothamBold
-local GOTHAM_K   = Enum.Font.GothamBlack
-local LEFT       = Enum.TextXAlignment.Left
-local CENTER     = Enum.TextXAlignment.Center
+U.SHADE      = ColorSequence.new(U.WHITE, rgb(138, 138, 142))
+U.SHADE_INV  = ColorSequence.new(rgb(112, 112, 116), U.WHITE)
+U.BEVEL      = ColorSequence.new(rgb(205, 205, 210), rgb(34, 34, 38))
+U.BEVEL_INV  = ColorSequence.new(rgb(30, 30, 34), rgb(120, 120, 126))
+U.TONE_ON    = rgb(212, 212, 218)
+U.TONE_OFF   = rgb(44, 44, 48)
+U.TONE_HOVER = rgb(60, 60, 66)
+U.TONE_SUCCESS = rgb(80, 160, 100)
+U.TONE_DANGER = rgb(140, 60, 60)
+U.COL_LIKE   = rgb(80, 215, 120)
+U.COL_DISLIKE = rgb(235, 85, 85)
+U.COL_GOLD   = rgb(255, 190, 80)
+U.COL_ROBUX  = rgb(90, 220, 140)
+U.ACCENT_A   = rgb(120, 200, 255)
+U.ACCENT_B   = rgb(190, 130, 255)
+U.TEXT_DARK  = rgb(20, 20, 22)
+U.TEXT_LIGHT = rgb(236, 236, 240)
+U.TEXT_DIM   = rgb(138, 138, 146)
+U.CARD_BG    = rgb(40, 40, 44)
+U.GOTHAM, U.GOTHAM_B, U.GOTHAM_K = Enum.Font.Gotham, Enum.Font.GothamBold, Enum.Font.GothamBlack
+U.LEFT, U.CENTER, U.RIGHT = Enum.TextXAlignment.Left, Enum.TextXAlignment.Center, Enum.TextXAlignment.Right
+
+U.connections = {}
+local function keep(c) table.insert(U.connections, c) return c end
 
 local function new(class, props, parent)
     local inst = Instance.new(class)
@@ -109,115 +93,223 @@ local function new(class, props, parent)
 end
 
 local function tween(inst, duration, props, style, direction)
-    local tw = TweenService:Create(inst, TweenInfo.new(
-        duration, style or Enum.EasingStyle.Quint, direction or Enum.EasingDirection.Out
-    ), props)
+    local tw = TweenService:Create(inst, TweenInfo.new(duration, style or Enum.EasingStyle.Quint, direction or Enum.EasingDirection.Out), props)
     tw:Play()
     return tw
 end
 
-local function corner(inst, radius)
-    return new("UICorner", { CornerRadius = radius or UDim.new(0, 8) }, inst)
-end
+local function corner(inst, radius) return new("UICorner", { CornerRadius = radius or UDim.new(0, 8) }, inst) end
 
 local function isPress(i)
-    return (i.UserInputType == Enum.UserInputType.MouseButton1)
-        or (i.UserInputType == Enum.UserInputType.Touch)
+    return i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMove(i)
+    return i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch
 end
 
 local function txt(parent, text, size, color, font, boxSize, pos, alignX, extra)
     local t = new("TextLabel", {
-        BackgroundTransparency = 1, Text = text, TextSize = size,
-        TextColor3 = color or WHITE, Font = font or GOTHAM,
-        Size = boxSize or UDim2.fromScale(1, 1),
-        Position = pos or UDim2.new(),
-        TextXAlignment = alignX or LEFT,
-        TextTruncate = Enum.TextTruncate.AtEnd
+        BackgroundTransparency = 1, Text = text, TextSize = size, TextColor3 = color or U.WHITE,
+        Font = font or U.GOTHAM, Size = boxSize or UDim2.fromScale(1, 1), Position = pos or UDim2.new(),
+        TextXAlignment = alignX or U.LEFT, TextTruncate = Enum.TextTruncate.AtEnd
     }, parent)
     if extra then for k, v in pairs(extra) do t[k] = v end end
     return t
 end
 
-local function measureText(text, size, font)
-    local ok, result = pcall(function()
-        return TextService:GetTextSize(text, size, font, Vector2.new(10000, 100))
-    end)
-    if ok and result then return result.X end
-    return #text * (size * 0.6)
+local function fmtNum(n)
+    n = tonumber(n) or 0
+    local s = string.format("%.0f", math.floor(math.abs(n) + 0.5))
+    local out = s:reverse():gsub("(%d%d%d)", "%1,"):reverse()
+    out = out:gsub("^,", "")
+    return (n < 0 and "-" or "") .. out
 end
 
-local function raised(parent, size, position, tone, depth, radius, isStatic, customGradient)
+local function fmtTime(s)
+    s = math.max(0, math.floor(tonumber(s) or 0))
+    return string.format("%d:%02d", s // 60, s % 60)
+end
+
+local function fmtDate(s)
+    if type(s) ~= "string" or #s < 10 then return nil end
+    if #s >= 16 then return s:sub(1, 10) .. "  " .. s:sub(12, 16) .. " UTC" end
+    return s:sub(1, 10)
+end
+
+U.CLIP = {}
+for _, getter in ipairs({
+    function() return setclipboard end,
+    function() return toclipboard end,
+    function() return set_clipboard end,
+    function() return Clipboard and Clipboard.set end,
+    function() return syn and syn.write_clipboard end,
+}) do
+    local ok, f = pcall(getter)
+    if ok and type(f) == "function" then table.insert(U.CLIP, f) end
+end
+
+local function setClipboardText(s)
+    s = tostring(s)
+    for _, f in ipairs(U.CLIP) do
+        if pcall(f, s) then return true end
+    end
+    return false
+end
+
+U.REQUESTERS = {}
+for _, getter in ipairs({
+    function() return syn and syn.request end,
+    function() return http and http.request end,
+    function() return request end,
+    function() return http_request end,
+    function() return fluxus and fluxus.request end,
+}) do
+    local ok, f = pcall(getter)
+    if ok and type(f) == "function" then table.insert(U.REQUESTERS, f) end
+end
+
+local function httpGet(url)
+    local lastErr = "No HTTP method available in this executor."
+    for _, f in ipairs(U.REQUESTERS) do
+        local ok, res = pcall(f, { Url = url, Method = "GET", Headers = { ["Accept"] = "application/json" } })
+        if ok and type(res) == "table" then
+            if type(res.Body) == "string" and res.Body ~= "" then return res.Body end
+            lastErr = "Empty response."
+        elseif not ok then
+            lastErr = tostring(res)
+        end
+    end
+    local ok, body = pcall(function() return game:HttpGet(url) end)
+    if ok and type(body) == "string" and body ~= "" then return body end
+    ok, body = pcall(function() return HttpService:GetAsync(url) end)
+    if ok and type(body) == "string" and body ~= "" then return body end
+    return nil, lastErr
+end
+
+local function apiGet(params)
+    local q = {}
+    for k, v in pairs(params) do
+        table.insert(q, HttpService:UrlEncode(tostring(k)) .. "=" .. HttpService:UrlEncode(tostring(v)))
+    end
+    local url = BASE_URL .. "?" .. table.concat(q, "&")
+    local body, err
+    for _ = 1, 2 do
+        body, err = httpGet(url)
+        if body then break end
+        task.wait(0.4)
+    end
+    if not body then return nil, err or "No response." end
+    local okJ, data = pcall(function() return HttpService:JSONDecode(body) end)
+    if not okJ or type(data) ~= "table" then
+        return nil, "Invalid JSON response. Check BASE_URL and your Vercel deployment."
+    end
+    if data.error then
+        return nil, type(data.error) == "string" and data.error or HttpService:JSONEncode(data.error)
+    end
+    return data, nil, body
+end
+
+local function playClick()
+    pcall(function()
+        local s = Instance.new("Sound")
+        s.SoundId = CLICK_SOUND
+        s.Volume = 0.6
+        s.Parent = SoundService
+        s.Ended:Connect(function() s:Destroy() end)
+        s:Play()
+        task.delay(4, function() if s.Parent then s:Destroy() end end)
+    end)
+end
+
+local function safeSetImage(elm, id, color)
+    pcall(function() elm.Image = id; elm.ImageColor3 = color or U.WHITE end)
+end
+
+local function bindPress(btn, scale, getTone, downExtra, upExtra, restExtra)
+    local hover, down, token = false, false, 0
+    local function rest()
+        local c = getTone()
+        tween(btn, 0.18, { BackgroundColor3 = hover and c:Lerp(U.WHITE, 0.12) or c })
+        if restExtra then restExtra() end
+    end
+    btn.InputBegan:Connect(function(i)
+        if not isPress(i) then return end
+        down = true
+        token += 1
+        local c = getTone()
+        tween(scale, 0.09, { Scale = 0.82 }, Enum.EasingStyle.Quad)
+        tween(btn, 0.09, { BackgroundColor3 = c:Lerp(U.BLACK, 0.55) })
+        if downExtra then downExtra() end
+        playClick()
+    end)
+    local function release()
+        if not down then return end
+        down = false
+        token += 1
+        local my = token
+        rest()
+        if upExtra then upExtra() end
+        tween(scale, 0.16, { Scale = 1.14 }, Enum.EasingStyle.Back)
+        task.delay(0.16, function()
+            if token == my and scale.Parent then
+                tween(scale, 0.2, { Scale = hover and 1.05 or 1 }, Enum.EasingStyle.Back)
+            end
+        end)
+    end
+    btn.InputEnded:Connect(function(i) if isPress(i) then release() end end)
+    btn.MouseEnter:Connect(function()
+        hover = true
+        if not down then
+            tween(scale, 0.18, { Scale = 1.05 }, Enum.EasingStyle.Back)
+            rest()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        hover = false
+        down = false
+        token += 1
+        tween(scale, 0.15, { Scale = 1 })
+        rest()
+    end)
+end
+
+local function raised(parent, size, position, tone, depth, radius, gradientSeq)
     depth = depth or 3
     radius = radius or UDim.new(0, 8)
-    local holder = new("Frame", {
-        BackgroundTransparency = 1, Size = size, Position = position
-    }, parent)
-    local base = new("Frame", {
-        BackgroundColor3 = rgb(4, 4, 5), BorderSizePixel = 0,
-        Size = UDim2.fromScale(1, 1)
-    }, holder)
+    local holder = new("Frame", { BackgroundTransparency = 1, Size = size, Position = position }, parent)
+    local base = new("Frame", { BackgroundColor3 = rgb(4, 4, 5), BorderSizePixel = 0, Size = UDim2.fromScale(1, 1) }, holder)
     corner(base, radius)
+    local restPos = UDim2.new(0.5, 0, 0.5, -depth / 2)
+    local downPos = UDim2.new(0.5, 0, 0.5, depth / 2 - 1)
     local face = new("TextButton", {
-        AutoButtonColor = false, Text = "",
-        BackgroundColor3 = tone, BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 1, -depth)
+        AutoButtonColor = false, Text = "", BackgroundColor3 = tone, BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = restPos, Size = UDim2.new(1, 0, 1, -depth)
     }, holder)
     corner(face, radius)
-    
-    local gradColor = customGradient or SHADE
-    local grad = new("UIGradient", { Color = gradColor, Rotation = 90 }, face)
-    
-    local stroke = new("UIStroke", {
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Color = WHITE, Thickness = 1
-    }, face)
-    new("UIGradient", { Color = BEVEL, Rotation = 90 }, stroke)
+    local grad = new("UIGradient", { Color = gradientSeq or U.SHADE, Rotation = 90 }, face)
+    local stroke = new("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = U.WHITE, Thickness = 1 }, face)
+    new("UIGradient", { Color = U.BEVEL, Rotation = 90 }, stroke)
     local label = new("TextLabel", {
-        BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-        Font = GOTHAM_B, TextSize = 11, Text = "", TextColor3 = TEXT_LIGHT,
-        TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center
+        BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Font = U.GOTHAM_B, TextSize = 11, Text = "",
+        TextColor3 = U.TEXT_LIGHT, TextXAlignment = U.CENTER, TextYAlignment = Enum.TextYAlignment.Center
     }, face)
-    
-    local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone }
-    
-    if not isStatic then
-        local scale = new("UIScale", {Scale = 1}, face)
-        api.Scale = scale
-        local hover, down = false, false
-        local function render()
-            local c = api.Tone
-            if down then
-                tween(scale, 0.1, {Scale = 0.92})
-                tween(face, 0.08, {
-                    Position = UDim2.fromOffset(0, depth - 1),
-                    BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.25)
-                })
-                tween(grad, 0.08, { Rotation = 270 })
-            else
-                tween(scale, 0.2, {Scale = hover and 1.04 or 1}, Enum.EasingStyle.Back)
-                tween(face, 0.2, {
-                    Position = UDim2.fromOffset(0, 0),
-                    BackgroundColor3 = (hover and c:Lerp(WHITE, 0.12)) or c
-                })
-                tween(grad, 0.2, { Rotation = 90 })
-            end
-        end
-        
-        face.InputBegan:Connect(function(i) if isPress(i) then down = true; render() end end)
-        face.InputEnded:Connect(function(i) if isPress(i) then down = false; render() end end)
-        face.MouseEnter:Connect(function() hover = true; render() end)
-        face.MouseLeave:Connect(function() hover = false; down = false; render() end)
-        
-        api.SetTone = function(c, tc)
-            api.Tone = c; render()
-            if tc then tween(label, 0.2, { TextColor3 = tc }) end
-        end
-    else
-        api.SetTone = function(c, tc)
-            api.Tone = c
-            face.BackgroundColor3 = c
-            if tc then label.TextColor3 = tc end
-        end
+    local scale = new("UIScale", { Scale = 1 }, face)
+    local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone, Scale = scale, Grad = grad }
+    bindPress(face, scale, function() return api.Tone end,
+        function()
+            tween(face, 0.09, { Position = downPos })
+            tween(grad, 0.09, { Rotation = 270 })
+        end,
+        nil,
+        function()
+            tween(face, 0.18, { Position = restPos })
+            tween(grad, 0.18, { Rotation = 90 })
+        end)
+    api.SetTone = function(c, tc)
+        api.Tone = c
+        tween(face, 0.2, { BackgroundColor3 = c })
+        if tc then tween(label, 0.2, { TextColor3 = tc }) end
     end
     return api
 end
@@ -226,78 +318,70 @@ local function raisedIconBtn(parent, size, position, tone, text, icon, textColor
     iconSize = iconSize or 14
     local api = raised(parent, size, position, tone, depth or 3)
     api.Label.Visible = false
-    api.Label.Text = ""
-
-    local row = new("Frame", {
-        BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
-    }, api.Face)
+    local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, api.Face)
     new("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        VerticalAlignment = Enum.VerticalAlignment.Center,
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 8)
+        FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)
     }, row)
-
-    new("ImageLabel", {
+    local img = new("ImageLabel", {
         BackgroundTransparency = 1, Image = icon, ImageColor3 = textColor,
         Size = UDim2.fromOffset(iconSize, iconSize), LayoutOrder = 1
     }, row)
-
     local label = new("TextLabel", {
-        BackgroundTransparency = 1, Text = text, TextColor3 = textColor,
-        Font = GOTHAM_B, TextSize = 11,
-        Size = UDim2.fromOffset(0, 16),
-        AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2,
-        TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center
+        BackgroundTransparency = 1, Text = text, TextColor3 = textColor, Font = U.GOTHAM_B, TextSize = 10,
+        Size = UDim2.fromOffset(0, 16), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2
     }, row)
+    return api, label, img
+end
 
-    return api, label
+local function plainBtn(parent, size, centerPos, tone, text, textColor, iconId, textSize)
+    local b = new("TextButton", {
+        AutoButtonColor = false, Text = iconId and "" or (text or ""), BackgroundColor3 = tone, BorderSizePixel = 0,
+        TextColor3 = textColor or U.TEXT_LIGHT, Font = U.GOTHAM_B, TextSize = textSize or 10, Size = size,
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = centerPos
+    }, parent)
+    corner(b, UDim.new(0, 6))
+    new("UIGradient", { Color = U.SHADE, Rotation = 90 }, b)
+    local icon
+    if iconId then
+        icon = new("ImageLabel", {
+            BackgroundTransparency = 1, Image = iconId, ImageColor3 = U.WHITE, Size = UDim2.fromOffset(14, 14),
+            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
+        }, b)
+    end
+    local sc = new("UIScale", { Scale = 1 }, b)
+    local api = { Button = b, Tone = tone, Icon = icon }
+    bindPress(b, sc, function() return api.Tone end)
+    return b, api
 end
 
 local function sunken(parent, size, position, padLeft)
+    local holder = new("Frame", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = size, Position = position }, parent)
+    corner(holder, UDim.new(0, 8))
+    new("UIGradient", { Color = U.SHADE_INV, Rotation = 90 }, holder)
+    local stroke = new("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = U.WHITE, Thickness = 1, Transparency = 0.5 }, holder)
+    new("UIGradient", { Color = U.BEVEL_INV, Rotation = 90 }, stroke)
     local box = new("TextBox", {
-        BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0,
-        Size = size, Position = position,
-        Font = GOTHAM, TextSize = 11, Text = "",
-        TextColor3 = rgb(230, 230, 235),
-        PlaceholderColor3 = rgb(112, 112, 118),
-        ClearTextOnFocus = false, TextXAlignment = LEFT
-    }, parent)
-    corner(box, UDim.new(0, 8))
-    new("UIGradient", { Color = SHADE_INV, Rotation = 90 }, box)
-    new("UIPadding", {
-        PaddingLeft = UDim.new(0, padLeft or 10),
-        PaddingRight = UDim.new(0, 10)
-    }, box)
-    local stroke = new("UIStroke", {
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Color = WHITE, Thickness = 1, Transparency = 0.5
-    }, box)
-    new("UIGradient", { Color = BEVEL_INV, Rotation = 90 }, stroke)
-    return box, stroke
+        BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -(padLeft or 10) - 10, 1, 0),
+        Position = UDim2.fromOffset(padLeft or 10, 0), Font = U.GOTHAM, TextSize = 11, Text = "",
+        TextColor3 = rgb(230, 230, 235), PlaceholderColor3 = rgb(112, 112, 118), ClearTextOnFocus = false,
+        TextXAlignment = U.LEFT
+    }, holder)
+    return box, stroke, holder
 end
 
 local function surface(cg, radius)
     radius = radius or 14
     cg.BackgroundTransparency = 1
     corner(cg, UDim.new(0, radius))
-    local bg = new("Frame", {
-        BackgroundColor3 = rgb(30, 30, 34), BorderSizePixel = 0,
-        Size = UDim2.fromScale(1, 1)
-    }, cg)
+    local bg = new("Frame", { BackgroundColor3 = rgb(30, 30, 34), BorderSizePixel = 0, Size = UDim2.fromScale(1, 1) }, cg)
     corner(bg, UDim.new(0, radius))
-    new("UIGradient", { Color = ColorSequence.new(WHITE, rgb(92, 92, 96)), Rotation = 90 }, bg)
+    new("UIGradient", { Color = ColorSequence.new(U.WHITE, rgb(92, 92, 96)), Rotation = 90 }, bg)
     local rim = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, cg)
     corner(rim, UDim.new(0, radius))
-    local st = new("UIStroke", {
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Color = WHITE, Thickness = 2
-    }, rim)
-    new("UIGradient", {
-        Color = ColorSequence.new(rgb(190, 190, 196), rgb(28, 28, 32)), Rotation = 90
-    }, st)
+    local st = new("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = U.WHITE, Thickness = 2 }, rim)
+    local rimGrad = new("UIGradient", { Color = ColorSequence.new(rgb(190, 190, 196), rgb(28, 28, 32)), Rotation = 90 }, st)
+    return rimGrad
 end
 
 local function popIn(scale, group)
@@ -309,1386 +393,1298 @@ local function popIn(scale, group)
     end)
 end
 
-local function popOut(scale, group, done)
-    tween(scale, 0.1, { Scale = 1.08 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    task.delay(0.1, function()
-        if not scale.Parent then if done then done() end return end
-        tween(scale, 0.2, { Scale = 0.001 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-        if group then tween(group, 0.2, { GroupTransparency = 1 }) end
-        task.delay(0.22, function() if done then done() end end)
-    end)
-end
-
-local function getHttpFunc()
-    if syn and syn.request then return syn.request end
-    if http and http.request then return http.request end
-    if request then return request end
-    if http_request then return http_request end
-    return nil
-end
-local HTTP = getHttpFunc()
-
-local function httpPost(url, apiKey, bodyTable)
-    if not HTTP then return nil, "Executor does not support HTTP requests." end
-    local ok, res = pcall(HTTP, {
-        Url = url, Method = "POST",
-        Headers = {
-            ["x-api-key"] = apiKey,
-            ["Content-Type"] = "application/json",
-            ["Accept"] = "application/json"
-        },
-        Body = HttpService:JSONEncode(bodyTable)
-    })
-    if not ok then return nil, tostring(res) end
-    if not res or not res.Body then return nil, "Empty response" end
-    local decodeOk, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-    if not decodeOk then return nil, "Invalid JSON" end
-    return data, nil, res.Body
-end
-
-local function parseModelsFromResponse(data, category)
-    if not data then return {}, nil end
-    local models = {}
-    local list = data.creatorStoreAssets or {}
-    if type(list) ~= "table" then list = {} end
-    for _, entry in ipairs(list) do
-        if type(entry) == "table" then
-            local asset = entry.asset or {}
-            local creatorObj = entry.creator or {}
-            local id = asset.id or asset.assetId
-            if id then
-                local name = asset.name or asset.assetName or ("Asset " .. tostring(id))
-                local desc = asset.description or "No description available."
-                local creatorName = "?"
-                if type(creatorObj) == "table" then
-                    creatorName = creatorObj.name or creatorObj.username or creatorObj.displayName or "?"
-                elseif type(creatorObj) == "string" then
-                    creatorName = creatorObj
-                end
-                table.insert(models, {
-                    id = tostring(id), name = name, description = desc,
-                    creator = creatorName, category = category,
-                    thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
-                })
-            end
-        end
+local function guiParents()
+    local list = {}
+    local okH, h = pcall(function() return gethui and gethui() end)
+    if okH and typeof(h) == "Instance" then table.insert(list, h) end
+    if CoreGui then table.insert(list, CoreGui) end
+    local lp = Players.LocalPlayer
+    if lp then
+        local pg = lp:FindFirstChildOfClass("PlayerGui")
+        if pg then table.insert(list, pg) end
     end
-    return models, data.data and data.data.nextPageToken or data.nextPageToken
+    return list
 end
 
-local function safeSetImage(elm, iconId, color)
+for _, p in ipairs(guiParents()) do
     pcall(function()
-        elm.Image = iconId
-        elm.ImageColor3 = color or WHITE
+        local old = p:FindFirstChild("StudioLiteToolbox")
+        if old then old:Destroy() end
     end)
 end
 
--- ============================================================
--- BUILD GUI
--- ============================================================
-if CoreGui:FindFirstChild("StudioLiteToolbox") then CoreGui.StudioLiteToolbox:Destroy() end
+U.gui = new("ScreenGui", {
+    Name = "StudioLiteToolbox", ResetOnSpawn = false, IgnoreGuiInset = true,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 100
+}, nil)
 
-local gui = new("ScreenGui", {
-    Name = "StudioLiteToolbox",
-    ResetOnSpawn = false,
-    IgnoreGuiInset = true,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-    DisplayOrder = 100
-}, CoreGui)
+pcall(function() if syn and syn.protect_gui then syn.protect_gui(U.gui) end end)
 
-local screenSize = Vector2.new(0, 0)
+U.mounted = false
+for _, p in ipairs(guiParents()) do
+    local ok = pcall(function() U.gui.Parent = p end)
+    if ok and U.gui.Parent == p then U.mounted = true break end
+end
+if not U.mounted then
+    warn("Asset Store: could not mount UI.")
+    return
+end
+
+U.screenSize = Vector2.new(0, 0)
 for _ = 1, 30 do
-    screenSize = gui.AbsoluteSize
-    if screenSize.X > 100 and screenSize.Y > 100 then break end
+    U.screenSize = U.gui.AbsoluteSize
+    if U.screenSize.X > 100 and U.screenSize.Y > 100 then break end
     task.wait(0.05)
 end
-if screenSize.X < 100 then
-    pcall(function() screenSize = Workspace.CurrentCamera.ViewportSize end)
-end
-if screenSize.X < 100 then screenSize = Vector2.new(800, 600) end
+if U.screenSize.X < 100 then pcall(function() U.screenSize = Workspace.CurrentCamera.ViewportSize end) end
+if U.screenSize.X < 100 then U.screenSize = Vector2.new(800, 600) end
 
-local FRAME_W = math.min(820, screenSize.X - 24)
-local FRAME_H = math.min(640, screenSize.Y - 40)
+U.FRAME_W = math.min(860, U.screenSize.X - 16)
+U.FRAME_H = math.min(660, U.screenSize.Y - 24)
+U.IS_NARROW = U.FRAME_W < 560
+U.PAD = U.IS_NARROW and 8 or 12
+U.INNER = 8
+U.HEADER_H, U.SEARCH_H, U.CATEGORY_H = 46, 38, 32
+U.GAP_TOP, U.GAP_MID, U.STATUS_H, U.BTN_H = 10, 8, 18, 36
+U.CONTENT_TOP = U.HEADER_H + U.GAP_TOP + U.SEARCH_H + U.GAP_MID + U.CATEGORY_H + U.GAP_MID
+U.CONTENT_H = U.FRAME_H - U.CONTENT_TOP - U.STATUS_H - 4
 
-local IS_NARROW = FRAME_W < 480
+U.LEFT_CLOSED  = UDim2.new(1, 0, 1, 0)
+U.LEFT_OPEN    = U.IS_NARROW and U.LEFT_CLOSED or UDim2.new(0.5, -6, 1, 0)
+U.RIGHT_SIZE   = U.IS_NARROW and UDim2.new(1, 0, 1, 0) or UDim2.new(0.5, -6, 1, 0)
+U.RIGHT_HIDDEN = U.IS_NARROW and UDim2.new(1.1, 0, 0, 0) or UDim2.new(1.5, 0, 0, 0)
+U.RIGHT_SHOWN  = U.IS_NARROW and UDim2.new(0, 0, 0, 0) or UDim2.new(0.5, 6, 0, 0)
+U.SLIDE = 0.35
 
-local PAD = IS_NARROW and 8 or 12
-local INNER = 8
-local HEADER_H = 46
-local SEARCH_H = 38
-local CATEGORY_H = 32
-local GAP_TOP = 10
-local GAP_MID = 8
-local STATUS_H = 18
-local BTN_H = 38
-local CONTENT_TOP = HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID
-local CONTENT_H = FRAME_H - CONTENT_TOP - STATUS_H - 4
-
--- SHADOW
-local shadow = new("Frame", {
-    BackgroundColor3 = Color3.new(0, 0, 0),
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    Size = UDim2.new(1, 16, 1, 16),
-    Position = UDim2.fromOffset(-8, -2), ZIndex = 0
-}, gui)
-corner(shadow, UDim.new(0, 20))
-
--- MAIN BODY
 local body = new("CanvasGroup", {
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(FRAME_W, FRAME_H),
-    GroupTransparency = 1, Active = true
-}, gui)
-surface(body, 14)
-local bodyScale = new("UIScale", { Scale = 0.001 }, body)
+    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+    Size = UDim2.fromOffset(U.FRAME_W, U.FRAME_H), GroupTransparency = 1, Active = true, Visible = false
+}, U.gui)
+local rimGrad = surface(body, 14)
+rimGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, rgb(205, 205, 212)),
+    ColorSequenceKeypoint.new(0.35, U.ACCENT_A),
+    ColorSequenceKeypoint.new(0.7, U.ACCENT_B),
+    ColorSequenceKeypoint.new(1, rgb(28, 28, 32))
+})
+U.bodyScale = new("UIScale", { Scale = 0.001 }, body)
 
--- HEADER
-local header = new("Frame", {
-    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, HEADER_H), Active = true
-}, body)
+U.header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, U.HEADER_H), Active = true }, body)
+new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.LOGO, ImageColor3 = U.WHITE, Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(U.PAD, 10) }, U.header)
+U.titleRightMargin = U.IS_NARROW and 150 or 190
+txt(U.header, "ASSET STORE", 13, U.WHITE, U.GOTHAM_K, UDim2.new(1, -U.titleRightMargin, 0, 18), UDim2.fromOffset(U.PAD + 34, 8))
+txt(U.header, "Roblox Creator Store", 9, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -U.titleRightMargin, 0, 12), UDim2.fromOffset(U.PAD + 34, 26))
 
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.MODEL_BOX, ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(22, 22), Position = UDim2.fromOffset(PAD, 12)
-}, header)
+U.closeBtn = plainBtn(U.header, UDim2.fromOffset(30, 30), UDim2.new(1, -(U.PAD + 15), 0.5, 0), U.TONE_OFF, "", U.TEXT_LIGHT, ICON.CLOSE)
+U.minimizeBtn = plainBtn(U.header, UDim2.fromOffset(30, 30), UDim2.new(1, -(U.PAD + 51), 0.5, 0), U.TONE_OFF, "", U.TEXT_LIGHT, ICON.MINIMIZE)
+U.helpBtn = plainBtn(U.header, UDim2.fromOffset(30, 30), UDim2.new(1, -(U.PAD + 87), 0.5, 0), U.TONE_OFF, "?", U.TEXT_LIGHT, nil, 12)
 
-local titleRightMargin = IS_NARROW and 130 or 180
-txt(header, "ASSET STORE", 13, WHITE, GOTHAM_K,
-    UDim2.new(1, -titleRightMargin, 0, 18), UDim2.fromOffset(PAD + 30, 8))
-txt(header, "Roblox Creator Store", 9, TEXT_DIM, GOTHAM,
-    UDim2.new(1, -titleRightMargin, 0, 12), UDim2.fromOffset(PAD + 30, 26))
+U.divider = new("Frame", { BackgroundColor3 = U.WHITE, BorderSizePixel = 0, Size = UDim2.new(1, -U.PAD * 2, 0, 1), Position = UDim2.fromOffset(U.PAD, U.HEADER_H) }, body)
+new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.7), NumberSequenceKeypoint.new(1, 1) }) }, U.divider)
 
-local statusDot = new("Frame", {
-    BackgroundColor3 = rgb(90, 90, 96), BorderSizePixel = 0,
-    Size = UDim2.fromOffset(8, 8),
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -120, 0.5, 0)
-}, header)
-corner(statusDot, UDim.new(1, 0))
+do
+    local dragging, dragStart, startPos
+    U.header.InputBegan:Connect(function(i)
+        if isPress(i) then dragging = true; dragStart = i.Position; startPos = body.Position end
+    end)
+    keep(UserInputService.InputChanged:Connect(function(i)
+        if dragging and isMove(i) then
+            local d = i.Position - dragStart
+            body.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end))
+    keep(UserInputService.InputEnded:Connect(function(i) if isPress(i) then dragging = false end end))
+end
 
--- DEBUG BUTTON
-local debugBtn = new("TextButton", {
-    AutoButtonColor = false, Text = "?",
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    TextColor3 = TEXT_LIGHT, Font = GOTHAM_B, TextSize = 12,
-    Size = UDim2.fromOffset(30, 30),
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -84, 0.5, 0)
-}, header)
-corner(debugBtn, UDim.new(0, 6))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, debugBtn)
-local dbgScale = new("UIScale", {Scale = 1}, debugBtn)
-debugBtn.MouseEnter:Connect(function() tween(dbgScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
-debugBtn.MouseLeave:Connect(function() tween(dbgScale, 0.15, {Scale=1}) end)
-
--- MINIMIZE BUTTON
-local minimizeBtn = new("TextButton", {
-    AutoButtonColor = false, Text = "",
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Size = UDim2.fromOffset(30, 30),
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -48, 0.5, 0)
-}, header)
-corner(minimizeBtn, UDim.new(0, 6))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, minimizeBtn)
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.MINIMIZE, ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(14, 14),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5)
-}, minimizeBtn)
-local minScale = new("UIScale", {Scale = 1}, minimizeBtn)
-minimizeBtn.MouseEnter:Connect(function() tween(minScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
-minimizeBtn.MouseLeave:Connect(function() tween(minScale, 0.15, {Scale=1}) end)
-
--- CLOSE BUTTON
-local closeBtn = new("TextButton", {
-    AutoButtonColor = false, Text = "",
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Size = UDim2.fromOffset(30, 30),
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -PAD, 0.5, 0)
-}, header)
-corner(closeBtn, UDim.new(0, 6))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, closeBtn)
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.CLOSE, ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(14, 14),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5)
-}, closeBtn)
-local clsScale = new("UIScale", {Scale = 1}, closeBtn)
-closeBtn.MouseEnter:Connect(function() tween(clsScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
-closeBtn.MouseLeave:Connect(function() tween(clsScale, 0.15, {Scale=1}) end)
-
-local divider = new("Frame", {
-    BackgroundColor3 = WHITE, BorderSizePixel = 0,
-    Size = UDim2.new(1, -PAD*2, 0, 1),
-    Position = UDim2.fromOffset(PAD, HEADER_H)
-}, body)
-new("UIGradient", {
-    Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.5, 0.7),
-        NumberSequenceKeypoint.new(1, 1)
-    })
-}, divider)
-
--- SEARCH
-local searchBar = new("Frame", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, -PAD*2, 0, SEARCH_H),
-    Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP)
-}, body)
-
-local searchInput, searchStroke = sunken(searchBar, UDim2.fromScale(1, 1), UDim2.new(), 40)
-searchInput.PlaceholderText = "Search assets..."
-local searchScale = new("UIScale", {Scale = 1}, searchBar)
-
-searchInput.Focused:Connect(function()
-    tween(searchStroke, 0.2, { Transparency = 0 })
-    tween(searchScale, 0.25, { Scale = 1.02 }, Enum.EasingStyle.Back)
+U.searchBar = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -U.PAD * 2, 0, U.SEARCH_H), Position = UDim2.fromOffset(U.PAD, U.HEADER_H + U.GAP_TOP) }, body)
+U.searchInput, U.searchStroke = sunken(U.searchBar, UDim2.fromScale(1, 1), UDim2.new(), 40)
+U.searchInput.PlaceholderText = "Search assets..."
+U.searchScale = new("UIScale", { Scale = 1 }, U.searchBar)
+U.searchInput.Focused:Connect(function()
+    tween(U.searchStroke, 0.2, { Transparency = 0 }); tween(U.searchScale, 0.25, { Scale = 1.02 }, Enum.EasingStyle.Back)
 end)
-searchInput.FocusLost:Connect(function()
-    tween(searchStroke, 0.2, { Transparency = 0.5 })
-    tween(searchScale, 0.2, { Scale = 1 })
+U.searchInput.FocusLost:Connect(function()
+    tween(U.searchStroke, 0.2, { Transparency = 0.5 }); tween(U.searchScale, 0.2, { Scale = 1 })
 end)
+new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.SEARCH, ImageColor3 = U.TEXT_DIM, Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 14, 0.5, 0), ZIndex = 3 }, U.searchBar)
 
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.SEARCH, ImageColor3 = TEXT_DIM,
-    Size = UDim2.fromOffset(14, 14),
-    AnchorPoint = Vector2.new(0, 0.5),
-    Position = UDim2.new(0, 14, 0.5, 0)
-}, searchBar)
-
--- CATEGORY TABS
-local categoryBar = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    Size = UDim2.new(1, -PAD*2, 0, CATEGORY_H),
-    Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP + SEARCH_H + GAP_MID),
-    ScrollingDirection = Enum.ScrollingDirection.X,
-    ScrollBarThickness = 0,
-    CanvasSize = UDim2.new(),
+U.categoryBar = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, -U.PAD * 2, 0, U.CATEGORY_H),
+    Position = UDim2.fromOffset(U.PAD, U.HEADER_H + U.GAP_TOP + U.SEARCH_H + U.GAP_MID),
+    ScrollingDirection = Enum.ScrollingDirection.X, ScrollBarThickness = 0, CanvasSize = UDim2.new(),
     AutomaticCanvasSize = Enum.AutomaticSize.X
 }, body)
+new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center }, U.categoryBar)
 
-new("UIListLayout", {
-    FillDirection = Enum.FillDirection.Horizontal,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 6),
-    VerticalAlignment = Enum.VerticalAlignment.Center
-}, categoryBar)
-
-local categoryButtons = {}
-
+U.CAT_W = U.IS_NARROW and 112 or 128
+U.categoryButtons = {}
 for i, cat in ipairs(CATEGORIES) do
     local isActive = (i == currentCategoryIndex)
-    
-    local btn = raised(categoryBar,
-        UDim2.new(0, 0, 1, -4),
-        UDim2.new(), 
-        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
-    
-    btn.Holder.AutomaticSize = Enum.AutomaticSize.X
+    local btn = raised(U.categoryBar, UDim2.fromOffset(U.CAT_W, U.CATEGORY_H - 4), UDim2.new(), isActive and U.TONE_ON or U.TONE_OFF, 2, UDim.new(0, 8))
     btn.Holder.LayoutOrder = i
-    
     local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, btn.Face)
-    new("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        VerticalAlignment = Enum.VerticalAlignment.Center,
-        Padding = UDim.new(0, 8)
-    }, row)
-    
-    -- MAIN CATEGORY ICON (Bigger & White)
-    local iconImg = new("ImageLabel", {
-        BackgroundTransparency = 1,
-        Image = cat.icon,
-        ImageColor3 = WHITE,
-        Size = UDim2.fromOffset(20, 20),
-        LayoutOrder = 1
-    }, row)
-    
+    new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }, row)
+    new("ImageLabel", { BackgroundTransparency = 1, Image = cat.icon, ImageColor3 = U.WHITE, Size = UDim2.fromOffset(18, 18), LayoutOrder = 1 }, row)
     btn.Label.Parent = row
     btn.Label.LayoutOrder = 2
     btn.Label.Size = UDim2.fromOffset(0, 16)
     btn.Label.AutomaticSize = Enum.AutomaticSize.X
-    btn.Label.TextXAlignment = Enum.TextXAlignment.Left
     btn.Label.Text = cat.label
-    btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
+    btn.Label.TextColor3 = isActive and U.TEXT_DARK or U.TEXT_LIGHT
     btn.Label.TextSize = 10
-    
-    new("UIPadding", {
-        PaddingLeft = UDim.new(0, 12),
-        PaddingRight = UDim.new(0, 12)
-    }, btn.Face)
-
-    categoryButtons[i] = { api = btn, category = cat, iconObj = iconImg }
+    U.categoryButtons[i] = { api = btn }
 end
 
--- CONTENT (ClipsDescendants untuk animasi slide)
-local content = new("Frame", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, -PAD*2, 0, CONTENT_H),
-    Position = UDim2.fromOffset(PAD, CONTENT_TOP),
-    ClipsDescendants = true
+U.content = new("Frame", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, -U.PAD * 2, 0, U.CONTENT_H),
+    Position = UDim2.fromOffset(U.PAD, U.CONTENT_TOP), ClipsDescendants = true
 }, body)
 
--- ============================================================
--- SUB-CATEGORY GRID (MASONRY LAYOUT)
--- ============================================================
-local subCatContainer = new("CanvasGroup", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Visible = false,
-    GroupTransparency = 0
-}, content)
+U.subCatContainer = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false }, U.content)
+U.subCatScroll = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 1, 0), CanvasSize = UDim2.new(),
+    ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158)
+}, U.subCatContainer)
 
-local subCatScroll = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    Size = UDim2.new(1, 0, 1, 0),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
-}, subCatContainer)
+U.leftPanel = new("CanvasGroup", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false }, U.content)
+surface(U.leftPanel, 12)
+U.leftPanel.ClipsDescendants = true
+U.LEFT_TOP_PAD = U.INNER + 30
 
-for _, c in ipairs(subCatScroll:GetChildren()) do
-    if c:IsA("UIGridLayout") or c:IsA("UIListLayout") then c:Destroy() end
+U.backBtn = plainBtn(U.leftPanel, UDim2.fromOffset(60, 22), UDim2.fromOffset(U.INNER + 30, U.INNER + 11), U.TONE_OFF, "< BACK", U.TEXT_LIGHT)
+U.subTitle = txt(U.leftPanel, "", 10, U.TEXT_DIM, U.GOTHAM_B, UDim2.new(1, -(U.INNER * 2 + 70), 0, 22), UDim2.fromOffset(U.INNER + 68, U.INNER), U.LEFT)
+
+U.scrollList = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(U.INNER, U.LEFT_TOP_PAD),
+    Size = UDim2.new(1, -U.INNER * 2, 1, -U.LEFT_TOP_PAD - U.INNER), ScrollBarThickness = 3,
+    ScrollBarImageColor3 = rgb(150, 150, 158), CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y, ClipsDescendants = true
+}, U.leftPanel)
+new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }, U.scrollList)
+U.noticeLabel = txt(U.scrollList, "", 10, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, 0, 0, 0), UDim2.new(), U.CENTER, {
+    AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, Visible = false, LayoutOrder = 0
+})
+local function showNotice(text)
+    U.noticeLabel.Text = text or ""
+    U.noticeLabel.Visible = text ~= nil and text ~= ""
 end
 
--- ============================================================
--- LEFT PANEL (LIST)
--- ============================================================
-local leftPanel = new("CanvasGroup", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, 0, 1, 0),
-    Position = UDim2.new(0, 0, 0, 0),
-    Visible = false,
-    GroupTransparency = 0
-}, content)
-surface(leftPanel, 12)
-leftPanel.ClipsDescendants = true
+U.rightPanel = new("CanvasGroup", { BackgroundTransparency = 1, Size = U.RIGHT_SIZE, Position = U.RIGHT_HIDDEN, Visible = false }, U.content)
+surface(U.rightPanel, 12)
+U.rightPanel.ClipsDescendants = true
 
-local LEFT_TOP_PAD = INNER + 30
-local FULL_SCROLL_H = CONTENT_H - LEFT_TOP_PAD
-local SHRUNK_SCROLL_H = CONTENT_H - LEFT_TOP_PAD - BTN_H - INNER
+U.rpTop = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30) }, U.rightPanel)
+txt(U.rpTop, "DETAILS", 10, U.TEXT_DIM, U.GOTHAM_K, UDim2.new(1, -50, 1, 0), UDim2.fromOffset(U.INNER + 2, 0), U.LEFT)
+U.detailCloseBtn = plainBtn(U.rpTop, UDim2.fromOffset(26, 22), UDim2.new(1, -U.INNER - 13, 0.5, 0), U.TONE_OFF, "X", U.TEXT_LIGHT)
 
--- BACK BUTTON
-local backBtn = new("TextButton", {
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Size = UDim2.fromOffset(60, 22),
-    Position = UDim2.fromOffset(INNER, INNER),
-    Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT
-}, leftPanel)
-corner(backBtn, UDim.new(0, 4))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
+U.btnRowY = U.CONTENT_H - U.INNER - U.BTN_H
+U.btnRow = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -U.INNER * 2, 0, U.BTN_H), Position = UDim2.fromOffset(U.INNER, U.btnRowY) }, U.rightPanel)
+U.btnA, U.btnALabel = raisedIconBtn(U.btnRow, UDim2.new(0.5, -3, 1, 0), UDim2.new(), U.TONE_ON, "COPY ID", ICON.COPY, U.TEXT_DARK, 3, 14)
+U.btnB, U.btnBLabel = raisedIconBtn(U.btnRow, UDim2.new(0.5, -3, 1, 0), UDim2.new(0.5, 3, 0, 0), U.TONE_OFF, "COPY LINK", ICON.COPY, U.TEXT_LIGHT, 3, 14)
 
-local scrollList = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    Position = UDim2.fromOffset(INNER, LEFT_TOP_PAD),
-    Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H),
-    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
-    CanvasSize = UDim2.new(),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-    ElasticBehavior = Enum.ElasticBehavior.Always,
-    ClipsDescendants = true
-}, leftPanel)
-new("UIListLayout", {
-    SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)
-}, scrollList)
+U.rightScroll = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(0, 32),
+    Size = UDim2.new(1, 0, 0, U.btnRowY - 32 - 6), ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
+    CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, ClipsDescendants = true
+}, U.rightPanel)
+new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }, U.rightScroll)
+new("UIPadding", { PaddingLeft = UDim.new(0, U.INNER), PaddingRight = UDim.new(0, U.INNER + 4), PaddingBottom = UDim.new(0, U.INNER) }, U.rightScroll)
 
--- LOAD MORE BUTTON
-local loadMoreBtn = raised(leftPanel,
-    UDim2.new(1, -INNER*2, 0, BTN_H),
-    UDim2.new(0, INNER, 1, -INNER - BTN_H),
-    TONE_OFF, 3)
-loadMoreBtn.Label.Text = "LOAD MORE"
+U.thumbFrame = new("Frame", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, math.min(200, math.floor(U.CONTENT_H * 0.4))), LayoutOrder = 1, ClipsDescendants = true }, U.rightScroll)
+corner(U.thumbFrame, UDim.new(0, 10))
+new("UIGradient", { Color = U.SHADE_INV, Rotation = 90 }, U.thumbFrame)
+U.thumbStroke = new("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = U.WHITE, Thickness = 1 }, U.thumbFrame)
+new("UIGradient", { Color = U.BEVEL_INV, Rotation = 90 }, U.thumbStroke)
+U.thumbImg = new("ImageLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ScaleType = Enum.ScaleType.Fit }, U.thumbFrame)
+safeSetImage(U.thumbImg, ICON.PLACEHOLDER)
 
-loadMoreBtn.Holder.Visible = false
-loadMoreBtn.Face.BackgroundTransparency = 1
-loadMoreBtn.Base.BackgroundTransparency = 1
-loadMoreBtn.Stroke.Transparency = 1
-loadMoreBtn.Label.TextTransparency = 1
+U.viewportFrame = new("ViewportFrame", {
+    BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false, Active = true,
+    Ambient = rgb(190, 190, 196), LightColor = rgb(255, 255, 255), LightDirection = Vector3.new(-1, -1.2, -0.8)
+}, U.thumbFrame)
+U.vpCamera = new("Camera", { FieldOfView = 40 }, U.viewportFrame)
+U.viewportFrame.CurrentCamera = U.vpCamera
 
--- ============================================================
--- RIGHT PANEL
--- ============================================================
-local rightPanel = new("CanvasGroup", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(0.5, -6, 1, 0),
-    Position = UDim2.new(1.5, 0, 0, 0),
-    Visible = false
-}, content)
-surface(rightPanel, 12)
-rightPanel.ClipsDescendants = true
+U.vpStatus = txt(U.thumbFrame, "", 10, U.TEXT_DIM, U.GOTHAM_B, UDim2.fromScale(1, 1), UDim2.new(), U.CENTER, { Visible = false, ZIndex = 3 })
+U.vpHint = txt(U.thumbFrame, U.IS_NARROW and "Drag: rotate  |  Pinch: zoom" or "Drag: rotate  |  Wheel/Pinch: zoom  |  Right-drag: pan", 8, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -120, 0, 12), UDim2.new(0, 8, 1, -18), U.LEFT, { Visible = false, ZIndex = 4 })
 
-local btnRowY = CONTENT_H - INNER - BTN_H
-local btnRow = new("Frame", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, -INNER*2, 0, BTN_H),
-    Position = UDim2.fromOffset(INNER, btnRowY)
-}, rightPanel)
+U.toggle3DBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(66, 22), UDim2.new(1, -39, 0, 17), U.TONE_OFF, "3D VIEW", U.TEXT_LIGHT)
+U.toggle3DBtn.Visible = false
+U.toggle3DBtn.ZIndex = 5
+U.zoomInBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(24, 24), UDim2.new(1, -18, 1, -18), U.TONE_OFF, "+", U.TEXT_LIGHT, nil, 14)
+U.zoomOutBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(24, 24), UDim2.new(1, -46, 1, -18), U.TONE_OFF, "-", U.TEXT_LIGHT, nil, 14)
+U.resetBtn = plainBtn(U.thumbFrame, UDim2.fromOffset(24, 24), UDim2.new(1, -74, 1, -18), U.TONE_OFF, "R", U.TEXT_LIGHT, nil, 10)
+for _, b in ipairs({ U.zoomInBtn, U.zoomOutBtn, U.resetBtn }) do b.Visible = false; b.ZIndex = 5 end
 
--- BUTTONS
-local copyIdBtn, copyIdLabel = raisedIconBtn(
-    btnRow, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0),
-    TONE_ON, "COPY ID", ICON.COPY, TEXT_DARK, 3, 14
-)
-local playBtn, playLabel = raisedIconBtn(
-    btnRow, UDim2.new(0.5, -3, 1, 0), UDim2.new(0.5, 3, 0, 0),
-    TONE_OFF, "PLAY", ICON.SPEAKER, TEXT_LIGHT, 3, 14
-)
-playBtn.Holder.Visible = false
+U.detailTitle = txt(U.rightScroll, "Select an asset...", 12, U.WHITE, U.GOTHAM_B, UDim2.new(1, 0, 0, 0), UDim2.new(), U.LEFT, {
+    AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, TextWrapped = true, TextTruncate = Enum.TextTruncate.None
+})
 
--- RIGHT SCROLL
-local rightScroll = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    Position = UDim2.fromOffset(0, INNER),
-    Size = UDim2.new(1, 0, 0, btnRowY - INNER*2),
-    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
-    CanvasSize = UDim2.new(),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-    ElasticBehavior = Enum.ElasticBehavior.Always,
-    ClipsDescendants = true
-}, rightPanel)
-new("UIListLayout", {
-    SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8)
-}, rightScroll)
-new("UIPadding", {
-    PaddingLeft = UDim.new(0, INNER), PaddingRight = UDim.new(0, INNER),
-    PaddingTop = UDim.new(0, 0), PaddingBottom = UDim.new(0, INNER)
-}, rightScroll)
+U.creatorCard = new("Frame", { BackgroundColor3 = U.CARD_BG, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 50), LayoutOrder = 3 }, U.rightScroll)
+corner(U.creatorCard, UDim.new(0, 8))
+new("UIGradient", { Color = U.SHADE, Rotation = 90 }, U.creatorCard)
+U.creatorAvatar = new("ImageLabel", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.fromOffset(36, 36), Position = UDim2.fromOffset(7, 7) }, U.creatorCard)
+corner(U.creatorAvatar, UDim.new(1, 0))
+U.creatorDisplay = txt(U.creatorCard, "", 12, U.WHITE, U.GOTHAM_B, UDim2.new(1, -56, 0, 16), UDim2.fromOffset(50, 8), U.LEFT)
+U.creatorUser = txt(U.creatorCard, "", 10, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -56, 0, 14), UDim2.fromOffset(50, 26), U.LEFT)
 
-local thumbFrame = new("Frame", {
-    BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0,
-    Size = UDim2.new(1, 0, 0, math.min(140, math.floor(CONTENT_H * 0.34))), LayoutOrder = 1
-}, rightScroll)
-corner(thumbFrame, UDim.new(0, 10))
-new("UIGradient", { Color = SHADE_INV, Rotation = 90 }, thumbFrame)
-local thumbStroke = new("UIStroke", {
-    ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = WHITE, Thickness = 1
-}, thumbFrame)
-new("UIGradient", { Color = BEVEL_INV, Rotation = 90 }, thumbStroke)
+U.voteCard = new("Frame", { BackgroundColor3 = U.CARD_BG, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 62), LayoutOrder = 4 }, U.rightScroll)
+corner(U.voteCard, UDim.new(0, 8))
+new("UIGradient", { Color = U.SHADE, Rotation = 90 }, U.voteCard)
+U.leftIcon = new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.LIKE, Size = UDim2.fromOffset(18, 18), Position = UDim2.fromOffset(10, 7) }, U.voteCard)
+U.rightIcon = new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.DISLIKE, Size = UDim2.fromOffset(18, 18), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 7) }, U.voteCard)
+U.likeLabel = txt(U.voteCard, "", 11, U.COL_LIKE, U.GOTHAM_B, UDim2.new(0.5, -34, 0, 18), UDim2.fromOffset(32, 7), U.LEFT)
+U.dislikeLabel = txt(U.voteCard, "", 11, U.COL_DISLIKE, U.GOTHAM_B, UDim2.new(0.5, -34, 0, 18), UDim2.new(0.5, 2, 0, 7), U.RIGHT)
+U.voteTrack = new("Frame", { BackgroundColor3 = U.COL_DISLIKE, BorderSizePixel = 0, Size = UDim2.new(1, -20, 0, 8), Position = UDim2.fromOffset(10, 33) }, U.voteCard)
+corner(U.voteTrack, UDim.new(1, 0))
+U.voteFill = new("Frame", { BackgroundColor3 = U.COL_LIKE, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) }, U.voteTrack)
+corner(U.voteFill, UDim.new(1, 0))
+U.liveDot = new("Frame", { BackgroundColor3 = U.COL_LIKE, BorderSizePixel = 0, Size = UDim2.fromOffset(6, 6), Position = UDim2.fromOffset(10, 48) }, U.voteCard)
+corner(U.liveDot, UDim.new(1, 0))
+U.liveLabel = txt(U.voteCard, "LIVE", 8, U.TEXT_DIM, U.GOTHAM_B, UDim2.new(0.5, 0, 0, 12), UDim2.fromOffset(20, 45), U.LEFT)
+U.percentLabel = txt(U.voteCard, "", 9, U.TEXT_DIM, U.GOTHAM_B, UDim2.new(0.5, -10, 0, 12), UDim2.new(0.5, 0, 0, 45), U.RIGHT)
 
-local thumbImg = new("ImageLabel", {
-    BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-    ScaleType = Enum.ScaleType.Fit
-}, thumbFrame)
-corner(thumbImg, UDim.new(0, 10))
-safeSetImage(thumbImg, ICON.PLACEHOLDER)
+U.playerCard = new("Frame", { BackgroundColor3 = U.CARD_BG, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 84), LayoutOrder = 5, Visible = false }, U.rightScroll)
+corner(U.playerCard, UDim.new(0, 8))
+new("UIGradient", { Color = U.SHADE, Rotation = 90 }, U.playerCard)
+U.playBtn = raised(U.playerCard, UDim2.fromOffset(74, 30), UDim2.fromOffset(10, 8), U.TONE_OFF, 3)
+U.playBtn.Label.Text = "PLAY"
+U.timeLabel = txt(U.playerCard, "0:00 / 0:00", 11, U.WHITE, U.GOTHAM_B, UDim2.new(1, -100, 0, 20), UDim2.fromOffset(92, 13), U.RIGHT)
+U.sliderTrack = new("Frame", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.new(1, -28, 0, 8), Position = UDim2.fromOffset(14, 56) }, U.playerCard)
+corner(U.sliderTrack, UDim.new(1, 0))
+new("UIStroke", { Color = rgb(90, 90, 96), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, U.sliderTrack)
+U.sliderFill = new("Frame", { BackgroundColor3 = U.WHITE, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) }, U.sliderTrack)
+corner(U.sliderFill, UDim.new(1, 0))
+new("UIGradient", { Color = ColorSequence.new(U.ACCENT_A, U.ACCENT_B) }, U.sliderFill)
+U.sliderKnob = new("Frame", { BackgroundColor3 = U.WHITE, BorderSizePixel = 0, Size = UDim2.fromOffset(16, 16), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 0, 0.5, 0), ZIndex = 3 }, U.sliderTrack)
+corner(U.sliderKnob, UDim.new(1, 0))
+new("UIStroke", { Color = rgb(30, 30, 34), Thickness = 2 }, U.sliderKnob)
+U.sliderHit = new("TextButton", { Text = "", BackgroundTransparency = 1, Size = UDim2.new(1, 16, 0, 28), Position = UDim2.fromOffset(-8, -10), ZIndex = 4 }, U.sliderTrack)
 
--- ViewportFrame (3D Mode)
-local viewportFrame = new("ViewportFrame", {
-    BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-    Visible = false
-}, thumbFrame)
-corner(viewportFrame, UDim.new(0, 10))
+U.tagsFrame = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 6, Visible = false }, U.rightScroll)
+new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Wraps = true, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5) }, U.tagsFrame)
 
-local vpCamera = new("Camera", {}, viewportFrame)
-viewportFrame.CurrentCamera = vpCamera
-vpCamera.CFrame = CFrame.new(Vector3.new(0, 5, 15), Vector3.new(0, 0, 0))
+U.infoCard = new("Frame", { BackgroundColor3 = U.CARD_BG, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 7 }, U.rightScroll)
+corner(U.infoCard, UDim.new(0, 8))
+new("UIGradient", { Color = U.SHADE, Rotation = 90 }, U.infoCard)
+new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5) }, U.infoCard)
+new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8) }, U.infoCard)
 
-local vpLight = new("PointLight", {
-    Brightness = 2, Range = 30, Color = Color3.new(1, 1, 1)
-}, vpCamera)
+U.descHeader = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 8 }, U.rightScroll)
+new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.DESC, ImageColor3 = U.TEXT_DIM, Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(0, 1) }, U.descHeader)
+txt(U.descHeader, "DESCRIPTION", 9, U.TEXT_DIM, U.GOTHAM_K, UDim2.new(1, -20, 1, 0), UDim2.fromOffset(20, 0), U.LEFT)
+U.detailDesc = txt(U.rightScroll, "", 10, U.TEXT_LIGHT, U.GOTHAM, UDim2.new(1, 0, 0, 0), UDim2.new(), U.LEFT, {
+    AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 9, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top
+})
 
-local toggle3DBtn = new("TextButton", {
-    Text = "3D VIEW", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT,
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Size = UDim2.fromOffset(60, 22),
-    AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -6, 0, 6),
-    Visible = false, ZIndex = 5
-}, thumbFrame)
-corner(toggle3DBtn, UDim.new(0, 4))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, toggle3DBtn)
-local t3dScale = new("UIScale", {Scale = 1}, toggle3DBtn)
-toggle3DBtn.MouseEnter:Connect(function() tween(t3dScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
-toggle3DBtn.MouseLeave:Connect(function() tween(t3dScale, 0.15, {Scale=1}) end)
+U.manualBox = new("TextBox", {
+    BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 28), LayoutOrder = 10, Visible = false,
+    Font = U.GOTHAM_B, TextSize = 11, Text = "", TextColor3 = U.WHITE, ClearTextOnFocus = false, TextEditable = true
+}, U.rightScroll)
+corner(U.manualBox, UDim.new(0, 6))
 
-local zoomBtn = new("ImageButton", {
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Image = ICON.ZOOM, ImageColor3 = TEXT_LIGHT,
-    Size = UDim2.fromOffset(22, 22),
-    AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -70, 0, 6),
-    Visible = false, ZIndex = 5,
-    BackgroundTransparency = 1, ImageTransparency = 1
-}, thumbFrame)
-corner(zoomBtn, UDim.new(0, 4))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, zoomBtn)
+U.statusLabel = txt(body, "Ready.", 9, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -U.PAD * 2, 0, 14), UDim2.new(0, U.PAD, 1, -16), U.LEFT)
+local function setStatus(t) U.statusLabel.Text = t end
 
-local detailTitle = txt(rightScroll, "Select an asset...", 12, WHITE, GOTHAM_B,
-    UDim2.new(1, 0, 0, 0), UDim2.new(), LEFT, {
-        AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2,
-        TextWrapped = true, TextTruncate = Enum.TextTruncate.None
-    })
+U.HELP_TEXT = table.concat({
+    "1. Pick a category in the top row: MODELS, CATALOG, PLUGINS, AUDIO, DECALS or MESHES.",
+    "",
+    "2. Choose a sub-category tile, or type a keyword in the search bar and press Enter.",
+    "",
+    "3. Tap an asset row or its VIEW button to open the details panel. Tap again to close it.",
+    "",
+    "4. COPY ID copies the asset ID. Decals also offer COPY TEXTURE ID. Other assets offer COPY LINK.",
+    "",
+    "5. If your executor has no clipboard function, a text box appears with the value so you can copy it manually.",
+    "",
+    "6. Audio: press PLAY to listen and STOP to end. Drag the slider to jump to any part of the track.",
+    "",
+    "7. Models and Meshes: press 3D VIEW. Drag to rotate, scroll wheel or pinch to zoom, right-drag to pan, use + / - / R for zoom and reset.",
+    "",
+    "8. Press LOAD MORE below the list to fetch more results.",
+    "",
+    "9. Press < BACK or tap the active category to return to the sub-category tiles.",
+    "",
+    "10. Drag the header to move the window. Minimize hides it and X closes it.",
+    "",
+    "If you see a Failed message, check BASE_URL at the top of the script and make sure your Vercel API is deployed."
+}, "\n")
 
-local creatorRow = new("Frame", {
-    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 3
-}, rightScroll)
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.CREATOR, ImageColor3 = TEXT_DIM,
-    Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(0, 2)
-}, creatorRow)
-local detailCreator = txt(creatorRow, "", 10, TEXT_DIM, GOTHAM,
-    UDim2.new(1, -18, 1, 0), UDim2.fromOffset(18, 0), LEFT, {
-        TextTruncate = Enum.TextTruncate.AtEnd
-    })
+U.helpPanel = new("CanvasGroup", {
+    Name = "HowToUse", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, U.HEADER_H / 2),
+    Size = UDim2.new(1, -U.PAD * 2, 1, -U.HEADER_H - 30), BackgroundTransparency = 1, Visible = false, Active = true, ZIndex = 20
+}, body)
+surface(U.helpPanel, 12)
+txt(U.helpPanel, "HOW TO USE", 13, U.WHITE, U.GOTHAM_K, UDim2.new(1, -90, 0, 22), UDim2.fromOffset(14, 10), U.LEFT)
+U.helpClose = plainBtn(U.helpPanel, UDim2.fromOffset(60, 22), UDim2.new(1, -42, 0, 21), U.TONE_OFF, "CLOSE", U.TEXT_LIGHT)
+U.helpScroll = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(14, 42), Size = UDim2.new(1, -28, 1, -54),
+    CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 3,
+    ScrollBarImageColor3 = rgb(150, 150, 158), ScrollingDirection = Enum.ScrollingDirection.Y
+}, U.helpPanel)
+txt(U.helpScroll, U.HELP_TEXT, 11, U.TEXT_LIGHT, U.GOTHAM, UDim2.new(1, -8, 0, 0), UDim2.new(), U.LEFT, {
+    AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, TextYAlignment = Enum.TextYAlignment.Top
+})
 
-local descRow = new("Frame", {
-    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), LayoutOrder = 4,
-    AutomaticSize = Enum.AutomaticSize.Y
-}, rightScroll)
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.DESC, ImageColor3 = TEXT_DIM,
-    Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(0, 2)
-}, descRow)
-local detailDesc = txt(descRow, "", 10, TEXT_DIM, GOTHAM,
-    UDim2.new(1, -18, 0, 0), UDim2.fromOffset(18, 0), LEFT, {
-        TextYAlignment = Enum.TextYAlignment.Top,
-        TextWrapped = true, TextTruncate = Enum.TextTruncate.None,
-        AutomaticSize = Enum.AutomaticSize.Y
-    })
+U.miniBtn = new("TextButton", {
+    Text = "", BackgroundColor3 = U.TONE_OFF, BorderSizePixel = 0, AutoButtonColor = false,
+    Size = UDim2.fromOffset(128, 34), AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -16, 1, -16), Visible = false, ZIndex = 50
+}, U.gui)
+corner(U.miniBtn, UDim.new(0, 8))
+new("UIGradient", { Color = U.SHADE, Rotation = 90 }, U.miniBtn)
+new("UIStroke", { Color = U.WHITE, Thickness = 1, Transparency = 0.4 }, U.miniBtn)
+new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.LOGO, ImageColor3 = U.WHITE, Size = UDim2.fromOffset(20, 20), Position = UDim2.fromOffset(10, 7), ZIndex = 51 }, U.miniBtn)
+txt(U.miniBtn, "ASSET STORE", 10, U.TEXT_LIGHT, U.GOTHAM_B, UDim2.new(1, -40, 1, 0), UDim2.fromOffset(36, 0), U.LEFT, { ZIndex = 51 })
+U.miniScale = new("UIScale", { Scale = 1 }, U.miniBtn)
+bindPress(U.miniBtn, U.miniScale, function() return U.TONE_OFF end)
 
--- STATUS BAR
-local statusLabel = txt(body, "Ready.", 9, TEXT_DIM, GOTHAM,
-    UDim2.new(1, -PAD*2, 0, 14), UDim2.new(0, PAD, 1, -16), LEFT)
+U.detailOpen = false
+U.selectedItem = nil
+U.itemCards = {}
+U.nextToken = nil
+U.isLoading = false
+U.reqId = 0
+U.loadMoreHolder = nil
 
--- DEBUG BOX
-local debugBox = sunken(body, UDim2.new(0.9, 0, 0.5, 0), UDim2.new(0.05, 0, 0.25, 0))
-debugBox.Font = Enum.Font.Code
-debugBox.TextSize = 8
-debugBox.TextColor3 = rgb(0, 255, 0)
-debugBox.TextWrapped = true
-debugBox.Text = "RAW JSON..."
-debugBox.Visible = false
-debugBox.ZIndex = 10
+U.currentSound = nil
+U.sliderDragging = false
+U.sliderAlpha = 0
 
--- ============================================================
--- FLOATING TOGGLE BUTTON (MINIMIZE FIX)
--- ============================================================
-local windowVisible = true
-local toggleSize = 54
-local toggleBtn = raised(gui, UDim2.fromOffset(toggleSize, toggleSize), UDim2.fromOffset(20, 200), TONE_OFF, 4, UDim.new(1, 0))
-toggleBtn.Holder.ZIndex = 100
-toggleBtn.Holder.Visible = false
-
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.MODEL_BOX, ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(28, 28), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
-}, toggleBtn.Face)
-
-local toggleScale = new("UIScale", {Scale = 1}, toggleBtn.Face)
-
-local function setWindowVisible(v)
-    if windowVisible == v then return end
-    windowVisible = v
-    
-    tween(toggleScale, 0.09, {Scale = 0.72})
-    task.delay(0.09, function() if gui.Parent then tween(toggleScale, 0.35, {Scale = 1}, Enum.EasingStyle.Back) end end)
-    
-    if v then
-        toggleBtn.Holder.Visible = false
-        body.Visible = true
-        popIn(bodyScale, body)
-        tween(shadow, 0.35, {BackgroundTransparency = 0.55})
-    else
-        popOut(bodyScale, body)
-        tween(shadow, 0.26, {BackgroundTransparency = 1})
-        task.delay(0.45, function()
-            if not windowVisible then
-                body.Visible = false
-                toggleBtn.Holder.Visible = true
-            end
-        end)
-    end
+local function setSlider(a)
+    a = math.clamp(a or 0, 0, 1)
+    U.sliderAlpha = a
+    U.sliderFill.Size = UDim2.fromScale(a, 1)
+    U.sliderKnob.Position = UDim2.new(a, 0, 0.5, 0)
 end
 
-local draggingToggle = false
-local toggleDragStart = nil
-local toggleStartPos = nil
+local function currentDuration()
+    if U.currentSound and U.currentSound.TimeLength > 0 then return U.currentSound.TimeLength end
+    return (U.selectedItem and U.selectedItem.duration) or 0
+end
 
-toggleBtn.Face.InputBegan:Connect(function(input)
-    if isPress(input) then
-        draggingToggle = true
-        toggleDragStart = input.Position
-        toggleStartPos = toggleBtn.Holder.Position
-    end
+local function stopAudio()
+    if U.currentSound then U.currentSound:Destroy(); U.currentSound = nil end
+    U.playBtn.Label.Text = "PLAY"
+    U.playBtn.SetTone(U.TONE_OFF, U.TEXT_LIGHT)
+    setSlider(0)
+    U.timeLabel.Text = "0:00 / " .. fmtTime((U.selectedItem and U.selectedItem.duration) or 0)
+end
+
+local function startAudio(startAlpha)
+    if not U.selectedItem then return end
+    if U.currentSound then U.currentSound:Destroy(); U.currentSound = nil end
+    local snd = Instance.new("Sound")
+    snd.SoundId = "rbxassetid://" .. tostring(U.selectedItem.id)
+    snd.Volume = 1
+    snd.Parent = SoundService
+    U.currentSound = snd
+    U.playBtn.Label.Text = "STOP"
+    U.playBtn.SetTone(U.TONE_SUCCESS, U.WHITE)
+    task.spawn(function()
+        local waited = 0
+        while snd.Parent and not snd.IsLoaded and waited < 10 do task.wait(0.1); waited += 0.1 end
+        if U.currentSound ~= snd then return end
+        if startAlpha and snd.TimeLength > 0 then snd.TimePosition = startAlpha * snd.TimeLength end
+        snd:Play()
+    end)
+    snd.Ended:Connect(function() if U.currentSound == snd then stopAudio() end end)
+end
+
+U.playBtn.Face.Activated:Connect(function()
+    if U.currentSound then stopAudio() else startAudio(U.sliderAlpha > 0 and U.sliderAlpha or nil) end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if draggingToggle and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - toggleDragStart
-        toggleBtn.Holder.Position = UDim2.new(toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X, toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y)
-    end
-end)
+local function alphaFromInput(inputPos)
+    local w = U.sliderTrack.AbsoluteSize.X
+    if w <= 0 then return 0 end
+    return math.clamp((inputPos.X - U.sliderTrack.AbsolutePosition.X) / w, 0, 1)
+end
 
-UserInputService.InputEnded:Connect(function(input)
-    if isPress(input) and draggingToggle then
-        draggingToggle = false
-        local delta = input.Position - toggleDragStart
-        if delta.Magnitude < 8 then
-            setWindowVisible(true)
+local function previewSlider(a)
+    setSlider(a)
+    local len = currentDuration()
+    U.timeLabel.Text = fmtTime(a * len) .. " / " .. fmtTime(len)
+end
+
+U.sliderHit.InputBegan:Connect(function(i)
+    if isPress(i) then U.sliderDragging = true; previewSlider(alphaFromInput(i.Position)) end
+end)
+keep(UserInputService.InputChanged:Connect(function(i)
+    if U.sliderDragging and isMove(i) then previewSlider(alphaFromInput(i.Position)) end
+end))
+keep(UserInputService.InputEnded:Connect(function(i)
+    if U.sliderDragging and isPress(i) then
+        U.sliderDragging = false
+        local a = alphaFromInput(i.Position)
+        if U.currentSound then
+            if U.currentSound.TimeLength > 0 then U.currentSound.TimePosition = a * U.currentSound.TimeLength end
+        else
+            startAudio(a)
         end
     end
-end)
-
--- ============================================================
--- STATE & LOGIC
--- ============================================================
-local detailOpen = false
-local selectedModel = nil
-local itemCards = {}
-local allModels = {}
-local nextPageToken = nil
-local lastQuery = ""
-local isLoading = false
-local currentSound = nil
-
--- 3D State
-local is3D = false
-local vpModel = nil
-local currentRotX = 0
-local currentRotY = 0
-local lastMousePos = Vector2.new(0,0)
-
-local LEFT_CLOSED  = UDim2.new(1, 0, 1, 0)
-local LEFT_OPEN    = UDim2.new(0.5, -6, 1, 0)
-local RIGHT_HIDDEN = UDim2.new(1.5, 0, 0, 0)
-local RIGHT_SHOWN  = UDim2.new(0.5, 6, 0, 0)
-local SLIDE_DURATION = 0.35
-
--- ANIMASI TRANSISI VIEW
-local function transitionToView(targetView)
-    if currentView == targetView or isTransitioning then return end
-    isTransitioning = true
-
-    if targetView == "list" then
-        tween(subCatContainer, 0.2, {GroupTransparency = 1, Position = UDim2.fromOffset(0, 10)})
-        task.wait(0.2)
-        subCatContainer.Visible = false
-        
-        leftPanel.Visible = true
-        leftPanel.GroupTransparency = 1
-        leftPanel.Position = UDim2.fromOffset(0, 10)
-        tween(leftPanel, 0.25, {GroupTransparency = 0, Position = UDim2.fromOffset(0,0)})
-    else
-        tween(leftPanel, 0.2, {GroupTransparency = 1, Position = UDim2.fromOffset(0, 10)})
-        task.wait(0.2)
-        leftPanel.Visible = false
-        
-        subCatContainer.Visible = true
-        subCatContainer.GroupTransparency = 1
-        subCatContainer.Position = UDim2.fromOffset(0, 10)
-        tween(subCatContainer, 0.25, {GroupTransparency = 0, Position = UDim2.fromOffset(0,0)})
-    end
-    
-    task.wait(0.25)
-    currentView = targetView
-    isTransitioning = false
-end
-
-function stopAudio()
-    if currentSound then
-        currentSound:Destroy()
-        currentSound = nil
-    end
-    playLabel.Text = "PLAY"
-    playBtn.SetTone(TONE_OFF, TEXT_LIGHT) 
-end
-
-function setDetailOpen(open)
-    if detailOpen == open then return end
-    detailOpen = open
-    if open then
-        rightPanel.Visible = true
-        tween(leftPanel, SLIDE_DURATION, { Size = LEFT_OPEN }, Enum.EasingStyle.Quart)
-        tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_SHOWN }, Enum.EasingStyle.Quart)
-    else
-        local tw = tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_HIDDEN }, Enum.EasingStyle.Quart)
-        tween(leftPanel, SLIDE_DURATION, { Size = LEFT_CLOSED }, Enum.EasingStyle.Quart)
-        stopAudio()
-        is3D = false
-        
-        tw.Completed:Connect(function()
-            if not detailOpen then
-                rightPanel.Visible = false
-            end
-        end)
-    end
-end
-
--- ============================================================
--- 3D MESH LOGIC
--- ============================================================
-local function updateViewportTransform()
-    if not vpModel then return end
-    local rot = CFrame.fromEulerAnglesYXZ(math.rad(currentRotX), math.rad(currentRotY), 0)
-    local dist = 15
-    local targetPos = Vector3.new(0, 0, 0)
-    
-    if vpModel:IsA("Model") then
-        local cf, size = vpModel:GetBoundingBox()
-        targetPos = cf.Position
-        dist = math.max(size.X, size.Y, size.Z) * 3.5
-    else
-        local size = vpModel.Size
-        dist = math.max(size.X, size.Y, size.Z) * 3.5
-    end
-
-    local camPos = targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist))
-    vpCamera.CFrame = CFrame.new(camPos, targetPos)
-end
-
-local function loadMeshToViewport(id)
-    for _, child in ipairs(viewportFrame:GetChildren()) do
-        if child:IsA("BasePart") or child:IsA("Model") then
-            child:Destroy()
+end))
+keep(RunService.Heartbeat:Connect(function()
+    rimGrad.Rotation = (os.clock() * 45) % 360
+    if U.currentSound and not U.sliderDragging then
+        local len = currentDuration()
+        if len > 0 then
+            setSlider(U.currentSound.TimePosition / len)
+            U.timeLabel.Text = fmtTime(U.currentSound.TimePosition) .. " / " .. fmtTime(len)
         end
     end
-    
-    vpModel = nil
-    local loaded = false
+end))
 
-    if not loaded then
-        local success = pcall(function()
-            local mesh = AssetService:CreateMeshPartAsync("rbxassetid://"..tostring(id))
-            mesh.Anchored = true
-            mesh.Parent = viewportFrame
-            vpModel = mesh
-            loaded = true
-        end)
+U.is3D = false
+U.vpModel = nil
+U.vpToken = 0
+U.vpCenter = Vector3.new()
+U.vpBaseDist = 10
+U.rotX, U.rotY = 20, -30
+U.zoom, U.panX, U.panY = 1, 0, 0
+U.dragMode, U.lastPos = nil, nil
+U.pinching, U.pinchBase = false, 1
+U.ZOOM_MIN, U.ZOOM_MAX = 0.25, 6
+
+local function updateCamera()
+    local rot = CFrame.fromEulerAnglesYXZ(math.rad(U.rotX), math.rad(U.rotY), 0)
+    U.vpCamera.CFrame = CFrame.new(U.vpCenter) * rot * CFrame.new(U.panX, U.panY, U.vpBaseDist / U.zoom)
+end
+
+local function setZoom(z)
+    U.zoom = math.clamp(z, U.ZOOM_MIN, U.ZOOM_MAX)
+    updateCamera()
+end
+
+local function resetCamera()
+    U.rotX, U.rotY, U.zoom, U.panX, U.panY = 20, -30, 1, 0, 0
+    updateCamera()
+end
+
+local function clearViewport()
+    for _, c in ipairs(U.viewportFrame:GetChildren()) do
+        if c ~= U.vpCamera then c:Destroy() end
     end
+    U.vpModel = nil
+end
 
-    if not loaded then
-        pcall(function()
-            local model = InsertService:LoadAsset(tonumber(id))
-            if model then
-                model.Parent = viewportFrame
-                vpModel = model
-                for _, p in ipairs(model:GetDescendants()) do
-                    if p:IsA("BasePart") then p.Anchored = true end
-                end
-                loaded = true
-            end
-        end)
-    end
-
-    if not loaded then
-        pcall(function()
-            local objs = game:GetObjects("rbxassetid://"..tostring(id))
-            if objs and #objs > 0 then
-                local obj = objs[1]
-                obj.Parent = viewportFrame
-                vpModel = obj
-                if obj:IsA("Model") then
-                    for _, p in ipairs(obj:GetDescendants()) do
-                        if p:IsA("BasePart") then p.Anchored = true end
+local function computeBounds(root)
+    local minV, maxV
+    local function consider(p)
+        local cf, s = p.CFrame, p.Size
+        for x = -1, 1, 2 do
+            for y = -1, 1, 2 do
+                for z = -1, 1, 2 do
+                    local c = cf:PointToWorldSpace(Vector3.new(x * s.X / 2, y * s.Y / 2, z * s.Z / 2))
+                    if not minV then
+                        minV, maxV = c, c
+                    else
+                        minV = Vector3.new(math.min(minV.X, c.X), math.min(minV.Y, c.Y), math.min(minV.Z, c.Z))
+                        maxV = Vector3.new(math.max(maxV.X, c.X), math.max(maxV.Y, c.Y), math.max(maxV.Z, c.Z))
                     end
-                elseif obj:IsA("BasePart") then
-                    obj.Anchored = true
                 end
-                loaded = true
             end
+        end
+    end
+    if root:IsA("BasePart") then consider(root) end
+    for _, d in ipairs(root:GetDescendants()) do
+        if d:IsA("BasePart") then consider(d) end
+    end
+    if not minV then return nil end
+    return (minV + maxV) / 2, maxV - minV
+end
+
+local function fetch3D(id, kind)
+    local uri = "rbxassetid://" .. tostring(id)
+    local obj
+    if kind == "MeshPart" then
+        pcall(function() obj = AssetService:CreateMeshPartAsync(uri) end)
+        if not obj then pcall(function() obj = AssetService:CreateMeshPartAsync(Content.fromUri(uri)) end) end
+    end
+    if not obj then
+        pcall(function()
+            local o = game:GetObjects(uri)
+            obj = o and o[1]
         end)
     end
-
-    if not vpModel then
-        local block = Instance.new("Part")
-        block.Shape = Enum.PartType.Block
-        block.Size = Vector3.new(4, 4, 4)
-        block.Anchored = true
-        block.Material = Enum.Material.SmoothPlastic
-        block.Color = Color3.fromRGB(100, 100, 100)
-        block.Parent = viewportFrame
-        vpModel = block
-        
-        local billboard = Instance.new("BillboardGui")
-        billboard.Size = UDim2.new(0, 150, 0, 50)
-        billboard.StudsOffset = Vector3.new(0, 3, 0)
-        billboard.AlwaysOnTop = true
-        billboard.Parent = block
-        
-        local warningTxt = Instance.new("TextLabel")
-        warningTxt.Size = UDim2.new(1, 0, 1, 0)
-        warningTxt.BackgroundTransparency = 1
-        warningTxt.Text = "Mesh Blocked by Roblox\n(Client Security Limit)"
-        warningTxt.TextColor3 = Color3.fromRGB(255, 100, 100)
-        warningTxt.TextStrokeTransparency = 0
-        warningTxt.TextScaled = true
-        warningTxt.Font = Enum.Font.GothamBold
-        warningTxt.Parent = billboard
-    end
-
-    currentRotX = 20
-    currentRotY = -30
-    updateViewportTransform()
+    if not obj then pcall(function() obj = InsertService:LoadAsset(tonumber(id)) end) end
+    return obj
 end
 
-local draggingThumb = false
-viewportFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingThumb = true
-        lastMousePos = input.Position
-    end
-end)
-viewportFrame.InputChanged:Connect(function(input)
-    if draggingThumb and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - lastMousePos
-        currentRotY = currentRotY + (delta.X * 0.5)
-        currentRotX = currentRotX - (delta.Y * 0.5)
-        updateViewportTransform()
-        lastMousePos = input.Position
-    end
-end)
-viewportFrame.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingThumb = false
-    end
-end)
-
--- ============================================================
--- BUTTON LAYOUT UPDATER
--- ============================================================
-local function updateBtnLayout()
-    local catKey = CATEGORIES[currentCategoryIndex].key
-    local isAudio = (catKey == "Audio")
-    local isMesh = (catKey == "MeshPart")
-
-    toggle3DBtn.Visible = isMesh
-    
-    if not isMesh and is3D then
-        is3D = false
-        thumbImg.Visible = true
-        viewportFrame.Visible = false
-        toggle3DBtn.Text = "3D VIEW"
-        zoomBtn.Visible = false
-        zoomBtn.ImageTransparency = 1
-        zoomBtn.BackgroundTransparency = 1
-    end
-    
-    if isAudio then
-        tween(copyIdBtn.Holder, 0.3, { Size = UDim2.new(0.5, -3, 1, 0), Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quart)
-        tween(playBtn.Holder, 0.3, { Size = UDim2.new(0.5, -3, 1, 0), Position = UDim2.new(0.5, 3, 0, 0) }, Enum.EasingStyle.Quart)
-        
-        playBtn.Holder.Visible = true
-        playBtn.Face.BackgroundTransparency = 1
-        tween(playBtn.Face, 0.2, { BackgroundTransparency = 0 })
-        tween(playBtn.Label, 0.2, { TextTransparency = 0 })
-    else
-        tween(copyIdBtn.Holder, 0.3, { Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quart)
-        
-        tween(playBtn.Face, 0.2, { BackgroundTransparency = 1 })
-        tween(playBtn.Label, 0.2, { TextTransparency = 1 })
-        task.delay(0.2, function() if not (CATEGORIES[currentCategoryIndex].key == "Audio") then playBtn.Holder.Visible = false end end)
-    end
-end
-
--- ============================================================
--- LOAD MORE STATE MACHINE
--- ============================================================
-local loadMoreState = { visible = false, shrunk = false, lastY = 0 }
-local LOAD_MORE_FADE = 0.28
-
-local function setScrollShrunk(shrunk)
-    if loadMoreState.shrunk == shrunk then return end
-    loadMoreState.shrunk = shrunk
-    local targetSize = UDim2.new(1, -INNER*2, 0, shrunk and SHRUNK_SCROLL_H or FULL_SCROLL_H)
-    tween(scrollList, LOAD_MORE_FADE, { Size = targetSize }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-end
-
-local function setLoadMoreVisible(visible)
-    if loadMoreState.visible == visible then return end
-    loadMoreState.visible = visible
-    if visible then
-        loadMoreBtn.Holder.Visible = true
-        tween(loadMoreBtn.Face, LOAD_MORE_FADE, { BackgroundTransparency = 0 })
-        tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 0 })
-        tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 0 })
-        tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 0 })
-        loadMoreBtn.Scale.Scale = 0.8
-        tween(loadMoreBtn.Scale, 0.3, {Scale = 1}, Enum.EasingStyle.Back)
-    else
-        tween(loadMoreBtn.Face, LOAD_MORE_FADE, { BackgroundTransparency = 1 })
-        tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 1 })
-        tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 1 })
-        tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 1 })
-        tween(loadMoreBtn.Scale, 0.2, {Scale = 0.8})
-        task.delay(LOAD_MORE_FADE + 0.02, function()
-            if not loadMoreState.visible then loadMoreBtn.Holder.Visible = false end
-        end)
-    end
-end
-
-local scrollDebounce = false
-scrollList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-    if scrollDebounce then return end
-    scrollDebounce = true
-    task.defer(function()
-        scrollDebounce = false
-        
-        if isLoading or not nextPageToken then
-            if loadMoreState.visible then setLoadMoreVisible(false) end
-            if loadMoreState.shrunk then setScrollShrunk(false) end
+local function load3D(item)
+    U.vpToken += 1
+    local my = U.vpToken
+    clearViewport()
+    U.vpStatus.Text = "Loading 3D preview..."
+    U.vpStatus.Visible = true
+    task.spawn(function()
+        local obj = fetch3D(item.id, item.kind)
+        if my ~= U.vpToken or not U.is3D then
+            if obj then pcall(function() obj:Destroy() end) end
             return
         end
-
-        local y = scrollList.CanvasPosition.Y
-        local cH = scrollList.AbsoluteCanvasSize.Y
-        local wH = scrollList.AbsoluteWindowSize.Y
-        
-        local isAtBottom = (y + wH) >= (cH - 15)
-        
-        if isAtBottom and not loadMoreState.shrunk then
-            loadMoreState.lastY = y
-            setScrollShrunk(true)
-            setLoadMoreVisible(true)
-        elseif not isAtBottom and loadMoreState.shrunk then
-            if y < loadMoreState.lastY - 20 then
-                setScrollShrunk(false)
-                setLoadMoreVisible(false)
+        if not obj then
+            U.vpStatus.Text = "3D preview unavailable for this asset"
+            return
+        end
+        for _, d in ipairs(obj:GetDescendants()) do
+            if d:IsA("LuaSourceContainer") then
+                pcall(function() d:Destroy() end)
+            elseif d:IsA("BasePart") then
+                pcall(function() d.Anchored = true end)
             end
         end
+        if obj:IsA("BasePart") then pcall(function() obj.Anchored = true end) end
+        obj.Parent = U.viewportFrame
+        local center, size = computeBounds(obj)
+        if not center then
+            obj:Destroy()
+            U.vpStatus.Text = "3D preview unavailable for this asset"
+            return
+        end
+        U.vpModel = obj
+        U.vpCenter = center
+        local radius = math.max(size.Magnitude / 2, 0.5)
+        U.vpBaseDist = radius / math.sin(math.rad(U.vpCamera.FieldOfView / 2))
+        U.vpStatus.Visible = false
+        resetCamera()
     end)
+end
+
+local function set3D(on)
+    U.is3D = on
+    U.thumbImg.Visible = not on
+    U.viewportFrame.Visible = on
+    U.vpHint.Visible = on
+    for _, b in ipairs({ U.zoomInBtn, U.zoomOutBtn, U.resetBtn }) do b.Visible = on end
+    U.toggle3DBtn.Text = on and "IMAGE" or "3D VIEW"
+    if on then
+        if U.selectedItem then load3D(U.selectedItem) end
+    else
+        U.vpToken += 1
+        U.vpStatus.Visible = false
+        clearViewport()
+    end
+end
+
+U.toggle3DBtn.Activated:Connect(function() set3D(not U.is3D) end)
+U.zoomInBtn.Activated:Connect(function() setZoom(U.zoom * 1.25) end)
+U.zoomOutBtn.Activated:Connect(function() setZoom(U.zoom / 1.25) end)
+U.resetBtn.Activated:Connect(resetCamera)
+
+local function insideViewport(pos)
+    local p, s = U.viewportFrame.AbsolutePosition, U.viewportFrame.AbsoluteSize
+    return pos.X >= p.X and pos.X <= p.X + s.X and pos.Y >= p.Y and pos.Y <= p.Y + s.Y
+end
+
+U.viewportFrame.MouseEnter:Connect(function() U.rightScroll.ScrollingEnabled = false end)
+U.viewportFrame.MouseLeave:Connect(function() if not U.dragMode then U.rightScroll.ScrollingEnabled = true end end)
+
+U.viewportFrame.InputBegan:Connect(function(i)
+    if isPress(i) then
+        U.dragMode = "rotate"; U.lastPos = i.Position
+        U.rightScroll.ScrollingEnabled = false
+    elseif i.UserInputType == Enum.UserInputType.MouseButton2 or i.UserInputType == Enum.UserInputType.MouseButton3 then
+        U.dragMode = "pan"; U.lastPos = i.Position
+    end
 end)
 
--- ============================================================
--- DETAIL PANEL & LIST
--- ============================================================
-local function updateDetailPanel(model)
-    if not model then return end
-    stopAudio()
-    selectedModel = model
-    
-    local fadeOutTween = tween(detailTitle, 0.15, { TextTransparency = 1 })
-    tween(detailCreator, 0.15, { TextTransparency = 1 })
-    tween(detailDesc, 0.15, { TextTransparency = 1 })
-    fadeOutTween.Completed:Connect(function()
-        detailTitle.Text = model.name
-        detailCreator.Text = "By " .. model.creator .. "  •  ID " .. model.id
-        detailDesc.Text = model.description
-        tween(detailTitle, 0.15, { TextTransparency = 0 })
-        tween(detailCreator, 0.15, { TextTransparency = 0 })
-        tween(detailDesc, 0.15, { TextTransparency = 0 })
-    end)
-    
-    local imgFade = tween(thumbImg, 0.15, { ImageTransparency = 1 })
-    imgFade.Completed:Connect(function()
-        safeSetImage(thumbImg, model.thumbnail)
-        tween(thumbImg, 0.2, { ImageTransparency = 0 })
-    end)
-
-    if is3D then
-        loadMeshToViewport(model.id)
+U.viewportFrame.InputChanged:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseWheel then
+        setZoom(U.zoom * ((i.Position.Z > 0) and 1.12 or (1 / 1.12)))
     end
+end)
 
-    updateBtnLayout()
+keep(UserInputService.InputChanged:Connect(function(i)
+    if not U.dragMode or not U.is3D or not isMove(i) then return end
+    if U.pinching then U.lastPos = i.Position; return end
+    local d = i.Position - U.lastPos
+    U.lastPos = i.Position
+    if U.dragMode == "rotate" then
+        U.rotY += d.X * 0.5
+        U.rotX = math.clamp(U.rotX - d.Y * 0.5, -89, 89)
+    else
+        local dist = U.vpBaseDist / U.zoom
+        local f = (2 * dist * math.tan(math.rad(U.vpCamera.FieldOfView / 2))) / math.max(U.viewportFrame.AbsoluteSize.Y, 1)
+        local lim = U.vpBaseDist * 2
+        U.panX = math.clamp(U.panX - d.X * f, -lim, lim)
+        U.panY = math.clamp(U.panY + d.Y * f, -lim, lim)
+    end
+    updateCamera()
+end))
 
-    for id, card in pairs(itemCards) do
-        if id == model.id then
-            tween(card.Frame, 0.15, { BackgroundColor3 = rgb(58, 58, 66) })
-        else
-            tween(card.Frame, 0.15, { BackgroundColor3 = rgb(40, 40, 44) })
+keep(UserInputService.InputEnded:Connect(function(i)
+    if isPress(i) or i.UserInputType == Enum.UserInputType.MouseButton2 or i.UserInputType == Enum.UserInputType.MouseButton3 then
+        U.dragMode = nil
+        U.rightScroll.ScrollingEnabled = true
+    end
+end))
+
+keep(UserInputService.TouchPinch:Connect(function(positions, scale, _, state)
+    if not U.is3D then return end
+    if state == Enum.UserInputState.Begin then
+        if positions[1] and insideViewport(positions[1]) then U.pinching = true; U.pinchBase = U.zoom end
+    elseif state == Enum.UserInputState.Change then
+        if U.pinching then setZoom(U.pinchBase * scale) end
+    else
+        U.pinching = false
+    end
+end))
+
+U.invCache = {}
+U.voteToken = 0
+U.iconFallback = { [ICON.LIKE] = "rbxassetid://6770986463" }
+
+local function applyWhiteIcon(label, id, token)
+    label.ImageColor3 = U.WHITE
+    label.Image = id
+    local cached = U.invCache[id]
+    if cached == nil then
+        local ok, editable = pcall(function()
+            local e = AssetService:CreateEditableImageAsync(Content.fromUri(id))
+            local size = e.Size
+            local buf = e:ReadPixelsBuffer(Vector2.new(0, 0), size)
+            for i = 0, buffer.len(buf) - 4, 4 do
+                buffer.writeu8(buf, i, 255 - buffer.readu8(buf, i))
+                buffer.writeu8(buf, i + 1, 255 - buffer.readu8(buf, i + 1))
+                buffer.writeu8(buf, i + 2, 255 - buffer.readu8(buf, i + 2))
+            end
+            e:WritePixelsBuffer(Vector2.new(0, 0), size, buf)
+            return e
+        end)
+        cached = (ok and editable) or false
+        U.invCache[id] = cached
+    end
+    if U.voteToken ~= token then return end
+    if cached then
+        local okSet = pcall(function() label.ImageContent = Content.fromObject(cached) end)
+        if not okSet then label.Image = U.iconFallback[id] or id end
+    else
+        label.Image = U.iconFallback[id] or id
+    end
+end
+
+local function setVoteIcons(l, r)
+    U.voteToken = U.voteToken + 1
+    local token = U.voteToken
+    for _, pair in ipairs({ { U.leftIcon, l }, { U.rightIcon, r } }) do
+        local label, id = pair[1], pair[2]
+        label.ImageColor3 = U.WHITE
+        label.Image = id
+        if id == ICON.LIKE or id == ICON.DISLIKE then
+            task.spawn(applyWhiteIcon, label, id, token)
         end
     end
 end
 
-local function toggleDetail(model)
-    if detailOpen and selectedModel and selectedModel.id == model.id then
-        selectedModel = nil
-        for _, card in pairs(itemCards) do
-            tween(card.Frame, 0.15, { BackgroundColor3 = rgb(40, 40, 44) })
-        end
-        setDetailOpen(false)
+local function applyVotes(item)
+    if item.votes then
+        local v = item.votes
+        local total = v.up + v.down
+        setVoteIcons(ICON.LIKE, ICON.DISLIKE)
+        U.likeLabel.Text = fmtNum(v.up)
+        U.dislikeLabel.Text = fmtNum(v.down)
+        U.likeLabel.TextColor3 = U.COL_LIKE
+        U.dislikeLabel.TextColor3 = U.COL_DISLIKE
+        U.voteTrack.Visible = true; U.liveDot.Visible = true; U.liveLabel.Visible = true
+        tween(U.voteFill, 0.5, { Size = UDim2.fromScale(total > 0 and (v.up / total) or 0, 1) })
+        U.percentLabel.Text = (total > 0 and (math.floor(v.up / total * 100 + 0.5) .. "% positive")) or "No votes"
     else
-        updateDetailPanel(model)
+        setVoteIcons(ICON.FAVORITE, ICON.ROBUX)
+        U.likeLabel.Text = fmtNum(item.favorites or 0)
+        U.likeLabel.TextColor3 = U.COL_GOLD
+        local p = item.price
+        if type(p) == "number" then
+            U.dislikeLabel.Text = p == 0 and "FREE" or fmtNum(p)
+        else
+            U.dislikeLabel.Text = "N/A"
+        end
+        U.dislikeLabel.TextColor3 = U.COL_ROBUX
+        U.voteTrack.Visible = false; U.liveDot.Visible = false; U.liveLabel.Visible = false
+        U.percentLabel.Text = item.priceStatus or ""
+    end
+end
+
+local function updateButtons(item)
+    U.btnALabel.Text = (item.kind == "Decal") and "COPY DECAL ID" or "COPY ID"
+    U.btnA.SetTone(U.TONE_ON, U.TEXT_DARK)
+    if item.kind == "Decal" then
+        U.btnBLabel.Text = item.textureId and "COPY TEXTURE ID" or "NO TEXTURE ID"
+    else
+        U.btnBLabel.Text = "COPY LINK"
+    end
+    U.btnB.SetTone(U.TONE_OFF, U.TEXT_LIGHT)
+end
+
+U.rowOrder = 0
+local function clearInfo()
+    U.rowOrder = 0
+    for _, c in ipairs(U.infoCard:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+    for _, c in ipairs(U.tagsFrame:GetChildren()) do
+        if c:IsA("TextLabel") then c:Destroy() end
+    end
+end
+
+local function addRow(k, v)
+    if v == nil or v == "" then return end
+    U.rowOrder += 1
+    local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = U.rowOrder }, U.infoCard)
+    new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }, row)
+    txt(row, k, 10, U.TEXT_DIM, U.GOTHAM_B, UDim2.new(0.36, 0, 0, 0), UDim2.new(), U.LEFT, {
+        AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, LayoutOrder = 1, TextYAlignment = Enum.TextYAlignment.Top
+    })
+    txt(row, tostring(v), 10, U.TEXT_LIGHT, U.GOTHAM, UDim2.new(0.64, -6, 0, 0), UDim2.new(), U.LEFT, {
+        AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, LayoutOrder = 2, TextYAlignment = Enum.TextYAlignment.Top
+    })
+end
+
+U.tagOrder = 0
+local function addTag(text, color)
+    if text == nil or tostring(text) == "" then return end
+    U.tagOrder += 1
+    local t = new("TextLabel", {
+        BackgroundColor3 = rgb(54, 54, 62), BorderSizePixel = 0, Text = tostring(text), TextColor3 = color or U.TEXT_LIGHT,
+        Font = U.GOTHAM_B, TextSize = 9, AutomaticSize = Enum.AutomaticSize.XY, Size = UDim2.fromOffset(0, 20), LayoutOrder = U.tagOrder
+    }, U.tagsFrame)
+    corner(t, UDim.new(0, 10))
+    new("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9) }, t)
+end
+
+local function instanceSummary(t)
+    if type(t) ~= "table" then return nil end
+    local parts = {}
+    for k, v in pairs(t) do
+        if type(v) == "number" then
+            table.insert(parts, tostring(k) .. ": " .. fmtNum(v))
+        elseif type(v) == "table" then
+            local name = v.className or v.name or v.type or tostring(k)
+            local cnt = v.count or v.total
+            if type(cnt) == "number" then table.insert(parts, tostring(name) .. ": " .. fmtNum(cnt)) end
+        end
+    end
+    table.sort(parts)
+    if #parts == 0 then return nil end
+    return table.concat(parts, ", ")
+end
+
+local function yesNo(b) return b and "Yes" or "No" end
+
+local function itemLink(item)
+    if item.source == "catalog" then
+        if item.kind == "Bundle" then return "https://www.roblox.com/bundles/" .. item.id end
+        return "https://www.roblox.com/catalog/" .. item.id
+    end
+    return "https://create.roblox.com/store/asset/" .. item.id
+end
+
+local function fillDetail(item)
+    U.detailTitle.Text = item.name or "Unknown"
+    local c = item.creator or {}
+    U.creatorDisplay.Text = c.displayName or c.name or "?"
+    U.creatorUser.Text = "@" .. tostring(c.name or "?") .. (c.verified and "  •  Verified" or "") .. ((c.type == "Group") and "  •  Group" or "")
+    safeSetImage(U.creatorAvatar, (c.thumb and c.thumb ~= "") and c.thumb or ICON.CREATOR)
+
+    clearInfo()
+    U.tagOrder = 0
+    local isCatalog = item.source == "catalog"
+    addRow("Type", tostring(item.kind) .. ((item.itemType and item.itemType ~= item.kind) and (" / " .. item.itemType) or ""))
+    addRow("ID", item.id)
+    if item.textureId then addRow("Texture ID", item.textureId) end
+    if isCatalog then
+        if type(item.price) == "number" then addRow("Price", item.price == 0 and "Free" or ("R$ " .. fmtNum(item.price))) end
+        addRow("Price status", item.priceStatus)
+        if type(item.lowestPrice) == "number" then addRow("Lowest price", "R$ " .. fmtNum(item.lowestPrice)) end
+        if type(item.lowestResalePrice) == "number" then addRow("Lowest resale", "R$ " .. fmtNum(item.lowestResalePrice)) end
+        addRow("Favorites", fmtNum(item.favorites or 0))
+        if item.unitsAvailable and item.unitsAvailable > 0 then addRow("Units available", fmtNum(item.unitsAvailable)) end
+        if item.totalQuantity and item.totalQuantity > 0 then addRow("Total quantity", fmtNum(item.totalQuantity)) end
+        addRow("Collectible", yesNo(item.collectible))
+        addRow("Has resellers", yesNo(item.hasResellers))
+        addRow("Recolorable", yesNo(item.recolorable))
+        addRow("Sale location", item.saleLocation)
+        addRow("Off-sale deadline", fmtDate(item.offSaleDeadline))
+        if item.bundleType ~= nil then addRow("Bundle type", item.bundleType) end
+        if item.assetType ~= nil then addRow("Asset type", item.assetType) end
+        addRow("Product ID", item.productId)
+        if item.bundledCount and item.bundledCount > 0 then addRow("Bundle items", item.bundledCount) end
+        for _, t in ipairs(item.taxonomy or {}) do addTag(t) end
+        for _, t in ipairs(item.restrictions or {}) do addTag(t, U.COL_GOLD) end
+        for _, t in ipairs(item.status or {}) do addTag(t, U.ACCENT_A) end
+    else
+        if type(item.priceUsd) == "number" then
+            addRow("Price", (item.isFree or item.priceUsd == 0) and "Free" or ("$" .. tostring(item.priceUsd) .. " USD"))
+        end
+        if item.votes then
+            addRow("Total votes", fmtNum(item.votes.count or (item.votes.up + item.votes.down)))
+            addRow("Approval", tostring(item.votes.percent or 0) .. "%")
+        end
+        if item.audio then
+            addRow("Audio type", item.audio.type)
+            addRow("Title", item.audio.title)
+            addRow("Artist", item.audio.artist)
+            addRow("Album", item.audio.album)
+            addRow("Genre", item.audio.genre)
+            local n = 0
+            for _, t in ipairs(item.audio.tags or {}) do
+                n += 1
+                if n <= 12 then addTag(t, U.ACCENT_B) end
+            end
+        end
+        if item.duration and item.duration > 0 then addRow("Duration", fmtTime(item.duration)) end
+        if item.stats then
+            if item.stats.triangles then addRow("Triangles", fmtNum(item.stats.triangles)) end
+            if item.stats.vertices then addRow("Vertices", fmtNum(item.stats.vertices)) end
+        end
+        if item.hasScripts ~= nil then
+            local sc = (item.scriptCount and item.scriptCount > 0) and (" (" .. fmtNum(item.scriptCount) .. ")") or ""
+            addRow("Scripts", yesNo(item.hasScripts) .. sc)
+        end
+        addRow("Instances", instanceSummary(item.instances))
+        if item.sandboxed ~= nil then addRow("Sandboxed", yesNo(item.sandboxed)) end
+        if item.endorsed ~= nil then addRow("Endorsed", yesNo(item.endorsed)) end
+        addRow("Category", item.categoryPath)
+        if item.previewCount and item.previewCount > 0 then addRow("Preview images", item.previewCount) end
+        for _, t in ipairs(item.genres or {}) do addTag(t, U.ACCENT_A) end
+        for _, t in ipairs(item.subTypes or {}) do addTag(t, U.ACCENT_B) end
+    end
+    addRow("Creator ID", c.id and c.id ~= 0 and tostring(c.id) or nil)
+    addRow("Created", fmtDate(item.createdUtc))
+    addRow("Updated", fmtDate(item.updatedUtc))
+    if isCatalog and item.bundledItems then
+        for n, b in ipairs(item.bundledItems) do
+            if n > 15 then break end
+            addRow("Item " .. n, tostring(b.name or b.id) .. ((b.type and b.type ~= "") and (" (" .. b.type .. ")") or ""))
+        end
+    end
+
+    U.tagsFrame.Visible = U.tagOrder > 0
+    U.detailDesc.Text = (item.description and item.description ~= "") and item.description or "No description available."
+    applyVotes(item)
+    U.manualBox.Visible = false
+end
+
+local function can3D(item) return item.kind == "MeshPart" or item.kind == "Model" end
+
+local function updateDetailPanel(item)
+    stopAudio()
+    U.selectedItem = item
+    local isAudio = item.kind == "Audio"
+    U.playerCard.Visible = isAudio
+    U.toggle3DBtn.Visible = can3D(item)
+    if not can3D(item) and U.is3D then set3D(false) end
+    if isAudio then setSlider(0); U.timeLabel.Text = "0:00 / " .. fmtTime(item.duration) end
+
+    fillDetail(item)
+    updateButtons(item)
+    safeSetImage(U.thumbImg, item.thumb)
+    if U.is3D and can3D(item) then load3D(item) end
+    U.rightScroll.CanvasPosition = Vector2.new(0, 0)
+
+    for id, card in pairs(U.itemCards) do
+        tween(card.Frame, 0.15, { BackgroundColor3 = (id == item.id) and rgb(58, 58, 66) or U.CARD_BG })
+    end
+end
+
+local function setDetailOpen(open)
+    if U.detailOpen == open then return end
+    U.detailOpen = open
+    if open then
+        U.rightPanel.Visible = true
+        tween(U.leftPanel, U.SLIDE, { Size = U.LEFT_OPEN }, Enum.EasingStyle.Quart)
+        tween(U.rightPanel, U.SLIDE, { Position = U.RIGHT_SHOWN }, Enum.EasingStyle.Quart)
+    else
+        stopAudio()
+        if U.is3D then set3D(false) end
+        local tw = tween(U.rightPanel, U.SLIDE, { Position = U.RIGHT_HIDDEN }, Enum.EasingStyle.Quart)
+        tween(U.leftPanel, U.SLIDE, { Size = U.LEFT_CLOSED }, Enum.EasingStyle.Quart)
+        tw.Completed:Connect(function() if not U.detailOpen then U.rightPanel.Visible = false end end)
+    end
+end
+
+local function closeDetail()
+    U.selectedItem = nil
+    for _, card in pairs(U.itemCards) do tween(card.Frame, 0.15, { BackgroundColor3 = U.CARD_BG }) end
+    setDetailOpen(false)
+end
+
+local function toggleDetail(item)
+    if U.detailOpen and U.selectedItem and U.selectedItem.id == item.id then
+        closeDetail()
+    else
+        updateDetailPanel(item)
         setDetailOpen(true)
     end
 end
 
-local function createListItem(model, index)
-    local item = new("Frame", {
-        BackgroundColor3 = rgb(40, 40, 44), BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 60),
-        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1,
-        ClipsDescendants = true
-    }, scrollList)
-    corner(item, UDim.new(0, 8))
-    new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
+U.detailCloseBtn.Activated:Connect(closeDetail)
 
-    local hit = new("TextButton", {
-        AutoButtonColor = false, Text = "", BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1), ZIndex = 1
-    }, item)
+task.spawn(function()
+    while U.gui.Parent do
+        task.wait(5)
+        local item = U.selectedItem
+        if item and U.detailOpen and item.source ~= "catalog" and not U.isLoading then
+            local data = apiGet({ action = "details", ids = item.id })
+            if data and data.items and data.items[1] and U.selectedItem == item then
+                local fresh = data.items[1]
+                if fresh.votes then item.votes = fresh.votes; applyVotes(item) end
+                if fresh.duration and fresh.duration > 0 then item.duration = fresh.duration end
+                if fresh.textureId then item.textureId = fresh.textureId end
+            end
+        end
+    end
+end)
 
-    local icon = new("ImageLabel", {
-        BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0,
-        Size = UDim2.fromOffset(44, 44),
-        Position = UDim2.fromOffset(8, 8), ZIndex = 2
-    }, item)
+local function clearList()
+    for _, c in ipairs(U.scrollList:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+    U.itemCards = {}
+    U.loadMoreHolder = nil
+    U.scrollList.CanvasPosition = Vector2.new(0, 0)
+end
+
+local function removeLoadMore()
+    if U.loadMoreHolder then U.loadMoreHolder:Destroy(); U.loadMoreHolder = nil end
+end
+
+local loadItems
+
+local function showLoadMore()
+    removeLoadMore()
+    if not U.nextToken then return end
+    U.loadMoreHolder = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 44), LayoutOrder = 1000000 }, U.scrollList)
+    local b = raised(U.loadMoreHolder, UDim2.new(1, 0, 0, 38), UDim2.new(), U.TONE_OFF, 3)
+    b.Label.Text = "LOAD MORE"
+    b.Face.Activated:Connect(function()
+        if U.isLoading then return end
+        b.Label.Text = "LOADING..."
+        loadItems(currentQuery, true)
+    end)
+end
+
+local function createListItem(item, index)
+    local row = new("Frame", {
+        BackgroundColor3 = U.CARD_BG, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 60),
+        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1, ClipsDescendants = true, LayoutOrder = index
+    }, U.scrollList)
+    corner(row, UDim.new(0, 8))
+    new("UIGradient", { Color = U.SHADE, Rotation = 90 }, row)
+    local hit = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 1 }, row)
+    local icon = new("ImageLabel", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(8, 8), ZIndex = 2 }, row)
     corner(icon, UDim.new(0, 8))
-    safeSetImage(icon, model.thumbnail)
+    safeSetImage(icon, item.thumb)
 
-    txt(item, model.name, 11, WHITE, GOTHAM_B,
-        UDim2.new(1, -96, 0, 14), UDim2.fromOffset(60, 9), LEFT, {
-            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
-        })
-    txt(item, "By " .. model.creator, 9, TEXT_DIM, GOTHAM,
-        UDim2.new(1, -96, 0, 12), UDim2.fromOffset(60, 27), LEFT, {
-            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
-        })
-    txt(item, "ID: " .. model.id, 8, rgb(200, 200, 206), GOTHAM,
-        UDim2.new(1, -96, 0, 10), UDim2.fromOffset(60, 44), LEFT, {
-            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
-        })
+    txt(row, item.name, 11, U.WHITE, U.GOTHAM_B, UDim2.new(1, -140, 0, 14), UDim2.fromOffset(60, 8), U.LEFT, { ZIndex = 2 })
+    local c = item.creator or {}
+    txt(row, "By " .. tostring(c.displayName or c.name or "?") .. "  (@" .. tostring(c.name or "?") .. ")", 9, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -140, 0, 12), UDim2.fromOffset(60, 25), U.LEFT, { ZIndex = 2 })
+    local sub = "ID: " .. item.id
+    if item.duration and item.duration > 0 then sub = sub .. "  •  " .. fmtTime(item.duration) end
+    if item.votes and (item.votes.up + item.votes.down) > 0 then sub = sub .. "  •  " .. item.votes.percent .. "%" end
+    if item.source == "catalog" and type(item.price) == "number" then
+        sub = sub .. "  •  " .. (item.price == 0 and "Free" or ("R$ " .. fmtNum(item.price)))
+    elseif type(item.priceUsd) == "number" and item.priceUsd > 0 then
+        sub = sub .. "  •  $" .. tostring(item.priceUsd)
+    end
+    txt(row, sub, 8, rgb(200, 200, 206), U.GOTHAM, UDim2.new(1, -140, 0, 10), UDim2.fromOffset(60, 42), U.LEFT, { ZIndex = 2 })
 
-    local viewBtn = raised(item, UDim2.fromOffset(60, 30), UDim2.new(1, -12, 0.5, 0), TONE_ON, 2)
+    local viewBtn = raised(row, UDim2.fromOffset(56, 28), UDim2.new(1, -10, 0.5, 0), U.TONE_ON, 2)
     viewBtn.Holder.AnchorPoint = Vector2.new(1, 0.5)
-    viewBtn.Label.Text = "VIEW"
-    viewBtn.Label.TextColor3 = TEXT_DARK
-    viewBtn.Label.TextSize = 10
+    viewBtn.Label.Text = "VIEW"; viewBtn.Label.TextColor3 = U.TEXT_DARK; viewBtn.Label.TextSize = 10
     viewBtn.Face.ZIndex = 3
+    viewBtn.Label.ZIndex = 4
+    viewBtn.Face.Activated:Connect(function() toggleDetail(item) end)
 
-    viewBtn.Face.Activated:Connect(function() toggleDetail(model) end)
-
-    item.MouseEnter:Connect(function()
-        if not (selectedModel and selectedModel.id == model.id) then
-            tween(item, 0.2, { BackgroundColor3 = TONE_HOVER })
-        end
+    row.MouseEnter:Connect(function()
+        if not (U.selectedItem and U.selectedItem.id == item.id) then tween(row, 0.2, { BackgroundColor3 = U.TONE_HOVER }) end
     end)
-    item.MouseLeave:Connect(function()
-        if not (selectedModel and selectedModel.id == model.id) then
-            tween(item, 0.2, { BackgroundColor3 = rgb(40, 40, 44) })
-        end
+    row.MouseLeave:Connect(function()
+        if not (U.selectedItem and U.selectedItem.id == item.id) then tween(row, 0.2, { BackgroundColor3 = U.CARD_BG }) end
     end)
+    hit.Activated:Connect(function() toggleDetail(item) end)
+    U.itemCards[item.id] = { Frame = row, Item = item }
 
-    hit.Activated:Connect(function() toggleDetail(model) end)
-    itemCards[model.id] = { Frame = item, Model = model }
-    
     task.delay((index % 10) * 0.04, function()
-        if item.Parent then
-            tween(item, 0.35, { Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        end
+        if row.Parent then tween(row, 0.35, { Position = UDim2.new(), BackgroundTransparency = 0 }) end
     end)
 end
 
-local function displayModels(models, append)
+U.shownCount = 0
+local function displayItems(items, append)
+    removeLoadMore()
     if not append then
-        for _, c in ipairs(scrollList:GetChildren()) do
-            if c:IsA("Frame") then c:Destroy() end
-        end
-        allModels = {}
-        itemCards = {}
-        selectedModel = nil
-        if detailOpen then setDetailOpen(false) end
-        
-        setLoadMoreVisible(false)
-        setScrollShrunk(false)
-        loadMoreState.shrunk = false
-        loadMoreState.visible = false
-        
-        scrollList.CanvasPosition = Vector2.new(0, 0)
-        scrollList.Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H)
+        clearList()
+        U.shownCount = 0
+        U.selectedItem = nil
+        if U.detailOpen then setDetailOpen(false) end
     end
-    for _, model in ipairs(models) do
-        table.insert(allModels, model)
-        createListItem(model, #allModels)
+    for _, item in ipairs(items) do
+        U.shownCount += 1
+        createListItem(item, U.shownCount)
     end
+    showLoadMore()
 end
 
-local function setStatus(text) statusLabel.Text = text end
-
-function loadModels(query, append)
-    if isLoading then return end
-    isLoading = true
+function loadItems(query, append)
+    if append and U.isLoading then return end
+    U.reqId += 1
+    local my = U.reqId
+    U.isLoading = true
     local cat = CATEGORIES[currentCategoryIndex]
     setStatus(("Loading %s..."):format(cat.label:lower()))
-    loadMoreBtn.Label.Text = append and "LOADING..." or "LOAD MORE"
+    if not append then
+        clearList(); removeLoadMore()
+    end
 
     task.spawn(function()
-        local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
-        local bodyReq = {
-            searchCategoryType = cat.key,
-            query = query or "",
-            maxPageSize = 30
-        }
-        if append and nextPageToken then bodyReq.pageToken = nextPageToken end
+        local params
+        if cat.source == "catalog" then
+            params = { action = "catalog", keyword = query or "", salesTypeFilter = 1, limit = 120 }
+            local tax = CATALOG_TAXONOMY[currentSubCategory or "All"]
+            if tax then params.taxonomy = tax end
+        else
+            params = { action = "search", searchCategoryType = cat.type, query = query or "", maxPageSize = 30, searchView = "Core" }
+        end
+        if append and U.nextToken then params.pageToken = U.nextToken end
 
-        local data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
+        local data, err = apiGet(params)
+        if my ~= U.reqId then return end
+        U.isLoading = false
         if err then
-            isLoading = false
             setStatus("Failed: " .. tostring(err))
-            loadMoreBtn.Label.Text = "LOAD MORE"
+            showNotice("Failed to load: " .. tostring(err))
+            if append then showLoadMore() end
             return
         end
-
-        debugBox.Text = raw or "Empty"
-        local results, newToken = parseModelsFromResponse(data, cat.key)
-        nextPageToken = newToken
-        lastQuery = query
-        displayModels(results, append)
-        isLoading = false
-        setStatus(("Found %d %s"):format(#results, cat.label:lower()))
-        loadMoreBtn.Label.Text = "LOAD MORE"
-
-        loadMoreState.lastY = scrollList.CanvasPosition.Y
+        showNotice(nil)
+        U.nextToken = data.next
+        if type(U.nextToken) ~= "string" or U.nextToken == "" then U.nextToken = nil end
+        local items = data.items or {}
+        displayItems(items, append)
+        if #items == 0 and not append then showNotice("No results found.") end
+        setStatus(("Found %d %s%s"):format(#items, cat.label:lower(), U.nextToken and " (more available)" or ""))
     end)
 end
 
--- ============================================================
--- CATEGORY LOGIC
--- ============================================================
-local function selectSubCategory(subName)
-    currentSubCategory = subName
-    currentQuery = (subName == "All") and "" or subName
-    
-    categoryHistory[currentCategoryIndex] = subName
-    
-    transitionToView("list")
-    nextPageToken = nil
-    loadModels(currentQuery, false)
-end
+local selectSubCategory
 
 local function showSubCategories(catIndex)
+    U.reqId += 1
+    U.isLoading = false
+    showNotice(nil)
     currentCategoryIndex = catIndex
     currentSubCategory = nil
-    
-    if detailOpen then setDetailOpen(false) end
-    transitionToView("subcat")
-    
-    subCatScroll.CanvasPosition = Vector2.new(0, 0)
-    
-    for _, child in ipairs(subCatScroll:GetChildren()) do
-        if child:IsA("Frame") or child:IsA("TextButton") then
-            child:Destroy()
-        end
+    stopAudio()
+    if U.detailOpen then
+        U.detailOpen = false
+        if U.is3D then set3D(false) end
+        U.rightPanel.Visible = false
+        U.rightPanel.Position = U.RIGHT_HIDDEN
+        U.leftPanel.Size = U.LEFT_CLOSED
     end
-    
+    U.leftPanel.Visible = false
+    U.subCatContainer.Visible = true
+    U.subCatScroll.CanvasPosition = Vector2.new()
+
+    for _, child in ipairs(U.subCatScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
     local cat = CATEGORIES[catIndex]
-    local subs = cat.subs or {"All"}
+    local subs = cat.subs or { "All" }
     local count = #subs
 
     local function getLayout(i)
-        local gap = 8
-        local h1 = 160
-
-        if count == 1 then
-            return UDim2.new(1, 0, 0, h1 * 2), UDim2.new(0, 0, 0, 0)
-        elseif count == 2 then
-            if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
-            return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0.5, gap/2, 0, 0)
-        elseif count == 3 then
-            if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
-            if i == 2 then return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, 0) end
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1+gap)
+        local gap, h1 = 8, 160
+        if count == 1 then return UDim2.new(1, 0, 0, h1 * 2), UDim2.new() end
+        if count == 2 then
+            if i == 1 then return UDim2.new(0.5, -gap / 2, 0, h1 * 2), UDim2.new() end
+            return UDim2.new(0.5, -gap / 2, 0, h1 * 2), UDim2.new(0.5, gap / 2, 0, 0)
         end
-        
-        if i == 1 then
-            return UDim2.new(0.4, -gap*2/3, 0, h1*2+gap), UDim2.new(0, 0, 0, 0)
-        elseif i == 2 then
-            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, 0)
-        elseif i == 3 then
-            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, h1+gap)
-        elseif i == 4 then
-            return UDim2.new(0.3, 0, 0, h1*2+gap), UDim2.new(0.7, gap, 0, 0)
-        elseif i == 5 then
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0, 0, 0, h1*2+gap*2)
-        elseif i == 6 then
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1*2+gap*2)
-        else
-            local row = math.floor((i-7)/2)
-            local col = (i-7)%2
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(col*0.5, (col==0 and 0 or gap/2), 0, (h1*3) + gap*3 + row*(h1+gap))
+        if count == 3 then
+            if i == 1 then return UDim2.new(0.5, -gap / 2, 0, h1 * 2), UDim2.new() end
+            if i == 2 then return UDim2.new(0.5, -gap / 2, 0, h1), UDim2.new(0.5, gap / 2, 0, 0) end
+            return UDim2.new(0.5, -gap / 2, 0, h1), UDim2.new(0.5, gap / 2, 0, h1 + gap)
         end
+        if i == 1 then return UDim2.new(0.4, -gap * 2 / 3, 0, h1 * 2 + gap), UDim2.new()
+        elseif i == 2 then return UDim2.new(0.3, -gap * 2 / 3, 0, h1), UDim2.new(0.4, gap / 3, 0, 0)
+        elseif i == 3 then return UDim2.new(0.3, -gap * 2 / 3, 0, h1), UDim2.new(0.4, gap / 3, 0, h1 + gap)
+        elseif i == 4 then return UDim2.new(0.3, 0, 0, h1 * 2 + gap), UDim2.new(0.7, gap, 0, 0)
+        elseif i == 5 then return UDim2.new(0.5, -gap / 2, 0, h1), UDim2.new(0, 0, 0, h1 * 2 + gap * 2)
+        elseif i == 6 then return UDim2.new(0.5, -gap / 2, 0, h1), UDim2.new(0.5, gap / 2, 0, h1 * 2 + gap * 2)
+        end
+        local row, col = math.floor((i - 7) / 2), (i - 7) % 2
+        return UDim2.new(0.5, -gap / 2, 0, h1), UDim2.new(col * 0.5, (col == 0 and 0 or gap / 2), 0, h1 * 3 + gap * 3 + row * (h1 + gap))
     end
 
     local SUBCOLORS = {
         rgb(45, 175, 255), rgb(220, 60, 255), rgb(255, 110, 70), rgb(45, 230, 90),
         rgb(255, 60, 140), rgb(255, 170, 50), rgb(150, 70, 255), rgb(60, 200, 200)
     }
-
     local maxHeight = 0
 
     for i, subName in ipairs(subs) do
         local size, pos = getLayout(i)
-        local baseColor = SUBCOLORS[(i-1)%#SUBCOLORS+1]
-        local gradColor = ColorSequence.new(baseColor:Lerp(WHITE, 0.35), baseColor:Lerp(rgb(0,0,0), 0.25))
-
-        local btn = raised(subCatScroll, size, pos + UDim2.new(0,0,0,20), baseColor, 4, UDim.new(0, 12), false, gradColor)
-        
+        local baseColor = SUBCOLORS[(i - 1) % #SUBCOLORS + 1]
+        local gradColor = ColorSequence.new(baseColor:Lerp(U.WHITE, 0.35), baseColor:Lerp(U.BLACK, 0.25))
+        local btn = raised(U.subCatScroll, size, pos + UDim2.new(0, 0, 0, 20), baseColor, 4, UDim.new(0, 12), gradColor)
         btn.Holder.ZIndex = 10
         btn.Label.Text = string.upper(subName)
-        btn.Label.TextColor3 = WHITE
-        btn.Label.Font = GOTHAM_K
-        
+        btn.Label.TextColor3 = U.WHITE
+        btn.Label.Font = U.GOTHAM_K
         btn.Label.TextScaled = true
         new("UITextSizeConstraint", { MaxTextSize = 20, MinTextSize = 10 }, btn.Label)
-        
-        btn.Label.TextXAlignment = Enum.TextXAlignment.Center
-        btn.Label.TextYAlignment = Enum.TextYAlignment.Center
-        
         new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }, btn.Face)
-        
+
         local iconId = SUB_ICONS[subName]
         if iconId then
             local icn = new("ImageLabel", {
-                BackgroundTransparency = 1,
-                Image = iconId,
-                ImageColor3 = WHITE,
-                Size = UDim2.fromOffset(44, 44),
-                Position = UDim2.fromOffset(12, 12),
-                ZIndex = 15,
-                ImageTransparency = 1
+                BackgroundTransparency = 1, Image = iconId, ImageColor3 = U.WHITE, Size = UDim2.fromOffset(44, 44),
+                Position = UDim2.fromOffset(12, 12), ZIndex = 15, ImageTransparency = 1
             }, btn.Face)
-            
-            task.delay(i * 0.06 + 0.1, function()
-                if icn.Parent then
-                    tween(icn, 0.4, { ImageTransparency = 0 })
-                end
-            end)
+            task.delay(i * 0.06 + 0.1, function() if icn.Parent then tween(icn, 0.4, { ImageTransparency = 0 }) end end)
         end
-        
+
         btn.Scale.Scale = 0.8
-        btn.Face.BackgroundTransparency = 1
-        btn.Base.BackgroundTransparency = 1
-        btn.Stroke.Transparency = 1
-        btn.Label.TextTransparency = 1
-        
+        btn.Face.BackgroundTransparency = 1; btn.Base.BackgroundTransparency = 1
+        btn.Stroke.Transparency = 1; btn.Label.TextTransparency = 1
         task.delay(i * 0.06, function()
             if btn.Holder.Parent then
-                tween(btn.Holder, 0.4, { Position = pos }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                tween(btn.Holder, 0.4, { Position = pos }, Enum.EasingStyle.Back)
                 tween(btn.Face, 0.4, { BackgroundTransparency = 0 })
                 tween(btn.Base, 0.4, { BackgroundTransparency = 0 })
                 tween(btn.Stroke, 0.4, { Transparency = 0 })
                 tween(btn.Label, 0.4, { TextTransparency = 0 })
-                tween(btn.Scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                tween(btn.Scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back)
             end
         end)
-
-        btn.Face.Activated:Connect(function()
-            selectSubCategory(subName)
-        end)
-
-        if pos.Y.Offset + size.Y.Offset > maxHeight then
-            maxHeight = pos.Y.Offset + size.Y.Offset
-        end
+        btn.Face.Activated:Connect(function() selectSubCategory(subName) end)
+        maxHeight = math.max(maxHeight, pos.Y.Offset + size.Y.Offset)
     end
-
-    subCatScroll.CanvasSize = UDim2.new(0, 0, 0, maxHeight + 20)
+    U.subCatScroll.CanvasSize = UDim2.new(0, 0, 0, maxHeight + 20)
+    setStatus("Choose a sub-category.")
 end
+
+function selectSubCategory(subName, customQuery)
+    currentSubCategory = subName
+    categoryHistory[currentCategoryIndex] = subName
+    currentQuery = customQuery or ((subName == "All") and "" or subName)
+    U.subCatContainer.Visible = false
+    U.leftPanel.Visible = true
+    U.subTitle.Text = string.upper(CATEGORIES[currentCategoryIndex].label .. "  /  " .. subName)
+    U.nextToken = nil
+    loadItems(currentQuery, false)
+end
+
+U.backBtn.Activated:Connect(function()
+    categoryHistory[currentCategoryIndex] = nil
+    U.searchInput.Text = ""
+    showSubCategories(currentCategoryIndex)
+end)
 
 local function setActiveCategory(idx)
-    if currentCategoryIndex == idx and currentView == "subcat" then return end
-    currentCategoryIndex = idx
-
-    for i, btnData in ipairs(categoryButtons) do
-        local isActive = (i == idx)
-        btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
-        if btnData.iconObj then
-            btnData.iconObj.ImageColor3 = WHITE
-        end
-    end
-
-    local savedSub = categoryHistory[idx]
-    if savedSub then
-        -- Jika ada memori, langsung ke list
-        transitionToView("list")
-        selectSubCategory(savedSub)
-    else
-        -- Jika tidak ada memori, tampilkan sub-category
+    if currentCategoryIndex == idx and (U.subCatContainer.Visible or U.leftPanel.Visible) then
+        categoryHistory[idx] = nil
         showSubCategories(idx)
+        return
     end
+    currentCategoryIndex = idx
+    for i, d in ipairs(U.categoryButtons) do
+        local a = (i == idx)
+        d.api.SetTone(a and U.TONE_ON or U.TONE_OFF, a and U.TEXT_DARK or U.TEXT_LIGHT)
+    end
+    if U.detailOpen then setDetailOpen(false) end
+    stopAudio()
+    local saved = categoryHistory[idx]
+    if saved then selectSubCategory(saved) else showSubCategories(idx) end
 end
 
--- ============================================================
--- EVENT BINDINGS
--- ============================================================
-for i, btnData in ipairs(categoryButtons) do
-    btnData.api.Face.Activated:Connect(function() setActiveCategory(i) end)
+for i, d in ipairs(U.categoryButtons) do
+    d.api.Face.Activated:Connect(function() setActiveCategory(i) end)
 end
 
-backBtn.MouseButton1Click:Connect(function() 
-    if showSubCategories then showSubCategories(currentCategoryIndex) end 
+U.searchInput.FocusLost:Connect(function(enter)
+    if not enter then return end
+    local q = U.searchInput.Text
+    if q == "" and U.subCatContainer.Visible then return end
+    selectSubCategory(currentSubCategory or categoryHistory[currentCategoryIndex] or "All", q)
 end)
 
-searchInput.FocusLost:Connect(function(enterPressed) 
-    if enterPressed then 
-        if currentView == "subcat" then
-            transitionToView("list")
-        end
-        nextPageToken = nil
-        currentQuery = searchInput.Text
-        loadModels(currentQuery, false) 
-    end 
+U.helpBtn.Activated:Connect(function() U.helpPanel.Visible = not U.helpPanel.Visible end)
+U.helpClose.Activated:Connect(function() U.helpPanel.Visible = false end)
+
+local function manualCopy(text)
+    U.manualBox.Text = tostring(text)
+    U.manualBox.Visible = true
+    pcall(function()
+        U.manualBox:CaptureFocus()
+        U.manualBox.SelectionStart = 1
+        U.manualBox.CursorPosition = #U.manualBox.Text + 1
+    end)
+end
+
+local function flashCopy(api, label, normalText, normalTone, normalTextColor, ok, value)
+    label.Text = ok and "COPIED!" or "COPY MANUALLY"
+    api.SetTone(ok and U.TONE_SUCCESS or U.TONE_DANGER, U.WHITE)
+    if not ok then manualCopy(value) end
+    task.delay(1.2, function()
+        label.Text = normalText
+        api.SetTone(normalTone, normalTextColor)
+    end)
+end
+
+U.btnA.Face.Activated:Connect(function()
+    if not U.selectedItem then return end
+    local normal = (U.selectedItem.kind == "Decal") and "COPY DECAL ID" or "COPY ID"
+    flashCopy(U.btnA, U.btnALabel, normal, U.TONE_ON, U.TEXT_DARK, setClipboardText(U.selectedItem.id), U.selectedItem.id)
 end)
 
-loadMoreBtn.Face.Activated:Connect(function()
-    if not nextPageToken or isLoading then return end
-    setLoadMoreVisible(false)
-    setScrollShrunk(false)
-    loadModels(currentQuery, true)
-end)
-
-debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Visible end)
-
-copyIdBtn.Face.Activated:Connect(function()
-    if not selectedModel then return end
-    if setclipboard then setclipboard(tostring(selectedModel.id)) end
-    copyIdBtn.SetTone(TONE_SUCCESS, WHITE)
-    copyIdLabel.Text = "COPIED!"
-    task.wait(1)
-    copyIdBtn.SetTone(TONE_ON, TEXT_DARK)
-    copyIdLabel.Text = "COPY ID"
-end)
-
-playBtn.Face.Activated:Connect(function()
-    if not selectedModel then return end
-    if currentSound then 
-        stopAudio() 
-        return 
-    end
-    
-    local snd = Instance.new("Sound")
-    snd.SoundId = "rbxassetid://" .. tostring(selectedModel.id)
-    snd.Volume = 1
-    snd.Parent = SoundService
-    
-    if pcall(function() snd:Play() end) then
-        currentSound = snd
-        playLabel.Text = "STOP"
-        playBtn.SetTone(TONE_SUCCESS, WHITE)
-        
-        snd.Ended:Connect(function()
-            stopAudio()
-        end)
-        
-        task.delay(60, function() 
-            if currentSound == snd then 
-                stopAudio() 
-            end 
-        end)
+U.btnB.Face.Activated:Connect(function()
+    if not U.selectedItem then return end
+    if U.selectedItem.kind == "Decal" then
+        if not U.selectedItem.textureId then return end
+        flashCopy(U.btnB, U.btnBLabel, "COPY TEXTURE ID", U.TONE_OFF, U.TEXT_LIGHT, setClipboardText(U.selectedItem.textureId), U.selectedItem.textureId)
     else
-        snd:Destroy()
+        local link = itemLink(U.selectedItem)
+        flashCopy(U.btnB, U.btnBLabel, "COPY LINK", U.TONE_OFF, U.TEXT_LIGHT, setClipboardText(link), link)
     end
 end)
+
+local function setWindowVisible(v)
+    if v then
+        body.Visible = true
+        U.miniBtn.Visible = false
+        tween(U.bodyScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+        tween(body, 0.25, { GroupTransparency = 0 })
+    else
+        tween(U.bodyScale, 0.2, { Scale = 0.9 })
+        local t = tween(body, 0.2, { GroupTransparency = 1 })
+        t.Completed:Connect(function() if body.GroupTransparency >= 0.99 then body.Visible = false end end)
+        U.miniBtn.Visible = true
+    end
+end
+U.minimizeBtn.Activated:Connect(function() setWindowVisible(false) end)
+U.miniBtn.Activated:Connect(function() setWindowVisible(true) end)
+
+local function destroyAll()
+    stopAudio()
+    for _, c in ipairs(U.connections) do pcall(function() c:Disconnect() end) end
+    U.gui:Destroy()
+end
 
 local function showCloseConfirm()
-    if gui:FindFirstChild("CloseConfirm") then return end
-    local backdrop = new("TextButton", { Name="CloseConfirm", Text="", BackgroundColor3=Color3.new(0,0,0), BackgroundTransparency=1, Size=UDim2.fromScale(1,1), ZIndex=200 }, gui)
+    if U.gui:FindFirstChild("CloseConfirm") then return end
+    local backdrop = new("TextButton", { Name = "CloseConfirm", Text = "", AutoButtonColor = false, BackgroundColor3 = U.BLACK, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 200 }, U.gui)
     tween(backdrop, 0.2, { BackgroundTransparency = 0.5 })
-    local card = new("CanvasGroup", { AnchorPoint=Vector2.new(0.5,0.5), Position=UDim2.fromScale(0.5,0.5), Size=UDim2.fromOffset(math.min(320, FRAME_W-40), 180), BackgroundTransparency=1, Active=true, ZIndex=201 }, backdrop)
+    local card = new("CanvasGroup", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(math.min(320, U.FRAME_W - 40), 180), BackgroundTransparency = 1, Active = true, ZIndex = 201 }, backdrop)
     surface(card, 14)
     local cardScale = new("UIScale", { Scale = 0.001 }, card)
-    txt(card, "CLOSE ASSET STORE", 13, WHITE, GOTHAM_K, UDim2.new(1,-32,0,22), UDim2.fromOffset(16,14), CENTER)
-    txt(card, "Are you sure you want to close this UI?", 11, TEXT_DIM, GOTHAM, UDim2.new(1,-32,0,40), UDim2.fromOffset(16,44), CENTER, {TextWrapped=true, TextYAlignment=Enum.TextYAlignment.Top, TextTruncate=Enum.TextTruncate.None})
-    local yesBtn = raised(card, UDim2.new(0.5,-12,0,36), UDim2.new(0,16,1,-54), TONE_DANGER, 3)
-    yesBtn.Label.Text = "YES, CLOSE"; yesBtn.Label.TextColor3 = TEXT_LIGHT
-    local noBtn = raised(card, UDim2.new(0.5,-12,0,36), UDim2.new(0.5,4,1,-54), TONE_OFF, 3)
-    noBtn.Label.Text = "NO, KEEP IT"; noBtn.Label.TextColor3 = TEXT_LIGHT
+    txt(card, "CLOSE ASSET STORE", 13, U.WHITE, U.GOTHAM_K, UDim2.new(1, -32, 0, 22), UDim2.fromOffset(16, 14), U.CENTER)
+    txt(card, "Are you sure you want to close this UI?", 11, U.TEXT_DIM, U.GOTHAM, UDim2.new(1, -32, 0, 40), UDim2.fromOffset(16, 44), U.CENTER, { TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, TextTruncate = Enum.TextTruncate.None })
+    local yesBtn = raised(card, UDim2.new(0.5, -22, 0, 36), UDim2.new(0, 16, 1, -54), U.TONE_DANGER, 3)
+    yesBtn.Label.Text = "YES, CLOSE"
+    local noBtn = raised(card, UDim2.new(0.5, -22, 0, 36), UDim2.new(0.5, 6, 1, -54), U.TONE_OFF, 3)
+    noBtn.Label.Text = "NO, KEEP IT"
     popIn(cardScale, card)
     local dismissed = false
     local function dismiss(cb)
@@ -1703,21 +1699,90 @@ local function showCloseConfirm()
     backdrop.Activated:Connect(function() dismiss() end)
     yesBtn.Face.Activated:Connect(function()
         dismiss(function()
-            stopAudio()
-            local t1 = tween(body, 0.25, { GroupTransparency = 1, Size = UDim2.fromOffset(FRAME_W*0.85, FRAME_H*0.85) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-            tween(shadow, 0.25, { BackgroundTransparency = 1 })
-            t1.Completed:Connect(function() gui:Destroy() end)
+            local t1 = tween(body, 0.25, { GroupTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            tween(U.bodyScale, 0.25, { Scale = 0.85 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            t1.Completed:Connect(destroyAll)
         end)
     end)
 end
+U.closeBtn.Activated:Connect(showCloseConfirm)
 
-closeBtn.MouseButton1Click:Connect(showCloseConfirm)
-minimizeBtn.MouseButton1Click:Connect(function() setWindowVisible(false) end)
+local function runIntro()
+    local overlay = new("Frame", { Name = "Intro", BackgroundColor3 = U.BLACK, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 300, Active = true }, U.gui)
+    tween(overlay, 0.3, { BackgroundTransparency = 0.45 })
 
--- INIT
-task.wait(0.1)
-popIn(bodyScale, body)
-tween(shadow, 0.4, { BackgroundTransparency = 0.55 })
+    local cardH = 112
+    local cardW = math.clamp(U.FRAME_W - 20, 330, 410)
+    local card = new("CanvasGroup", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(cardH, cardH), BackgroundTransparency = 1, GroupTransparency = 1, ZIndex = 301
+    }, overlay)
+    surface(card, 20)
+    local cardScale = new("UIScale", { Scale = 0.001 }, card)
 
-task.wait(0.3)
-showSubCategories(1) -- Show subcategories for the first category (Models) on startup
+    local logo = new("ImageLabel", {
+        BackgroundTransparency = 1, Image = ICON.LOGO, ImageColor3 = U.WHITE, Size = UDim2.fromOffset(72, 72),
+        AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 20, 0.5, -6)
+    }, card)
+    local logoScale = new("UIScale", { Scale = 1 }, logo)
+
+    local avatar = new("ImageLabel", {
+        BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Image = ICON.CREATOR, ImageTransparency = 1,
+        Size = UDim2.fromOffset(64, 64), AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 114, 0.5, -6)
+    }, card)
+    corner(avatar, UDim.new(1, 0))
+    local avatarStroke = new("UIStroke", { Color = U.WHITE, Thickness = 2, Transparency = 1 }, avatar)
+    new("UIGradient", { Color = ColorSequence.new(U.ACCENT_A, U.ACCENT_B), Rotation = 45 }, avatarStroke)
+    local madeBy = txt(card, "MADE BY", 9, U.TEXT_DIM, U.GOTHAM_B, UDim2.new(1, -196, 0, 12), UDim2.new(0, 190, 0.5, -26), U.LEFT, { TextTransparency = 1 })
+    local nameLabel = txt(card, CREATOR_NAME, 14, U.WHITE, U.GOTHAM_K, UDim2.new(1, -196, 0, 20), UDim2.new(0, 190, 0.5, -12), U.LEFT, { TextTransparency = 1 })
+
+    local barTrack = new("Frame", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.new(1, -40, 0, 5), Position = UDim2.new(0, 20, 1, -16) }, card)
+    corner(barTrack, UDim.new(1, 0))
+    local barFill = new("Frame", { BackgroundColor3 = U.WHITE, BorderSizePixel = 0, Size = UDim2.fromScale(0, 1) }, barTrack)
+    corner(barFill, UDim.new(1, 0))
+    new("UIGradient", { Color = ColorSequence.new(U.ACCENT_A, U.ACCENT_B) }, barFill)
+
+    task.spawn(function()
+        local uid
+        pcall(function() uid = Players:GetUserIdFromNameAsync(CREATOR_NAME) end)
+        if not uid then
+            local d = apiGet({ action = "user", username = CREATOR_NAME })
+            if d and d.id then uid = d.id end
+        end
+        if uid and avatar.Parent then
+            safeSetImage(avatar, "rbxthumb://type=AvatarHeadShot&id=" .. tostring(uid) .. "&w=150&h=150")
+        end
+    end)
+
+    popIn(cardScale, card)
+    tween(barFill, 2.6, { Size = UDim2.fromScale(1, 1) }, Enum.EasingStyle.Linear)
+    task.wait(0.4)
+    tween(logoScale, 0.25, { Scale = 1.15 }, Enum.EasingStyle.Back)
+    task.wait(0.25)
+    tween(logoScale, 0.25, { Scale = 1 }, Enum.EasingStyle.Sine)
+    task.wait(0.2)
+
+    tween(card, 0.75, { Size = UDim2.fromOffset(cardW, cardH) }, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut)
+    task.wait(0.35)
+    tween(avatar, 0.5, { ImageTransparency = 0 })
+    tween(avatarStroke, 0.5, { Transparency = 0 })
+    tween(madeBy, 0.5, { TextTransparency = 0 })
+    tween(nameLabel, 0.5, { TextTransparency = 0 })
+    task.wait(1.65)
+
+    tween(cardScale, 0.3, { Scale = 0.001 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+    tween(card, 0.3, { GroupTransparency = 1 })
+    tween(overlay, 0.35, { BackgroundTransparency = 1 })
+    task.wait(0.35)
+    overlay:Destroy()
+end
+
+if BASE_URL:find("YOUR%-APP") then
+    setStatus("Replace BASE_URL at the top of the script with your Vercel URL!")
+end
+showSubCategories(1)
+runIntro()
+if U.gui.Parent then
+    body.Visible = true
+    popIn(U.bodyScale, body)
+end
