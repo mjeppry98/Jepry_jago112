@@ -1,7 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v37
-    - Added Smart Category Memory (Remembers last sub-category per main category)
-    - Clicking a previously visited category skips the sub-category grid
+    Studio Lite Toolbox - Final v38
+    - Fixed CATALOG category being identical to MODELS
+    - CATALOG now uses "UserOutfit" key for Avatar items
+    - Retains Smart Category Memory
     - Bigger & White Icons
 ]]
 
@@ -27,12 +28,12 @@ local ICON = {
 }
 
 local CATEGORIES = {
-    { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "Model",    label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animation", "Faces"} },
-    { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
-    { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
-    { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
-    { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
+    { key = "Model",      label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
+    { key = "UserOutfit", label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animation", "Faces"} },
+    { key = "Plugin",     label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
+    { key = "Audio",      label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
+    { key = "Decal",      label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
+    { key = "MeshPart",   label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
 }
 
 local SUB_ICONS = {
@@ -67,7 +68,7 @@ local SUB_ICONS = {
 local currentCategoryIndex = 1
 local currentSubCategory = nil
 local currentQuery = ""
-local categoryHistory = {} -- Menyimpan memori sub-kategori per kategori utama
+local categoryHistory = {}
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
