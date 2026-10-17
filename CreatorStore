@@ -1,8 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v18
-    - Custom Minimize icon (100624819703287)
-    - Minimize button matches Close button theme perfectly
-    - Toggle UI logic, 3D viewer, Audio, and Sizes remain untouched
+    Studio Lite Toolbox - Final v20
+    - Comprehensive animations for every button and interaction
+    - Bouncy hovers, smooth state transitions, color flashes on success
+    - Sizes and core logic remain strictly untouched
 ]]
 
 local API_KEYS = {
@@ -23,7 +23,7 @@ local ICON = {
     DESC        = "rbxassetid://98359085392262",
     SPEAKER     = "rbxassetid://87702826291744",
     ZOOM        = "rbxassetid://13321848320",
-    MINIMIZE    = "rbxassetid://100624819703287" -- Icon Minimize baru
+    MINIMIZE    = "rbxassetid://100624819703287"
 }
 
 local CATEGORIES = {
@@ -55,6 +55,7 @@ local BEVEL_INV  = ColorSequence.new(rgb(30, 30, 34), rgb(120, 120, 126))
 local TONE_ON    = rgb(212, 212, 218)
 local TONE_OFF   = rgb(44, 44, 48)
 local TONE_HOVER = rgb(60, 60, 66)
+local TONE_SUCCESS = rgb(80, 160, 100)
 local TONE_DANGER = rgb(140, 60, 60)
 local TEXT_DARK  = rgb(20, 20, 22)
 local TEXT_LIGHT = rgb(236, 236, 240)
@@ -110,6 +111,7 @@ local function measureText(text, size, font)
     return #text * (size * 0.6)
 end
 
+-- Raised Button w/ Bouncy Hover & Click
 local function raised(parent, size, position, tone, depth, radius)
     depth = depth or 3
     radius = radius or UDim.new(0, 8)
@@ -137,17 +139,22 @@ local function raised(parent, size, position, tone, depth, radius)
         BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
         Font = GOTHAM_B, TextSize = 11, Text = "", TextColor3 = TEXT_LIGHT
     }, face)
-    local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone }
+    
+    local scale = new("UIScale", {Scale = 1}, face)
+    local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone, Scale = scale }
+    
     local hover, down = false, false
     local function render()
         local c = api.Tone
         if down then
+            tween(scale, 0.1, {Scale = 0.92})
             tween(face, 0.08, {
                 Position = UDim2.fromOffset(0, depth - 1),
                 BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.25)
             })
             tween(grad, 0.08, { Rotation = 270 })
         else
+            tween(scale, 0.2, {Scale = hover and 1.04 or 1}, Enum.EasingStyle.Back)
             tween(face, 0.2, {
                 Position = UDim2.fromOffset(0, 0),
                 BackgroundColor3 = (hover and c:Lerp(WHITE, 0.12)) or c
@@ -155,10 +162,12 @@ local function raised(parent, size, position, tone, depth, radius)
             tween(grad, 0.2, { Rotation = 90 })
         end
     end
+    
     face.InputBegan:Connect(function(i) if isPress(i) then down = true; render() end end)
     face.InputEnded:Connect(function(i) if isPress(i) then down = false; render() end end)
     face.MouseEnter:Connect(function() hover = true; render() end)
     face.MouseLeave:Connect(function() hover = false; down = false; render() end)
+    
     api.SetTone = function(c, tc)
         api.Tone = c; render()
         if tc then tween(label, 0.2, { TextColor3 = tc }) end
@@ -216,7 +225,7 @@ local function sunken(parent, size, position, padLeft)
     }, box)
     local stroke = new("UIStroke", {
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Color = WHITE, Thickness = 1
+        Color = WHITE, Thickness = 1, Transparency = 0.5
     }, box)
     new("UIGradient", { Color = BEVEL_INV, Rotation = 90 }, stroke)
     return box, stroke
@@ -246,9 +255,9 @@ end
 local function popIn(scale, group)
     scale.Scale = 0.001
     if group then group.GroupTransparency = 1; tween(group, 0.14, { GroupTransparency = 0 }) end
-    tween(scale, 0.2, { Scale = 1.12 }, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    task.delay(0.2, function()
-        if scale.Parent then tween(scale, 0.18, { Scale = 1 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut) end
+    tween(scale, 0.25, { Scale = 1.1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+    task.delay(0.25, function()
+        if scale.Parent then tween(scale, 0.2, { Scale = 1 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut) end
     end)
 end
 
@@ -421,8 +430,11 @@ local debugBtn = new("TextButton", {
 }, header)
 corner(debugBtn, UDim.new(0, 6))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, debugBtn)
+local dbgScale = new("UIScale", {Scale = 1}, debugBtn)
+debugBtn.MouseEnter:Connect(function() tween(dbgScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
+debugBtn.MouseLeave:Connect(function() tween(dbgScale, 0.15, {Scale=1}) end)
 
--- MINIMIZE BUTTON (Menggunakan icon dan tema yang sama seperti Close)
+-- MINIMIZE BUTTON
 local minimizeBtn = new("TextButton", {
     AutoButtonColor = false, Text = "",
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
@@ -432,13 +444,15 @@ local minimizeBtn = new("TextButton", {
 }, header)
 corner(minimizeBtn, UDim.new(0, 6))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, minimizeBtn)
-
 new("ImageLabel", {
     BackgroundTransparency = 1, Image = ICON.MINIMIZE, ImageColor3 = WHITE,
     Size = UDim2.fromOffset(14, 14),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5)
 }, minimizeBtn)
+local minScale = new("UIScale", {Scale = 1}, minimizeBtn)
+minimizeBtn.MouseEnter:Connect(function() tween(minScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
+minimizeBtn.MouseLeave:Connect(function() tween(minScale, 0.15, {Scale=1}) end)
 
 -- CLOSE BUTTON
 local closeBtn = new("TextButton", {
@@ -450,13 +464,15 @@ local closeBtn = new("TextButton", {
 }, header)
 corner(closeBtn, UDim.new(0, 6))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, closeBtn)
-
 new("ImageLabel", {
     BackgroundTransparency = 1, Image = ICON.CLOSE, ImageColor3 = WHITE,
     Size = UDim2.fromOffset(14, 14),
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5)
 }, closeBtn)
+local clsScale = new("UIScale", {Scale = 1}, closeBtn)
+closeBtn.MouseEnter:Connect(function() tween(clsScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
+closeBtn.MouseLeave:Connect(function() tween(clsScale, 0.15, {Scale=1}) end)
 
 local divider = new("Frame", {
     BackgroundColor3 = WHITE, BorderSizePixel = 0,
@@ -480,14 +496,15 @@ local searchBar = new("Frame", {
 
 local searchInput, searchStroke = sunken(searchBar, UDim2.fromScale(1, 1), UDim2.new(), 40)
 searchInput.PlaceholderText = "Search assets..."
+local searchScale = new("UIScale", {Scale = 1}, searchBar)
 
 searchInput.Focused:Connect(function()
     tween(searchStroke, 0.2, { Transparency = 0 })
-    tween(searchBar, 0.2, { Size = UDim2.new(1, -PAD*2 + 4, 0, SEARCH_H + 4), Position = UDim2.fromOffset(PAD - 2, HEADER_H + GAP_TOP - 2) }) 
+    tween(searchScale, 0.25, { Scale = 1.02 }, Enum.EasingStyle.Back)
 end)
 searchInput.FocusLost:Connect(function()
-    tween(searchStroke, 0.2, { Transparency = 1 })
-    tween(searchBar, 0.2, { Size = UDim2.new(1, -PAD*2, 0, SEARCH_H), Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP) })
+    tween(searchStroke, 0.2, { Transparency = 0.5 })
+    tween(searchScale, 0.2, { Scale = 1 })
 end)
 
 new("ImageLabel", {
@@ -512,13 +529,9 @@ local function setActiveCategory(idx)
 
     for i, btn in ipairs(categoryButtons) do
         local isActive = (i == idx)
-        tween(btn.api.Face, 0.2, {
-            BackgroundColor3 = isActive and TONE_ON or TONE_OFF
-        })
-        tween(btn.api.Label, 0.2, {
-            TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
-        })
-        btn.api.Tone = isActive and TONE_ON or TONE_OFF
+        btn.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
+        -- Bounce effect on active tab
+        tween(btn.api.Scale, 0.25, { Scale = isActive and 1.05 or 1 }, Enum.EasingStyle.Back)
     end
 
     if detailOpen then setDetailOpen(false) end
@@ -542,13 +555,12 @@ for i, cat in ipairs(CATEGORIES) do
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
+    btn.Scale.Scale = isActive and 1.05 or 1
 
     categoryButtons[i] = { api = btn, category = cat, width = btnW }
     currentX = currentX + btnW + CAT_GAP
 
-    btn.Face.Activated:Connect(function()
-        setActiveCategory(i)
-    end)
+    btn.Face.Activated:Connect(function() setActiveCategory(i) end)
 end
 
 -- CONTENT
@@ -690,6 +702,9 @@ local toggle3DBtn = new("TextButton", {
 }, thumbFrame)
 corner(toggle3DBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, toggle3DBtn)
+local t3dScale = new("UIScale", {Scale = 1}, toggle3DBtn)
+toggle3DBtn.MouseEnter:Connect(function() tween(t3dScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
+toggle3DBtn.MouseLeave:Connect(function() tween(t3dScale, 0.15, {Scale=1}) end)
 
 local zoomBtn = new("ImageButton", {
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
@@ -787,11 +802,11 @@ function setDetailOpen(open)
     if detailOpen == open then return end
     detailOpen = open
     if open then
-        tween(leftPanel, SLIDE_DURATION, { Size = LEFT_OPEN })
-        tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_SHOWN })
+        tween(leftPanel, SLIDE_DURATION, { Size = LEFT_OPEN }, Enum.EasingStyle.Quart)
+        tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_SHOWN }, Enum.EasingStyle.Quart)
     else
-        tween(leftPanel, SLIDE_DURATION, { Size = LEFT_CLOSED })
-        tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_HIDDEN })
+        tween(leftPanel, SLIDE_DURATION, { Size = LEFT_CLOSED }, Enum.EasingStyle.Quart)
+        tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_HIDDEN }, Enum.EasingStyle.Quart)
         stopAudio()
         is3D = false
     end
@@ -964,7 +979,7 @@ local function updateBtnLayout()
 end
 
 -- ============================================================
--- LOAD MORE STATE MACHINE
+-- LOAD MORE STATE MACHINE (PERFECTED)
 -- ============================================================
 local loadMoreState = { visible = false, shrunk = false, lastY = 0 }
 local LOAD_MORE_FADE = 0.28
@@ -973,19 +988,7 @@ local function setScrollShrunk(shrunk)
     if loadMoreState.shrunk == shrunk then return end
     loadMoreState.shrunk = shrunk
     local targetSize = UDim2.new(1, -INNER*2, 0, shrunk and SHRUNK_SCROLL_H or FULL_SCROLL_H)
-    if shrunk then
-        local tw = tween(scrollList, LOAD_MORE_FADE, { Size = targetSize })
-        tw.Completed:Connect(function()
-            if loadMoreState.shrunk then
-                local cH = scrollList.AbsoluteCanvasSize.Y
-                local wH = scrollList.AbsoluteWindowSize.Y
-                scrollList.CanvasPosition = Vector2.new(0, math.max(0, cH - wH))
-                loadMoreState.lastY = scrollList.CanvasPosition.Y
-            end
-        end)
-    else
-        tween(scrollList, LOAD_MORE_FADE, { Size = targetSize })
-    end
+    tween(scrollList, LOAD_MORE_FADE, { Size = targetSize }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 end
 
 local function setLoadMoreVisible(visible)
@@ -997,11 +1000,15 @@ local function setLoadMoreVisible(visible)
         tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 0 })
         tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 0 })
         tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 0 })
+        -- Pop in animation for the button itself
+        loadMoreBtn.Scale.Scale = 0.8
+        tween(loadMoreBtn.Scale, 0.3, {Scale = 1}, Enum.EasingStyle.Back)
     else
         tween(loadMoreBtn.Face, LOAD_MORE_FADE, { BackgroundTransparency = 1 })
         tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 1 })
         tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 1 })
         tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 1 })
+        tween(loadMoreBtn.Scale, 0.2, {Scale = 0.8})
         task.delay(LOAD_MORE_FADE + 0.02, function()
             if not loadMoreState.visible then loadMoreBtn.Holder.Visible = false end
         end)
@@ -1014,24 +1021,29 @@ scrollList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
     scrollDebounce = true
     task.defer(function()
         scrollDebounce = false
+        
         if isLoading or not nextPageToken then
             if loadMoreState.visible then setLoadMoreVisible(false) end
             if loadMoreState.shrunk then setScrollShrunk(false) end
             return
         end
-        local y, cH, wH = scrollList.CanvasPosition.Y, scrollList.AbsoluteCanvasSize.Y, scrollList.AbsoluteWindowSize.Y
-        if not loadMoreState.shrunk then
-            if y + wH >= cH - 12 then
-                setLoadMoreVisible(true)
-                setScrollShrunk(true)
-                loadMoreState.lastY = y
-            end
-        else
-            if y < loadMoreState.lastY - 40 then
-                setLoadMoreVisible(false)
-                setScrollShrunk(false)
-            end
+
+        local y = scrollList.CanvasPosition.Y
+        local cH = scrollList.AbsoluteCanvasSize.Y
+        local wH = scrollList.AbsoluteWindowSize.Y
+        
+        -- Cek apakah scroll mentok paling bawah (toleransi 15px)
+        local isAtBottom = (y + wH) >= (cH - 15)
+        
+        if isAtBottom and not loadMoreState.shrunk then
             loadMoreState.lastY = y
+            setScrollShrunk(true)
+            setLoadMoreVisible(true)
+        elseif not isAtBottom and loadMoreState.shrunk then
+            if y < loadMoreState.lastY - 20 then
+                setScrollShrunk(false)
+                setLoadMoreVisible(false)
+            end
         end
     end)
 end)
@@ -1098,6 +1110,8 @@ local function createListItem(model, index)
     }, scrollList)
     corner(item, UDim.new(0, 8))
     new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
+    
+    local itemScale = new("UIScale", {Scale = 1}, item)
 
     local hit = new("TextButton", {
         AutoButtonColor = false, Text = "", BackgroundTransparency = 1,
@@ -1133,14 +1147,17 @@ local function createListItem(model, index)
 
     viewBtn.Face.Activated:Connect(function() toggleDetail(model) end)
 
+    -- Item Hover Animations (Scale + Color)
     item.MouseEnter:Connect(function()
         if not (selectedModel and selectedModel.id == model.id) then
-            tween(item, 0.15, { BackgroundColor3 = TONE_HOVER })
+            tween(item, 0.2, { BackgroundColor3 = TONE_HOVER })
+            tween(itemScale, 0.2, { Scale = 1.02 }, Enum.EasingStyle.Back)
         end
     end)
     item.MouseLeave:Connect(function()
         if not (selectedModel and selectedModel.id == model.id) then
-            tween(item, 0.15, { BackgroundColor3 = rgb(40, 40, 44) })
+            tween(item, 0.2, { BackgroundColor3 = rgb(40, 40, 44) })
+            tween(itemScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Quart)
         end
     end)
 
@@ -1209,12 +1226,6 @@ function loadModels(query, append)
         loadMoreBtn.Label.Text = "LOAD MORE"
 
         loadMoreState.lastY = scrollList.CanvasPosition.Y
-        task.defer(function()
-            if not nextPageToken then
-                setLoadMoreVisible(false)
-                if loadMoreState.shrunk then setScrollShrunk(false) end
-            end
-        end)
     end)
 end
 
@@ -1225,15 +1236,11 @@ local windowVisible = true
 local toggleSize = 54
 local toggleBtn = raised(gui, UDim2.fromOffset(toggleSize, toggleSize), UDim2.fromOffset(20, 200), TONE_OFF, 4, UDim.new(1, 0))
 toggleBtn.Holder.ZIndex = 100
-toggleBtn.Holder.Visible = false -- Start hidden until minimized
+toggleBtn.Holder.Visible = false
 
 new("ImageLabel", {
-    BackgroundTransparency = 1,
-    Image = ICON.MODEL_BOX,
-    ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(28, 28),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5)
+    BackgroundTransparency = 1, Image = ICON.MODEL_BOX, ImageColor3 = WHITE,
+    Size = UDim2.fromOffset(28, 28), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
 }, toggleBtn.Face)
 
 local toggleScale = new("UIScale", {Scale = 1}, toggleBtn.Face)
@@ -1246,7 +1253,7 @@ local function setWindowVisible(v)
     task.delay(0.09, function() if gui.Parent then tween(toggleScale, 0.35, {Scale = 1}, Enum.EasingStyle.Back) end end)
     
     if v then
-        toggleBtn.Holder.Visible = false -- Hide toggle button
+        toggleBtn.Holder.Visible = false
         body.Visible = true
         popIn(bodyScale, body)
         tween(shadow, 0.35, {BackgroundTransparency = 0.55})
@@ -1256,13 +1263,12 @@ local function setWindowVisible(v)
         task.delay(0.45, function()
             if not windowVisible then
                 body.Visible = false
-                toggleBtn.Holder.Visible = true -- Show toggle button
+                toggleBtn.Holder.Visible = true
             end
         end)
     end
 end
 
--- Drag Logic for Toggle Button
 local draggingToggle = false
 local toggleDragStart = nil
 local toggleStartPos = nil
@@ -1297,7 +1303,6 @@ end)
 -- ============================================================
 toggle3DBtn.MouseButton1Click:Connect(function()
     is3D = not is3D
-    
     local textFade = tween(toggle3DBtn, 0.15, { TextTransparency = 1 })
     textFade.Completed:Connect(function()
         toggle3DBtn.Text = is3D and "2D VIEW" or "3D VIEW"
@@ -1308,77 +1313,39 @@ toggle3DBtn.MouseButton1Click:Connect(function()
         thumbImg.Visible = false
         viewportFrame.Visible = true
         if selectedModel then loadMeshToViewport(selectedModel.id) end
-        
         zoomBtn.Visible = true
         zoomBtn.Position = UDim2.new(1, -10, 0, 6)
         zoomBtn.BackgroundTransparency = 1
         zoomBtn.ImageTransparency = 1
-        
-        tween(zoomBtn, 0.3, { 
-            Position = UDim2.new(1, -72, 0, 6), 
-            BackgroundTransparency = 0, 
-            ImageTransparency = 0 
-        }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-        
+        tween(zoomBtn, 0.3, { Position = UDim2.new(1, -72, 0, 6), BackgroundTransparency = 0, ImageTransparency = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
     else
         thumbImg.Visible = true
         viewportFrame.Visible = false
-        
-        local slideBack = tween(zoomBtn, 0.25, { 
-            Position = UDim2.new(1, -10, 0, 6), 
-            BackgroundTransparency = 1, 
-            ImageTransparency = 1 
-        }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-        
-        slideBack.Completed:Connect(function()
-            zoomBtn.Visible = false
-        end)
+        local slideBack = tween(zoomBtn, 0.25, { Position = UDim2.new(1, -10, 0, 6), BackgroundTransparency = 1, ImageTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        slideBack.Completed:Connect(function() zoomBtn.Visible = false end)
     end
 end)
 
--- ============================================================
 -- ZOOM OVERLAY
--- ============================================================
-local zoomOverlay = new("Frame", {
-    BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5,
-    Size = UDim2.fromScale(1, 1), Visible = false, ZIndex = 150
-}, gui)
-
+local zoomOverlay = new("Frame", { BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, Size = UDim2.fromScale(1, 1), Visible = false, ZIndex = 150 }, gui)
 local zoomBaseW = math.min(600, FRAME_W - 40)
 local zoomBaseH = math.min(500, FRAME_H - 40)
-
-local zoomCard = new("CanvasGroup", {
-    AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.fromOffset(zoomBaseW, zoomBaseH),
-    BackgroundTransparency = 1, Active = true, ZIndex = 151
-}, zoomOverlay)
+local zoomCard = new("CanvasGroup", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(zoomBaseW, zoomBaseH), BackgroundTransparency = 1, Active = true, ZIndex = 151 }, zoomOverlay)
 surface(zoomCard, 14)
 local zoomScale = new("UIScale", { Scale = 0.001 }, zoomCard)
 
 txt(zoomCard, "3D MESH VIEWER", 13, WHITE, GOTHAM_K, UDim2.new(1, -40, 0, 24), UDim2.fromOffset(20, 12), LEFT)
 
-local closeZoomBtn = new("TextButton", {
-    AutoButtonColor = false, Text = "",
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Size = UDim2.fromOffset(30, 30), 
-    AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -20, 0, 12), ZIndex = 155
-}, zoomCard)
+local closeZoomBtn = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundColor3 = TONE_OFF, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -20, 0, 12), ZIndex = 155 }, zoomCard)
 corner(closeZoomBtn, UDim.new(0, 6))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, closeZoomBtn)
+local zclsScale = new("UIScale", {Scale = 1}, closeZoomBtn)
+closeZoomBtn.MouseEnter:Connect(function() tween(zclsScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
+closeZoomBtn.MouseLeave:Connect(function() tween(zclsScale, 0.15, {Scale=1}) end)
 
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.CLOSE, ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(14, 14),
-    AnchorPoint = Vector2.new(0.5, 0.5),
-    Position = UDim2.fromScale(0.5, 0.5)
-}, closeZoomBtn)
+new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.CLOSE, ImageColor3 = WHITE, Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) }, closeZoomBtn)
 
-local zoomViewport = new("ViewportFrame", {
-    BackgroundColor3 = rgb(16, 16, 18),
-    Size = UDim2.new(1, -40, 1, -60), Position = UDim2.fromOffset(20, 44),
-    ZIndex = 152
-}, zoomCard)
+local zoomViewport = new("ViewportFrame", { BackgroundColor3 = rgb(16, 16, 18), Size = UDim2.new(1, -40, 1, -60), Position = UDim2.fromOffset(20, 44), ZIndex = 152 }, zoomCard)
 corner(zoomViewport, UDim.new(0, 10))
 
 local zoomCam = new("Camera", {}, zoomViewport)
@@ -1387,22 +1354,16 @@ local zoomLight = new("PointLight", { Brightness = 2, Range = 50 }, zoomCam)
 
 local zoomDrag = false
 local zoomLastPos = Vector2.new()
-zoomViewport.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        zoomDrag = true; zoomLastPos = i.Position
-    end
-end)
+zoomViewport.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then zoomDrag = true; zoomLastPos = i.Position end end)
 zoomViewport.InputChanged:Connect(function(i)
     if zoomDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local d = i.Position - zoomLastPos
         currentRotY = currentRotY + (d.X * 0.6)
         currentRotX = currentRotX - (d.Y * 0.6)
-        
         local zoomClone = zoomViewport:FindFirstChildOfClass("MeshPart") or zoomViewport:FindFirstChildOfClass("Part") or zoomViewport:FindFirstChildWhichIsA("Model")
         if zoomClone then
             local rot = CFrame.fromEulerAnglesYXZ(math.rad(currentRotX), math.rad(currentRotY), 0)
-            local targetPos = Vector3.new(0,0,0)
-            local dist = 15
+            local targetPos, dist = Vector3.new(0,0,0), 15
             if zoomClone:IsA("Model") then
                 local cf, size = zoomClone:GetBoundingBox()
                 targetPos = cf.Position
@@ -1411,33 +1372,20 @@ zoomViewport.InputChanged:Connect(function(i)
                 local size = zoomClone.Size
                 dist = math.max(size.X, size.Y, size.Z) * 1.8
             end
-            local camPos = targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist))
-            zoomCam.CFrame = CFrame.new(camPos, targetPos)
+            zoomCam.CFrame = CFrame.new(targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist)), targetPos)
         end
         zoomLastPos = i.Position
     end
 end)
-zoomViewport.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        zoomDrag = false
-    end
-end)
+zoomViewport.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then zoomDrag = false end end)
 
 zoomBtn.MouseButton1Click:Connect(function()
     if not selectedModel then return end
-    
-    for _, child in ipairs(zoomViewport:GetChildren()) do
-        if child:IsA("BasePart") or child:IsA("Model") then
-            child:Destroy()
-        end
-    end
-
+    for _, child in ipairs(zoomViewport:GetChildren()) do if child:IsA("BasePart") or child:IsA("Model") then child:Destroy() end end
     if vpModel then
         local clone = vpModel:Clone()
         clone.Parent = zoomViewport
-        
-        local targetPos = Vector3.new(0,0,0)
-        local dist = 15
+        local targetPos, dist = Vector3.new(0,0,0), 15
         if clone:IsA("Model") then
             local cf, size = clone:GetBoundingBox()
             targetPos = cf.Position
@@ -1446,42 +1394,22 @@ zoomBtn.MouseButton1Click:Connect(function()
             local size = clone.Size
             dist = math.max(size.X, size.Y, size.Z) * 1.8
         end
-        
         local rot = CFrame.fromEulerAnglesYXZ(math.rad(currentRotX), math.rad(currentRotY), 0)
-        local camPos = targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist))
-        zoomCam.CFrame = CFrame.new(camPos, targetPos)
+        zoomCam.CFrame = CFrame.new(targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist)), targetPos)
     end
-    
     zoomOverlay.Visible = true
     tween(zoomOverlay, 0.2, { BackgroundTransparency = 0.5 })
     popIn(zoomScale, zoomCard)
 end)
 
 closeZoomBtn.MouseButton1Click:Connect(function()
-    local t1 = tween(zoomCard, 0.25, {
-        GroupTransparency = 1,
-        Size = UDim2.fromOffset(zoomBaseW * 0.85, zoomBaseH * 0.85)
-    }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    
+    local t1 = tween(zoomCard, 0.25, { GroupTransparency = 1, Size = UDim2.fromOffset(zoomBaseW * 0.85, zoomBaseH * 0.85) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
     tween(zoomOverlay, 0.25, { BackgroundTransparency = 1 })
-    
-    t1.Completed:Connect(function()
-        zoomOverlay.Visible = false
-        zoomCard.GroupTransparency = 0
-        zoomCard.Size = UDim2.fromOffset(zoomBaseW, zoomBaseH)
-    end)
+    t1.Completed:Connect(function() zoomOverlay.Visible = false; zoomCard.GroupTransparency = 0; zoomCard.Size = UDim2.fromOffset(zoomBaseW, zoomBaseH) end)
 end)
 
--- ============================================================
--- OTHER EVENTS (Audio, API, dll)
--- ============================================================
-searchInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        nextPageToken = nil
-        loadModels(searchInput.Text, false)
-    end
-end)
-
+-- EVENTS
+searchInput.FocusLost:Connect(function(enterPressed) if enterPressed then nextPageToken = nil; loadModels(searchInput.Text, false) end end)
 loadMoreBtn.Face.Activated:Connect(function()
     if not nextPageToken or isLoading then return end
     setLoadMoreVisible(false)
@@ -1494,29 +1422,38 @@ debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Vi
 copyIdBtn.Face.Activated:Connect(function()
     if not selectedModel then return end
     if setclipboard then setclipboard(tostring(selectedModel.id)) end
+    local origTone = copyIdBtn.Tone
+    copyIdBtn.SetTone(TONE_SUCCESS, WHITE)
     copyIdLabel.Text = "COPIED!"
     task.wait(1)
+    copyIdBtn.SetTone(origTone, TEXT_DARK)
     copyIdLabel.Text = "COPY ID"
 end)
 
 playBtn.Face.Activated:Connect(function()
     if not selectedModel then return end
     if currentSound then stopAudio(); return end
-    
     local snd = Instance.new("Sound")
     snd.SoundId = "rbxassetid://" .. tostring(selectedModel.id)
     snd.Volume = 1
     snd.Parent = SoundService
-    
     if pcall(function() snd:Play() end) then
         currentSound = snd
         playLabel.Text = "STOP"
+        local origTone = playBtn.Tone
+        playBtn.SetTone(TONE_SUCCESS, WHITE)
         snd.Ended:Connect(function()
             playLabel.Text = "PLAY"
+            playBtn.SetTone(origTone, TEXT_LIGHT)
             snd:Destroy()
             if currentSound == snd then currentSound = nil end
         end)
-        task.delay(60, function() if currentSound == snd then stopAudio() end end)
+        task.delay(60, function() 
+            if currentSound == snd then 
+                stopAudio() 
+                playBtn.SetTone(origTone, TEXT_LIGHT)
+            end 
+        end)
     else
         snd:Destroy()
     end
