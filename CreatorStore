@@ -1,8 +1,7 @@
 --[[
-    Studio Lite Toolbox - Final v30
-    - Replicated the Masonry/Stacked sub-category grid from the image
-    - Added staggered entrance animations
-    - Fully working with no empty states
+    Studio Lite Toolbox - Final v31
+    - Sub-categories now retain the 3D/Bevel theme while having vibrant colors
+    - Fully animated staggered entrance
 ]]
 
 local API_KEYS = {
@@ -114,7 +113,7 @@ local function measureText(text, size, font)
     return #text * (size * 0.6)
 end
 
-local function raised(parent, size, position, tone, depth, radius, isStatic)
+local function raised(parent, size, position, tone, depth, radius, isStatic, customGradient)
     depth = depth or 3
     radius = radius or UDim.new(0, 8)
     local holder = new("Frame", {
@@ -131,7 +130,10 @@ local function raised(parent, size, position, tone, depth, radius, isStatic)
         Size = UDim2.new(1, 0, 1, -depth)
     }, holder)
     corner(face, radius)
-    local grad = new("UIGradient", { Color = SHADE, Rotation = 90 }, face)
+    
+    local gradColor = customGradient or SHADE
+    local grad = new("UIGradient", { Color = gradColor, Rotation = 90 }, face)
+    
     local stroke = new("UIStroke", {
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
         Color = WHITE, Thickness = 1
@@ -575,12 +577,11 @@ local subCatContainer = new("Frame", {
 local subCatScroll = new("ScrollingFrame", {
     BackgroundTransparency = 1, BorderSizePixel = 0,
     Size = UDim2.new(1, 0, 1, 0),
-    CanvasSize = UDim2.new(0, 0, 0, 0), -- Manually set below
+    CanvasSize = UDim2.new(0, 0, 0, 0),
     ScrollingDirection = Enum.ScrollingDirection.Y,
     ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
 }, subCatContainer)
 
--- Remove any default layout that might interfere
 for _, c in ipairs(subCatScroll:GetChildren()) do
     if c:IsA("UIGridLayout") or c:IsA("UIListLayout") then c:Destroy() end
 end
@@ -1293,9 +1294,8 @@ local function showSubCategories(catIndex)
     subCatContainer.Visible = true
     subCatScroll.CanvasPosition = Vector2.new(0, 0)
     
-    -- Clear old children
     for _, child in ipairs(subCatScroll:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("Frame") then
+        if child:IsA("Frame") or child:IsA("TextButton") then
             child:Destroy()
         end
     end
@@ -1304,7 +1304,6 @@ local function showSubCategories(catIndex)
     local subs = cat.subs or {"All"}
     local count = #subs
 
-    -- Specific Masonry Layout mapping
     local function getLayout(i)
         if count == 1 then
             return UDim2.new(1, 0, 0, 200), UDim2.new(0, 0, 0, 0)
@@ -1317,7 +1316,7 @@ local function showSubCategories(catIndex)
             return UDim2.new(0.5, -4, 0, 95), UDim2.new(0.5, 4, 0, 105)
         end
         
-        -- 6 specific layout matching image
+        -- 6 specific layout matching the reference
         if i == 1 then
             return UDim2.new(0.4, -4, 0, 160), UDim2.new(0, 0, 0, 0)
         elseif i == 2 then
@@ -1331,7 +1330,6 @@ local function showSubCategories(catIndex)
         elseif i == 6 then
             return UDim2.new(0.5, -4, 0, 75), UDim2.new(0.5, 4, 0, 170)
         else
-            -- Fallback for >6 items
             local row = math.floor((i-7)/2)
             local col = (i-7)%2
             return UDim2.new(0.5, -4, 0, 75), UDim2.new(col*0.5, (col==0 and 0 or 4), 0, 255 + row*85)
@@ -1353,45 +1351,41 @@ local function showSubCategories(catIndex)
 
     for i, subName in ipairs(subs) do
         local size, pos = getLayout(i)
-        local btn = new("TextButton", {
-            BackgroundColor3 = SUBCOLORS[(i-1) % #SUBCOLORS + 1],
-            BorderSizePixel = 0,
-            Size = size,
-            Position = pos + UDim2.new(0, 0, 0, 20), -- Start slightly down for slide
-            BackgroundTransparency = 1, -- Start invisible
-            Text = string.upper(subName),
-            TextColor3 = WHITE,
-            Font = GOTHAM_K,
-            TextSize = 16,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Top,
-            ClipsDescendants = true,
-            AutoButtonColor = false,
-            ZIndex = 10
-        }, subCatScroll)
-        corner(btn, UDim.new(0, 8))
-        new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12) }, btn)
-        new("UIGradient", { Color = ColorSequence.new(WHITE, rgb(150, 150, 150)), Rotation = 45 }, btn)
+        local baseColor = SUBCOLORS[(i-1)%#SUBCOLORS+1]
+        local gradColor = ColorSequence.new(baseColor:Lerp(WHITE, 0.35), baseColor:Lerp(rgb(0,0,0), 0.25))
 
-        local scale = new("UIScale", { Scale = 0.8 }, btn)
-        btn.TextTransparency = 1
-
+        -- Use raised function for the 3D theme
+        local btn = raised(subCatScroll, size, pos + UDim2.new(0,0,0,20), baseColor, 4, UDim.new(0, 12), false, gradColor)
+        
+        btn.Holder.ZIndex = 10
+        btn.Label.Text = string.upper(subName)
+        btn.Label.TextColor3 = WHITE
+        btn.Label.Font = GOTHAM_K
+        btn.Label.TextSize = 16
+        btn.Label.TextXAlignment = LEFT
+        btn.Label.TextYAlignment = Enum.TextYAlignment.Top
+        
+        new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12) }, btn.Face)
+        
+        -- Staggered Animation Setup
+        btn.Scale.Scale = 0.8
+        btn.Face.BackgroundTransparency = 1
+        btn.Base.BackgroundTransparency = 1
+        btn.Stroke.Transparency = 1
+        btn.Label.TextTransparency = 1
+        
         task.delay(i * 0.06, function()
-            if btn.Parent then
-                tween(btn, 0.4, { Position = pos, BackgroundTransparency = 0, TextTransparency = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-                tween(scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            if btn.Holder.Parent then
+                tween(btn.Holder, 0.4, { Position = pos }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                tween(btn.Face, 0.4, { BackgroundTransparency = 0 })
+                tween(btn.Base, 0.4, { BackgroundTransparency = 0 })
+                tween(btn.Stroke, 0.4, { Transparency = 0 })
+                tween(btn.Label, 0.4, { TextTransparency = 0 })
+                tween(btn.Scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
             end
         end)
 
-        local originalColor = btn.BackgroundColor3
-        btn.MouseEnter:Connect(function()
-            tween(btn, 0.2, { BackgroundColor3 = originalColor:Lerp(WHITE, 0.2) })
-        end)
-        btn.MouseLeave:Connect(function()
-            tween(btn, 0.2, { BackgroundColor3 = originalColor })
-        end)
-
-        btn.Activated:Connect(function()
+        btn.Face.Activated:Connect(function()
             selectSubCategory(subName)
         end)
 
