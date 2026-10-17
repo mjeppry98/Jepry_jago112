@@ -1,7 +1,9 @@
 --[[
-    Studio Lite Toolbox - Final v32
-    - Fixed Catalog API endpoint, headers, and response parsing
-    - Grid layout now populates correctly with avatar items
+    Studio Lite Toolbox - Final v30
+    - Added Sub-Category selection screen (vibrant color grid)
+    - Clicking a main category shows sub-categories first
+    - Clicking a sub-category reveals the left and right panels
+    - Fully mapped to Roblox Toolbox & Catalog APIs
 ]]
 
 local API_KEYS = {
@@ -22,19 +24,69 @@ local ICON = {
     DESC        = "rbxassetid://98359085392262",
     SPEAKER     = "rbxassetid://87702826291744",
     ZOOM        = "rbxassetid://13321848320",
-    MINIMIZE    = "rbxassetid://100624819703287",
-    ROBUX       = "rbxassetid://10546897985"
+    MINIMIZE    = "rbxassetid://100624819703287"
 }
 
+-- Sub-Category Definitions (Mapped to APIs)
 local CATEGORIES = {
-    { key = "Model",    label = "MODELS" },
-    { key = "Catalog",  label = "CATALOG" },
-    { key = "Plugin",   label = "PLUGINS" },
-    { key = "Audio",    label = "AUDIO" },
-    { key = "Decal",    label = "DECALS" },
-    { key = "MeshPart", label = "MESHES" },
+    { 
+        key = "Model", label = "MODELS", 
+        subs = {
+            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
+            { label = "BUILDINGS", query = "building", color = Color3.fromRGB(255, 100, 150) },
+            { label = "VEHICLES", query = "vehicle", color = Color3.fromRGB(100, 255, 150) },
+            { label = "WEAPONS", query = "weapon", color = Color3.fromRGB(255, 150, 100) },
+            { label = "NATURE", query = "tree", color = Color3.fromRGB(150, 100, 255) },
+            { label = "TOOLS", query = "tool", color = Color3.fromRGB(255, 200, 50) },
+        }
+    },
+    { 
+        key = "Catalog", label = "CATALOG", 
+        subs = {
+            { label = "FEATURED", query = "", catId = 1, color = Color3.fromRGB(80, 120, 255) },
+            { label = "ACCESSORIES", query = "", catId = 3, color = Color3.fromRGB(255, 100, 150) },
+            { label = "HAIR", query = "", catId = 4, color = Color3.fromRGB(150, 100, 255) },
+            { label = "CLOTHING", query = "", catId = 5, color = Color3.fromRGB(100, 255, 150) },
+            { label = "ANIMATIONS", query = "", catId = 12, color = Color3.fromRGB(255, 200, 50) },
+        }
+    },
+    { 
+        key = "Plugin", label = "PLUGINS", 
+        subs = {
+            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
+            { label = "BUILDING", query = "building", color = Color3.fromRGB(100, 255, 150) },
+            { label = "UTILITY", query = "utility", color = Color3.fromRGB(255, 150, 100) },
+            { label = "LIGHTING", query = "lighting", color = Color3.fromRGB(255, 200, 50) },
+        }
+    },
+    { 
+        key = "Audio", label = "AUDIO", 
+        subs = {
+            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
+            { label = "SFX", query = "sfx", color = Color3.fromRGB(255, 100, 150) },
+            { label = "MUSIC", query = "music", color = Color3.fromRGB(150, 100, 255) },
+            { label = "AMBIENT", query = "ambient", color = Color3.fromRGB(100, 255, 150) },
+        }
+    },
+    { 
+        key = "Decal", label = "DECALS", 
+        subs = {
+            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
+            { label = "TEXTURES", query = "texture", color = Color3.fromRGB(255, 100, 150) },
+            { label = "SIGNS", query = "sign", color = Color3.fromRGB(255, 150, 100) },
+        }
+    },
+    { 
+        key = "MeshPart", label = "MESHES", 
+        subs = {
+            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
+            { label = "CHARACTERS", query = "character", color = Color3.fromRGB(150, 100, 255) },
+            { label = "PROPS", query = "prop", color = Color3.fromRGB(255, 200, 50) },
+        }
+    },
 }
 local currentCategoryIndex = 1
+local currentSubCategory = nil
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -310,11 +362,7 @@ end
 
 local function httpGet(url, apiKey)
     if not HTTP then return nil, "Executor does not support HTTP requests." end
-    local headers = { 
-        ["Accept"] = "application/json",
-        ["User-Agent"] = "Roblox/WinInet",
-        ["Referer"] = "https://www.roblox.com/"
-    }
+    local headers = { ["Accept"] = "application/json" }
     if apiKey then headers["x-api-key"] = apiKey end
     local ok, res = pcall(HTTP, {
         Url = url, Method = "GET", Headers = headers
@@ -363,15 +411,14 @@ local function parseCatalogModels(data)
     if type(list) ~= "table" then list = {} end
     for _, item in ipairs(list) do
         if type(item) == "table" then
-            local id = item.id
+            local id = item.id or item.assetId
             if id then
-                local name = item.name or ("Item " .. tostring(id))
+                local name = item.name or item.itemName or ("Item " .. tostring(id))
                 local desc = item.description or "No description available."
                 local creatorName = item.creatorName or "?"
-                local price = item.price or 0
                 table.insert(models, {
                     id = tostring(id), name = name, description = desc,
-                    creator = creatorName, category = "Catalog", price = price,
+                    creator = creatorName, category = "Catalog",
                     thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
                 })
             end
@@ -587,7 +634,7 @@ for i, cat in ipairs(CATEGORIES) do
     local btn = raised(categoryBar,
         UDim2.fromOffset(btnW, CATEGORY_H - 4),
         UDim2.fromOffset(currentX, 2),
-        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
+        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true) -- isStatic=true
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
@@ -596,7 +643,7 @@ for i, cat in ipairs(CATEGORIES) do
     currentX = currentX + btnW + CAT_GAP
 end
 
--- CONTENT
+-- CONTENT CONTAINER
 local content = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -PAD*2, 0, CONTENT_H),
@@ -604,19 +651,34 @@ local content = new("Frame", {
     ClipsDescendants = true
 }, body)
 
--- STANDARD VIEW
-local standardView = new("Frame", {
+-- ============================================================
+-- SUB-CATEGORY SELECTION SCREEN
+-- ============================================================
+local subCategoryFrame = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.fromScale(1, 1),
-    Visible = true
+    Visible = false,
+    GroupTransparency = 1
 }, content)
+surface(subCategoryFrame, 12)
 
+local subCatTitle = txt(subCategoryFrame, "SELECT A CATEGORY", 16, WHITE, GOTHAM_K, UDim2.new(1, 0, 0, 30), UDim2.fromOffset(0, 15), CENTER)
+local subCatGrid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -20, 1, -60), Position = UDim2.fromOffset(10, 50) }, subCategoryFrame)
+new("UIGridLayout", {
+    CellSize = UDim2.new(0.33, -8, 0, 80),
+    CellPadding = UDim2.new(0, 8, 0, 8),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, subCatGrid)
+
+-- ============================================================
 -- LEFT PANEL
+-- ============================================================
 local leftPanel = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, 0, 1, 0),
-    Position = UDim2.new(0, 0, 0, 0)
-}, standardView)
+    Position = UDim2.new(0, 0, 0, 0),
+    Visible = false
+}, content)
 surface(leftPanel, 12)
 leftPanel.ClipsDescendants = true
 
@@ -652,13 +714,15 @@ loadMoreBtn.Base.BackgroundTransparency = 1
 loadMoreBtn.Stroke.Transparency = 1
 loadMoreBtn.Label.TextTransparency = 1
 
+-- ============================================================
 -- RIGHT PANEL
+-- ============================================================
 local rightPanel = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.new(0.5, -6, 1, 0),
     Position = UDim2.new(1.5, 0, 0, 0),
     Visible = false
-}, standardView)
+}, content)
 surface(rightPanel, 12)
 rightPanel.ClipsDescendants = true
 
@@ -792,115 +856,19 @@ local detailDesc = txt(descRow, "", 10, TEXT_DIM, GOTHAM,
         AutomaticSize = Enum.AutomaticSize.Y
     })
 
--- ============================================================
--- CATALOG VIEW (Grid Layout + Avatar)
--- ============================================================
-local catalogView = new("Frame", {
-    BackgroundTransparency = 1,
-    Size = UDim2.fromScale(1, 1),
-    Visible = false
-}, content)
+-- STATUS BAR
+local statusLabel = txt(body, "Ready.", 9, TEXT_DIM, GOTHAM,
+    UDim2.new(1, -PAD*2, 0, 14), UDim2.new(0, PAD, 1, -16), LEFT)
 
--- Left Side: Avatar Preview
-local avatarFrame = new("Frame", {
-    BackgroundColor3 = rgb(30, 30, 34),
-    Size = UDim2.new(0.35, -INNER, 1, 0),
-    Position = UDim2.new(0, 0, 0, 0)
-}, catalogView)
-surface(avatarFrame, 12)
-
-local catalogViewport = new("ViewportFrame", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(1, -10, 1, -10),
-    Position = UDim2.fromOffset(5, 5),
-    Ambient = Color3.new(0.7, 0.7, 0.7)
-}, avatarFrame)
-corner(catalogViewport, UDim.new(0, 10))
-
-local avCamera = new("Camera", {}, catalogViewport)
-catalogViewport.CurrentCamera = avCamera
-
-local function updateCatalogAvatar()
-    pcall(function()
-        catalogViewport:ClearAllChildren()
-        catalogViewport.CurrentCamera = avCamera
-        avCamera.Parent = catalogViewport
-        
-        local char = Players.LocalPlayer.Character
-        if char then
-            local clone = char:Clone()
-            clone.Parent = catalogViewport
-            local hrp = clone:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = CFrame.new(0, 0, 0)
-                avCamera.CFrame = CFrame.new(0, 1, 6) * CFrame.Angles(0, math.rad(180), 0)
-            end
-        end
-    end)
-end
-
--- Right Side: Grid of Items
-local gridScroll = new("ScrollingFrame", {
-    BackgroundTransparency = 1,
-    Size = UDim2.new(0.65, -INNER, 1, 0),
-    Position = UDim2.new(0.35, INNER, 0, 0),
-    ScrollBarThickness = 3,
-    ScrollBarImageColor3 = rgb(150, 150, 158),
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-    ClipsDescendants = true
-}, catalogView)
-new("UIGridLayout", {
-    CellSize = UDim2.new(0, 100, 0, 130),
-    CellPadding = UDim2.new(0, 8, 0, 8),
-    SortOrder = Enum.SortOrder.LayoutOrder
-}, gridScroll)
-
-local function createCatalogItem(model, index)
-    local item = new("Frame", {
-        BackgroundColor3 = rgb(40, 40, 44),
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 1, 0),
-        LayoutOrder = index
-    }, gridScroll)
-    corner(item, UDim.new(0, 8))
-    new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
-    
-    local btn = new("TextButton", {
-        AutoButtonColor = false, Text = "", BackgroundTransparency = 1,
-        Size = UDim2.fromScale(1, 1), ZIndex = 2
-    }, item)
-    
-    local img = new("ImageLabel", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(0.8, 0, 0.6, 0),
-        Position = UDim2.new(0.1, 0, 0.05, 0),
-        Image = model.thumbnail,
-        ScaleType = Enum.ScaleType.Fit
-    }, item)
-    
-    txt(item, model.name, 10, WHITE, GOTHAM_B, UDim2.new(1, -10, 0, 30), UDim2.fromOffset(5, 70), LEFT, {
-        TextWrapped = true, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
-    })
-    
-    local priceRow = new("Frame", {
-        BackgroundTransparency = 1, Size = UDim2.new(1, -10, 0, 20), Position = UDim2.fromOffset(5, 100)
-    }, item)
-    new("ImageLabel", {
-        BackgroundTransparency = 1, Image = ICON.ROBUX,
-        Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(0, 3)
-    }, priceRow)
-    txt(priceRow, tostring(model.price), 10, rgb(255, 200, 100), GOTHAM_B, UDim2.new(1, -20, 0, 20), UDim2.fromOffset(18, 0), LEFT)
-    
-    btn.MouseButton1Click:Connect(function()
-        if setclipboard then setclipboard(model.id) end
-        local origColor = item.BackgroundColor3
-        item.BackgroundColor3 = TONE_SUCCESS
-        task.wait(0.5)
-        item.BackgroundColor3 = origColor
-    end)
-end
+-- DEBUG BOX
+local debugBox = sunken(body, UDim2.new(0.9, 0, 0.5, 0), UDim2.new(0.05, 0, 0.25, 0))
+debugBox.Font = Enum.Font.Code
+debugBox.TextSize = 8
+debugBox.TextColor3 = rgb(0, 255, 0)
+debugBox.TextWrapped = true
+debugBox.Text = "RAW JSON..."
+debugBox.Visible = false
+debugBox.ZIndex = 10
 
 -- ============================================================
 -- STATE & LOGIC
@@ -911,6 +879,8 @@ local itemCards = {}
 local allModels = {}
 local nextPageToken = nil
 local lastQuery = ""
+local lastSubCategoryQuery = ""
+local lastSubCategoryId = nil
 local isLoading = false
 local currentSound = nil
 
@@ -1041,6 +1011,22 @@ local function loadMeshToViewport(id)
         block.Color = Color3.fromRGB(100, 100, 100)
         block.Parent = viewportFrame
         vpModel = block
+        
+        local billboard = Instance.new("BillboardGui")
+        billboard.Size = UDim2.new(0, 150, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = block
+        
+        local warningTxt = Instance.new("TextLabel")
+        warningTxt.Size = UDim2.new(1, 0, 1, 0)
+        warningTxt.BackgroundTransparency = 1
+        warningTxt.Text = "Mesh Blocked by Roblox\n(Client Security Limit)"
+        warningTxt.TextColor3 = Color3.fromRGB(255, 100, 100)
+        warningTxt.TextStrokeTransparency = 0
+        warningTxt.TextScaled = true
+        warningTxt.Font = Enum.Font.GothamBold
+        warningTxt.Parent = billboard
     end
 
     currentRotX = 20
@@ -1321,7 +1307,7 @@ end
 
 local function setStatus(text) statusLabel.Text = text end
 
-function loadModels(query, append)
+function loadModels(append)
     if isLoading then return end
     isLoading = true
     local cat = CATEGORIES[currentCategoryIndex]
@@ -1332,45 +1318,29 @@ function loadModels(query, append)
         local data, err, raw
         
         if cat.key == "Catalog" then
-            -- FIXED: Correct endpoint, parameters, and headers for Catalog API
-            local url = ("https://catalog.roblox.com/v1/search/items/details?Category=1&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(HttpService:UrlEncode(query or ""))
+            local url = ("https://catalog.roblox.com/v1/search/items/details?Category=%d&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(lastSubCategoryId or 1, HttpService:UrlEncode(lastQuery or ""))
+            if append and nextPageToken then url = url .. "&Cursor=" .. nextPageToken end
             data, err, raw = httpGet(url)
-            
+            local results, newToken
             if data then
-                local results, newToken = parseCatalogModels(data)
+                results, newToken = parseCatalogModels(data)
                 nextPageToken = newToken
-                lastQuery = query
-                
-                -- Clear Grid before adding new items
-                for _, c in ipairs(gridScroll:GetChildren()) do
-                    if c:IsA("Frame") then c:Destroy() end
-                end
-                
-                for i, item in ipairs(results) do
-                    createCatalogItem(item, i)
-                end
-                
-                if #results == 0 then
-                    setStatus("No catalog items found.")
-                else
-                    setStatus(("Found %d catalog items"):format(#results))
-                end
+                displayModels(results, append)
             end
         else
-            -- Creator Store API
             local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
+            local searchQuery = (lastSubCategoryQuery ~= "" and (lastSubCategoryQuery .. " " .. lastQuery) or lastQuery)
             local bodyReq = {
                 searchCategoryType = cat.key,
-                query = query or "",
+                query = searchQuery or "",
                 maxPageSize = 30
             }
             if append and nextPageToken then bodyReq.pageToken = nextPageToken end
             data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
-            
+            local results, newToken
             if data then
-                local results, newToken = parseToolboxModels(data, cat.key)
+                results, newToken = parseToolboxModels(data, cat.key)
                 nextPageToken = newToken
-                lastQuery = query
                 displayModels(results, append)
             end
         end
@@ -1385,10 +1355,78 @@ function loadModels(query, append)
         if data then
             debugBox.Text = raw or "Empty"
             isLoading = false
+            setStatus(("Found %d assets"):format(#allModels))
             loadMoreBtn.Label.Text = "LOAD MORE"
             loadMoreState.lastY = scrollList.CanvasPosition.Y
         end
     end)
+end
+
+-- ============================================================
+-- SUB-CATEGORY RENDERER & TRANSITIONS
+-- ============================================================
+local function renderSubCategories()
+    for _, c in ipairs(subCatGrid:GetChildren()) do
+        if c:IsA("TextButton") or c:IsA("Frame") then c:Destroy() end
+    end
+    local cat = CATEGORIES[currentCategoryIndex]
+    subCatTitle.Text = "SELECT A " .. cat.label .. " CATEGORY"
+
+    for _, sub in ipairs(cat.subs) do
+        local btn = new("TextButton", {
+            BackgroundColor3 = sub.color,
+            BorderSizePixel = 0,
+            Text = "",
+            AutoButtonColor = false
+        }, subCatGrid)
+        corner(btn, UDim.new(0, 10))
+        local stroke = new("UIStroke", { Color = WHITE, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, btn)
+        
+        txt(btn, sub.label, 14, WHITE, GOTHAM_B, UDim2.fromScale(1,1), UDim2.new(), CENTER, {
+            TextWrapped = true
+        })
+
+        local s = new("UIScale", {Scale = 1}, btn)
+        btn.MouseEnter:Connect(function() tween(s, 0.2, {Scale = 1.05}, Enum.EasingStyle.Back) end)
+        btn.MouseLeave:Connect(function() tween(s, 0.2, {Scale = 1}, Enum.EasingStyle.Quart) end)
+        
+        btn.Activated:Connect(function()
+            lastSubCategoryQuery = sub.query
+            lastSubCategoryId = sub.catId
+            lastQuery = searchInput.Text
+
+            -- Transition to list view
+            tween(subCategoryFrame, 0.25, {GroupTransparency = 1})
+            tween(leftPanel, 0.3, {Visible = true, Size = UDim2.new(1, 0, 1, 0)}, Enum.EasingStyle.Quart)
+            
+            -- If we wanted a fade-in for the left panel:
+            leftPanel.GroupTransparency = 1
+            tween(leftPanel, 0.3, {GroupTransparency = 0})
+            task.delay(0.25, function() subCategoryFrame.Visible = false end)
+            
+            loadModels(false)
+        end)
+    end
+end
+
+local function showSubCategoryScreen()
+    setLoadMoreVisible(false)
+    setScrollShrunk(false)
+    if detailOpen then setDetailOpen(false) end
+    rightPanel.Visible = false
+    
+    for _, c in ipairs(scrollList:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+    allModels = {}
+    itemCards = {}
+
+    renderSubCategories()
+    subCategoryFrame.Visible = true
+    subCategoryFrame.GroupTransparency = 1
+    tween(subCategoryFrame, 0.25, {GroupTransparency = 0})
+    
+    leftPanel.Visible = false
 end
 
 -- ============================================================
@@ -1574,35 +1612,20 @@ end)
 -- CATEGORY CLICK LOGIC
 -- ============================================================
 local function setActiveCategory(idx)
-    if currentCategoryIndex == idx then return end
+    if currentCategoryIndex == idx then 
+        if not subCategoryFrame.Visible and not leftPanel.Visible then
+            showSubCategoryScreen()
+        end
+        return 
+    end
     currentCategoryIndex = idx
-
-    setLoadMoreVisible(false)
-    setScrollShrunk(false)
-    loadMoreState.shrunk = false
-    loadMoreState.visible = false
-    scrollList.CanvasPosition = Vector2.new(0, 0)
-    scrollList.Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H)
 
     for i, btnData in ipairs(categoryButtons) do
         local isActive = (i == idx)
         btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
     end
 
-    if detailOpen then setDetailOpen(false) end
-    nextPageToken = nil
-    
-    if CATEGORIES[idx].key == "Catalog" then
-        standardView.Visible = false
-        catalogView.Visible = true
-        updateCatalogAvatar()
-        task.wait(0.2)
-        loadModels(searchInput.Text or "", false)
-    else
-        catalogView.Visible = false
-        standardView.Visible = true
-        loadModels(searchInput.Text or "", false)
-    end
+    showSubCategoryScreen()
 end
 
 for i, btnData in ipairs(categoryButtons) do
@@ -1615,12 +1638,10 @@ end
 searchInput.FocusLost:Connect(function(enterPressed) 
     if enterPressed then 
         nextPageToken = nil
-        if CATEGORIES[currentCategoryIndex].key == "Catalog" then
-            for _, c in ipairs(gridScroll:GetChildren()) do
-                if c:IsA("Frame") then c:Destroy() end
-            end
+        lastQuery = searchInput.Text
+        if not subCategoryFrame.Visible then
+            loadModels(false) 
         end
-        loadModels(searchInput.Text, false) 
     end 
 end)
 
@@ -1628,7 +1649,7 @@ loadMoreBtn.Face.Activated:Connect(function()
     if not nextPageToken or isLoading then return end
     setLoadMoreVisible(false)
     setScrollShrunk(false)
-    loadModels(lastQuery, true)
+    loadModels(true)
 end)
 
 debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Visible end)
@@ -1717,4 +1738,4 @@ popIn(bodyScale, body)
 tween(shadow, 0.4, { BackgroundTransparency = 0.55 })
 
 task.wait(0.3)
-if HTTP then loadModels("", false) end
+setActiveCategory(1) -- Trigger initial sub-category screen
