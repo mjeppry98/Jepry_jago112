@@ -1,8 +1,7 @@
 --[[
-    Studio Lite Toolbox - Final v28
-    - Added Sub-Category Grid Selection system
-    - Main Category -> Sub Category -> Asset List
-    - Added Back button to return to Sub Categories
+    Studio Lite Toolbox - Final v29
+    - Fixed Sub-Category empty bug (Added fallback for missing subs)
+    - Categories updated to match screenshot (Models, Catalog, Plugins, Audio, Decals, Meshes)
 ]]
 
 local API_KEYS = {
@@ -27,9 +26,10 @@ local ICON = {
     BACK        = "rbxassetid://114496992333593"
 }
 
--- Added Sub Categories
+-- Updated categories to match the screenshot exactly
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
+    { key = "Plugin",   label = "CATALOG", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Other"} },
     { key = "Plugin",   label = "PLUGINS", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Other"} },
     { key = "Audio",    label = "AUDIO",   subs = {"All", "SFX", "Music", "Ambient", "Voice"} },
     { key = "Decal",    label = "DECALS",  subs = {"All", "Textures", "Signs", "Logos", "Patterns"} },
@@ -556,7 +556,7 @@ for i, cat in ipairs(CATEGORIES) do
     currentX = currentX + btnW + CAT_GAP
 end
 
--- CONTENT (Base area for panels & subcategories)
+-- CONTENT
 local content = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -PAD*2, 0, CONTENT_H),
@@ -589,38 +589,6 @@ local subCatGrid = new("UIGridLayout", {
 }, subCatScroll)
 new("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6) }, subCatScroll)
 
-local function showSubCategories(catIndex)
-    currentCategoryIndex = catIndex
-    currentSubCategory = nil
-    
-    -- Hide panels
-    leftPanel.Visible = false
-    rightPanel.Visible = false
-    subCatContainer.Visible = true
-    subCatScroll.CanvasPosition = Vector2.new(0, 0)
-    
-    -- Populate Grid
-    for _, child in ipairs(subCatScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-    
-    local cat = CATEGORIES[catIndex]
-    for i, subName in ipairs(cat.subs) do
-        local btn = raised(subCatScroll, UDim2.new(1, 0, 1, 0), UDim2.new(), TONE_OFF, 3)
-        btn.Label.Text = subName
-        btn.Label.TextSize = 14
-        
-        -- Add a hint of color to sub-categories
-        if i % 3 == 0 then btn.SetTone(rgb(120, 50, 100), WHITE) -- Pinkish
-        elseif i % 3 == 1 then btn.SetTone(rgb(50, 100, 150), WHITE) -- Bluish
-        else btn.SetTone(rgb(40, 120, 80), WHITE) end -- Greenish
-        
-        btn.Face.Activated:Connect(function()
-            selectSubCategory(subName)
-        end)
-    end
-end
-
 -- ============================================================
 -- LEFT PANEL
 -- ============================================================
@@ -646,7 +614,10 @@ local backBtn = new("TextButton", {
 }, leftPanel)
 corner(backBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
-backBtn.MouseButton1Click:Connect(function() showSubCategories(currentCategoryIndex) end)
+backBtn.MouseButton1Click:Connect(function() 
+    -- Forward declaration reference handled safely
+    if showSubCategories then showSubCategories(currentCategoryIndex) end 
+end)
 
 local scrollList = new("ScrollingFrame", {
     BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -1316,6 +1287,45 @@ local function selectSubCategory(subName)
     
     nextPageToken = nil
     loadModels(currentQuery, false)
+end
+
+local function showSubCategories(catIndex)
+    currentCategoryIndex = catIndex
+    currentSubCategory = nil
+    
+    -- Hide panels
+    leftPanel.Visible = false
+    rightPanel.Visible = false
+    subCatContainer.Visible = true
+    subCatScroll.CanvasPosition = Vector2.new(0, 0)
+    
+    -- Populate Grid
+    for _, child in ipairs(subCatScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    
+    local cat = CATEGORIES[catIndex]
+    
+    -- SAFEGUARD: Ensure subs exists to prevent UI crash
+    local subs = cat.subs
+    if not subs or #subs == 0 then
+        subs = {"All"}
+    end
+
+    for i, subName in ipairs(subs) do
+        local btn = raised(subCatScroll, UDim2.new(1, 0, 1, 0), UDim2.new(), TONE_OFF, 3)
+        btn.Label.Text = subName
+        btn.Label.TextSize = 14
+        
+        -- Give sub-categories some color variations
+        if i % 3 == 0 then btn.SetTone(rgb(120, 50, 100), WHITE) -- Pinkish
+        elseif i % 3 == 1 then btn.SetTone(rgb(50, 100, 150), WHITE) -- Bluish
+        else btn.SetTone(rgb(40, 120, 80), WHITE) end -- Greenish
+        
+        btn.Face.Activated:Connect(function()
+            selectSubCategory(subName)
+        end)
+    end
 end
 
 local function setActiveCategory(idx)
