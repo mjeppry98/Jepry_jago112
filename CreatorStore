@@ -1,8 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v20
-    - Comprehensive animations for every button and interaction
-    - Bouncy hovers, smooth state transitions, color flashes on success
-    - Sizes and core logic remain strictly untouched
+    Studio Lite Toolbox - Final v30
+    - Added Sub-Categories for each main category
+    - Layout adjusted to fit Sub-Category bar
+    - Fully functional filtering (Toolbox uses query appending, Catalog uses Category ID)
 ]]
 
 local API_KEYS = {
@@ -28,12 +28,34 @@ local ICON = {
 
 local CATEGORIES = {
     { key = "Model",    label = "MODELS" },
+    { key = "Catalog",  label = "CATALOG" },
     { key = "Plugin",   label = "PLUGINS" },
     { key = "Audio",    label = "AUDIO" },
     { key = "Decal",    label = "DECALS" },
     { key = "MeshPart", label = "MESHES" },
 }
 local currentCategoryIndex = 1
+local currentSubCategory = "All"
+
+-- Sub-Categories Configuration
+local SUBCATEGORIES = {
+    Model = {"All", "Vehicles", "Buildings", "Weapons", "Tools", "Animals", "Nature"},
+    Catalog = {"All", "Hats", "Faces", "Shirts", "Pants", "Accessories"}, -- Maps to Category IDs internally
+    Plugin = {"All", "Building", "Scripting", "UI", "Animation"},
+    Audio = {"All", "Music", "Sound Effect", "Ambient", "Voice"},
+    Decal = {"All", "Signs", "Textures", "Posters"},
+    MeshPart = {"All", "Furniture", "Weapons", "Character", "Environment"}
+}
+
+-- Catalog API Category Mapping
+local CATALOG_IDS = {
+    ["All"] = 1,
+    ["Hats"] = 11,
+    ["Faces"] = 10,
+    ["Shirts"] = 12,
+    ["Pants"] = 13,
+    ["Accessories"] = 14,
+}
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -111,8 +133,8 @@ local function measureText(text, size, font)
     return #text * (size * 0.6)
 end
 
--- Raised Button w/ Bouncy Hover & Click
-local function raised(parent, size, position, tone, depth, radius)
+-- Raised Button w/ optional static mode
+local function raised(parent, size, position, tone, depth, radius, isStatic)
     depth = depth or 3
     radius = radius or UDim.new(0, 8)
     local holder = new("Frame", {
@@ -137,40 +159,51 @@ local function raised(parent, size, position, tone, depth, radius)
     new("UIGradient", { Color = BEVEL, Rotation = 90 }, stroke)
     local label = new("TextLabel", {
         BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-        Font = GOTHAM_B, TextSize = 11, Text = "", TextColor3 = TEXT_LIGHT
+        Font = GOTHAM_B, TextSize = 11, Text = "", TextColor3 = TEXT_LIGHT,
+        TextXAlignment = Enum.TextXAlignment.Center
     }, face)
     
-    local scale = new("UIScale", {Scale = 1}, face)
-    local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone, Scale = scale }
+    local api = { Holder = holder, Base = base, Face = face, Stroke = stroke, Label = label, Tone = tone }
     
-    local hover, down = false, false
-    local function render()
-        local c = api.Tone
-        if down then
-            tween(scale, 0.1, {Scale = 0.92})
-            tween(face, 0.08, {
-                Position = UDim2.fromOffset(0, depth - 1),
-                BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.25)
-            })
-            tween(grad, 0.08, { Rotation = 270 })
-        else
-            tween(scale, 0.2, {Scale = hover and 1.04 or 1}, Enum.EasingStyle.Back)
-            tween(face, 0.2, {
-                Position = UDim2.fromOffset(0, 0),
-                BackgroundColor3 = (hover and c:Lerp(WHITE, 0.12)) or c
-            })
-            tween(grad, 0.2, { Rotation = 90 })
+    if not isStatic then
+        local scale = new("UIScale", {Scale = 1}, face)
+        api.Scale = scale
+        local hover, down = false, false
+        local function render()
+            local c = api.Tone
+            if down then
+                tween(scale, 0.1, {Scale = 0.92})
+                tween(face, 0.08, {
+                    Position = UDim2.fromOffset(0, depth - 1),
+                    BackgroundColor3 = c:Lerp(Color3.new(0, 0, 0), 0.25)
+                })
+                tween(grad, 0.08, { Rotation = 270 })
+            else
+                tween(scale, 0.2, {Scale = hover and 1.04 or 1}, Enum.EasingStyle.Back)
+                tween(face, 0.2, {
+                    Position = UDim2.fromOffset(0, 0),
+                    BackgroundColor3 = (hover and c:Lerp(WHITE, 0.12)) or c
+                })
+                tween(grad, 0.2, { Rotation = 90 })
+            end
         end
-    end
-    
-    face.InputBegan:Connect(function(i) if isPress(i) then down = true; render() end end)
-    face.InputEnded:Connect(function(i) if isPress(i) then down = false; render() end end)
-    face.MouseEnter:Connect(function() hover = true; render() end)
-    face.MouseLeave:Connect(function() hover = false; down = false; render() end)
-    
-    api.SetTone = function(c, tc)
-        api.Tone = c; render()
-        if tc then tween(label, 0.2, { TextColor3 = tc }) end
+        
+        face.InputBegan:Connect(function(i) if isPress(i) then down = true; render() end end)
+        face.InputEnded:Connect(function(i) if isPress(i) then down = false; render() end end)
+        face.MouseEnter:Connect(function() hover = true; render() end)
+        face.MouseLeave:Connect(function() hover = false; down = false; render() end)
+        
+        api.SetTone = function(c, tc)
+            api.Tone = c; render()
+            if tc then tween(label, 0.2, { TextColor3 = tc }) end
+        end
+    else
+        -- Static mode: no hover, no click animation.
+        api.SetTone = function(c, tc)
+            api.Tone = c
+            face.BackgroundColor3 = c
+            if tc then label.TextColor3 = tc end
+        end
     end
     return api
 end
@@ -298,7 +331,22 @@ local function httpPost(url, apiKey, bodyTable)
     return data, nil, res.Body
 end
 
-local function parseModelsFromResponse(data, category)
+local function httpGet(url, apiKey)
+    if not HTTP then return nil, "Executor does not support HTTP requests." end
+    local headers = { ["Accept"] = "application/json" }
+    if apiKey then headers["x-api-key"] = apiKey end
+    local ok, res = pcall(HTTP, {
+        Url = url, Method = "GET", Headers = headers
+    })
+    if not ok then return nil, tostring(res) end
+    if not res or not res.Body then return nil, "Empty response" end
+    local decodeOk, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
+    if not decodeOk then return nil, "Invalid JSON" end
+    return data, nil, res.Body
+end
+
+-- Parser for Creator Store Assets
+local function parseToolboxModels(data, category)
     if not data then return {}, nil end
     local models = {}
     local list = data.creatorStoreAssets or {}
@@ -326,6 +374,30 @@ local function parseModelsFromResponse(data, category)
         end
     end
     return models, data.data and data.data.nextPageToken or data.nextPageToken
+end
+
+-- Parser for Catalog Items (Avatar items)
+local function parseCatalogModels(data)
+    if not data then return {}, nil end
+    local models = {}
+    local list = data.data or {}
+    if type(list) ~= "table" then list = {} end
+    for _, item in ipairs(list) do
+        if type(item) == "table" then
+            local id = item.id or item.assetId
+            if id then
+                local name = item.name or item.itemName or ("Item " .. tostring(id))
+                local desc = item.description or "No description available."
+                local creatorName = item.creatorName or "?"
+                table.insert(models, {
+                    id = tostring(id), name = name, description = desc,
+                    creator = creatorName, category = "Catalog",
+                    thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
+                })
+            end
+        end
+    end
+    return models, data.nextPageCursor
 end
 
 local function safeSetImage(elm, iconId, color)
@@ -369,11 +441,13 @@ local INNER = 8
 local HEADER_H = 46
 local SEARCH_H = 38
 local CATEGORY_H = 32
+local SUBCATEGORY_H = 28
 local GAP_TOP = 10
 local GAP_MID = 8
 local STATUS_H = 18
 local BTN_H = 38
-local CONTENT_TOP = HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID
+-- Adjusted Content Top to fit Sub-Category bar
+local CONTENT_TOP = HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID + SUBCATEGORY_H + GAP_MID
 local CONTENT_H = FRAME_H - CONTENT_TOP - STATUS_H - 4
 
 -- SHADOW
@@ -514,7 +588,7 @@ new("ImageLabel", {
     Position = UDim2.new(0, 14, 0.5, 0)
 }, searchBar)
 
--- CATEGORY TABS
+-- MAIN CATEGORY TABS
 local categoryBar = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -PAD*2, 0, CATEGORY_H),
@@ -522,22 +596,6 @@ local categoryBar = new("Frame", {
 }, body)
 
 local categoryButtons = {}
-
-local function setActiveCategory(idx)
-    if currentCategoryIndex == idx then return end
-    currentCategoryIndex = idx
-
-    for i, btn in ipairs(categoryButtons) do
-        local isActive = (i == idx)
-        btn.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
-        -- Bounce effect on active tab
-        tween(btn.api.Scale, 0.25, { Scale = isActive and 1.05 or 1 }, Enum.EasingStyle.Back)
-    end
-
-    if detailOpen then setDetailOpen(false) end
-    nextPageToken = nil
-    loadModels(searchInput.Text or "", false)
-end
 
 local currentX = 0
 local CAT_PAD_X = 12
@@ -551,16 +609,59 @@ for i, cat in ipairs(CATEGORIES) do
     local btn = raised(categoryBar,
         UDim2.fromOffset(btnW, CATEGORY_H - 4),
         UDim2.fromOffset(currentX, 2),
-        isActive and TONE_ON or TONE_OFF, 2)
+        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
-    btn.Scale.Scale = isActive and 1.05 or 1
 
     categoryButtons[i] = { api = btn, category = cat, width = btnW }
     currentX = currentX + btnW + CAT_GAP
+end
 
-    btn.Face.Activated:Connect(function() setActiveCategory(i) end)
+-- SUB-CATEGORY TABS
+local subCategoryBar = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    Size = UDim2.new(1, -PAD*2, 0, SUBCATEGORY_H),
+    Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID),
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.X,
+    ScrollingDirection = Enum.ScrollingDirection.X,
+    ScrollBarThickness = 0,
+    ElasticBehavior = Enum.ElasticBehavior.Always
+}, body)
+new("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal,
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding = UDim.new(0, 4)
+}, subCategoryBar)
+
+local subCategoryButtons = {}
+
+local function renderSubCategories(parentCatKey)
+    -- Clear old sub-categories
+    for _, btn in pairs(subCategoryButtons) do
+        btn.api.Holder:Destroy()
+    end
+    subCategoryButtons = {}
+
+    local subs = SUBCATEGORIES[parentCatKey] or {"All"}
+    
+    for i, subName in ipairs(subs) do
+        local isActive = (i == 1) -- Default to first subcategory
+        local textW = measureText(subName, 9, GOTHAM_B)
+        local btnW = textW + 20 -- padding 10 each side
+
+        local btn = raised(subCategoryBar,
+            UDim2.fromOffset(btnW, SUBCATEGORY_H - 2),
+            UDim2.new(),
+            isActive and TONE_ON or TONE_OFF, 1, UDim.new(0,6), true)
+        btn.Label.Text = subName
+        btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
+        btn.Label.TextSize = 9
+        btn.Holder.LayoutOrder = i
+
+        subCategoryButtons[i] = { api = btn, name = subName }
+    end
 end
 
 -- CONTENT
@@ -616,7 +717,8 @@ loadMoreBtn.Label.TextTransparency = 1
 local rightPanel = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.new(0.5, -6, 1, 0),
-    Position = UDim2.new(1.5, 0, 0, 0)
+    Position = UDim2.new(1.5, 0, 0, 0),
+    Visible = false
 }, content)
 surface(rightPanel, 12)
 rightPanel.ClipsDescendants = true
@@ -677,7 +779,7 @@ local thumbImg = new("ImageLabel", {
 corner(thumbImg, UDim.new(0, 10))
 safeSetImage(thumbImg, ICON.PLACEHOLDER)
 
--- ViewportFrame (3D Mode - Hidden by default)
+-- ViewportFrame (3D Mode)
 local viewportFrame = new("ViewportFrame", {
     BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
     Visible = false
@@ -796,24 +898,32 @@ function stopAudio()
         currentSound = nil
     end
     playLabel.Text = "PLAY"
+    playBtn.SetTone(TONE_OFF, TEXT_LIGHT) 
 end
 
 function setDetailOpen(open)
     if detailOpen == open then return end
     detailOpen = open
     if open then
+        rightPanel.Visible = true
         tween(leftPanel, SLIDE_DURATION, { Size = LEFT_OPEN }, Enum.EasingStyle.Quart)
         tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_SHOWN }, Enum.EasingStyle.Quart)
     else
+        local tw = tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_HIDDEN }, Enum.EasingStyle.Quart)
         tween(leftPanel, SLIDE_DURATION, { Size = LEFT_CLOSED }, Enum.EasingStyle.Quart)
-        tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_HIDDEN }, Enum.EasingStyle.Quart)
         stopAudio()
         is3D = false
+        
+        tw.Completed:Connect(function()
+            if not detailOpen then
+                rightPanel.Visible = false
+            end
+        end)
     end
 end
 
 -- ============================================================
--- 3D MESH LOGIC (MULTI-LAYER FALLBACK)
+-- 3D MESH LOGIC
 -- ============================================================
 local function updateViewportTransform()
     if not vpModel then return end
@@ -979,7 +1089,7 @@ local function updateBtnLayout()
 end
 
 -- ============================================================
--- LOAD MORE STATE MACHINE (PERFECTED)
+-- LOAD MORE STATE MACHINE
 -- ============================================================
 local loadMoreState = { visible = false, shrunk = false, lastY = 0 }
 local LOAD_MORE_FADE = 0.28
@@ -1000,7 +1110,6 @@ local function setLoadMoreVisible(visible)
         tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 0 })
         tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 0 })
         tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 0 })
-        -- Pop in animation for the button itself
         loadMoreBtn.Scale.Scale = 0.8
         tween(loadMoreBtn.Scale, 0.3, {Scale = 1}, Enum.EasingStyle.Back)
     else
@@ -1032,7 +1141,6 @@ scrollList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
         local cH = scrollList.AbsoluteCanvasSize.Y
         local wH = scrollList.AbsoluteWindowSize.Y
         
-        -- Cek apakah scroll mentok paling bawah (toleransi 15px)
         local isAtBottom = (y + wH) >= (cH - 15)
         
         if isAtBottom and not loadMoreState.shrunk then
@@ -1106,12 +1214,11 @@ local function createListItem(model, index)
     local item = new("Frame", {
         BackgroundColor3 = rgb(40, 40, 44), BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, 60),
-        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1
+        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1,
+        ClipsDescendants = true
     }, scrollList)
     corner(item, UDim.new(0, 8))
     new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
-    
-    local itemScale = new("UIScale", {Scale = 1}, item)
 
     local hit = new("TextButton", {
         AutoButtonColor = false, Text = "", BackgroundTransparency = 1,
@@ -1126,20 +1233,23 @@ local function createListItem(model, index)
     corner(icon, UDim.new(0, 8))
     safeSetImage(icon, model.thumbnail)
 
+    -- Texts: Restricted width to leave space for the button (-96 offset)
     txt(item, model.name, 11, WHITE, GOTHAM_B,
-        UDim2.new(1, -128, 0, 14), UDim2.fromOffset(60, 9), LEFT, {
+        UDim2.new(1, -96, 0, 14), UDim2.fromOffset(60, 9), LEFT, {
             TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
         })
     txt(item, "By " .. model.creator, 9, TEXT_DIM, GOTHAM,
-        UDim2.new(1, -128, 0, 12), UDim2.fromOffset(60, 27), LEFT, {
+        UDim2.new(1, -96, 0, 12), UDim2.fromOffset(60, 27), LEFT, {
             TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
         })
     txt(item, "ID: " .. model.id, 8, rgb(200, 200, 206), GOTHAM,
-        UDim2.new(1, -128, 0, 10), UDim2.fromOffset(60, 44), LEFT, {
+        UDim2.new(1, -96, 0, 10), UDim2.fromOffset(60, 44), LEFT, {
             TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
         })
 
-    local viewBtn = raised(item, UDim2.fromOffset(60, 30), UDim2.new(1, -68, 0.5, -15), TONE_ON, 2)
+    -- View Button: Anchored to the right side so it stays perfectly aligned and slides left with the panel
+    local viewBtn = raised(item, UDim2.fromOffset(60, 30), UDim2.new(1, -12, 0.5, 0), TONE_ON, 2)
+    viewBtn.Holder.AnchorPoint = Vector2.new(1, 0.5)
     viewBtn.Label.Text = "VIEW"
     viewBtn.Label.TextColor3 = TEXT_DARK
     viewBtn.Label.TextSize = 10
@@ -1147,17 +1257,15 @@ local function createListItem(model, index)
 
     viewBtn.Face.Activated:Connect(function() toggleDetail(model) end)
 
-    -- Item Hover Animations (Scale + Color)
+    -- Item Hover Animations (Removed Scale to prevent button shifting right)
     item.MouseEnter:Connect(function()
         if not (selectedModel and selectedModel.id == model.id) then
             tween(item, 0.2, { BackgroundColor3 = TONE_HOVER })
-            tween(itemScale, 0.2, { Scale = 1.02 }, Enum.EasingStyle.Back)
         end
     end)
     item.MouseLeave:Connect(function()
         if not (selectedModel and selectedModel.id == model.id) then
             tween(item, 0.2, { BackgroundColor3 = rgb(40, 40, 44) })
-            tween(itemScale, 0.2, { Scale = 1 }, Enum.EasingStyle.Quart)
         end
     end)
 
@@ -1180,8 +1288,14 @@ local function displayModels(models, append)
         itemCards = {}
         selectedModel = nil
         if detailOpen then setDetailOpen(false) end
-        scrollList.CanvasPosition = Vector2.new(0, 0)
+        
+        -- Ensure complete reset of Load More state
+        setLoadMoreVisible(false)
+        setScrollShrunk(false)
         loadMoreState.shrunk = false
+        loadMoreState.visible = false
+        
+        scrollList.CanvasPosition = Vector2.new(0, 0)
         scrollList.Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H)
     end
     for _, model in ipairs(models) do
@@ -1192,23 +1306,54 @@ end
 
 local function setStatus(text) statusLabel.Text = text end
 
+-- Dual Load Models (Toolbox vs Catalog)
 function loadModels(query, append)
     if isLoading then return end
     isLoading = true
     local cat = CATEGORIES[currentCategoryIndex]
+    local sub = currentSubCategory
     setStatus(("Loading %s..."):format(cat.label:lower()))
     loadMoreBtn.Label.Text = append and "LOADING..." or "LOAD MORE"
 
     task.spawn(function()
-        local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
-        local bodyReq = {
-            searchCategoryType = cat.key,
-            query = query or "",
-            maxPageSize = 30
-        }
-        if append and nextPageToken then bodyReq.pageToken = nextPageToken end
+        local data, err, raw
+        
+        if cat.key == "Catalog" then
+            -- Catalog API uses 'Category' parameter for Sub-Categories
+            local catId = CATALOG_IDS[sub] or 1
+            local url = ("https://catalog.roblox.com/v1/search/items/details?Category=%d&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(catId, HttpService:UrlEncode(query or ""))
+            data, err, raw = httpGet(url)
+            local results, newToken
+            if data then
+                results, newToken = parseCatalogModels(data)
+                nextPageToken = newToken
+                lastQuery = query
+                displayModels(results, append)
+            end
+        else
+            -- Creator Store API (append sub-category text to query if not All)
+            local finalQuery = query or ""
+            if sub ~= "All" then
+                finalQuery = (finalQuery .. " " .. sub):gsub("^%s+", "")
+            end
+            
+            local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
+            local bodyReq = {
+                searchCategoryType = cat.key,
+                query = finalQuery,
+                maxPageSize = 30
+            }
+            if append and nextPageToken then bodyReq.pageToken = nextPageToken end
+            data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
+            local results, newToken
+            if data then
+                results, newToken = parseToolboxModels(data, cat.key)
+                nextPageToken = newToken
+                lastQuery = query -- Save original query without subcategory
+                displayModels(results, append)
+            end
+        end
 
-        local data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
         if err then
             isLoading = false
             setStatus("Failed: " .. tostring(err))
@@ -1216,16 +1361,13 @@ function loadModels(query, append)
             return
         end
 
-        debugBox.Text = raw or "Empty"
-        local results, newToken = parseModelsFromResponse(data, cat.key)
-        nextPageToken = newToken
-        lastQuery = query
-        displayModels(results, append)
-        isLoading = false
-        setStatus(("Found %d %s"):format(#results, cat.label:lower()))
-        loadMoreBtn.Label.Text = "LOAD MORE"
-
-        loadMoreState.lastY = scrollList.CanvasPosition.Y
+        if data then
+            debugBox.Text = raw or "Empty"
+            isLoading = false
+            setStatus(("Found %d %s"):format(#allModels, cat.label:lower()))
+            loadMoreBtn.Label.Text = "LOAD MORE"
+            loadMoreState.lastY = scrollList.CanvasPosition.Y
+        end
     end)
 end
 
@@ -1408,6 +1550,69 @@ closeZoomBtn.MouseButton1Click:Connect(function()
     t1.Completed:Connect(function() zoomOverlay.Visible = false; zoomCard.GroupTransparency = 0; zoomCard.Size = UDim2.fromOffset(zoomBaseW, zoomBaseH) end)
 end)
 
+-- ============================================================
+-- CATEGORY & SUB-CATEGORY CLICK LOGIC
+-- ============================================================
+local function setActiveCategory(idx)
+    if currentCategoryIndex == idx then return end
+    currentCategoryIndex = idx
+
+    -- Immediate visual reset to prevent Load More bleeding into new category
+    setLoadMoreVisible(false)
+    setScrollShrunk(false)
+    loadMoreState.shrunk = false
+    loadMoreState.visible = false
+    scrollList.CanvasPosition = Vector2.new(0, 0)
+    scrollList.Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H)
+
+    for i, btnData in ipairs(categoryButtons) do
+        local isActive = (i == idx)
+        btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
+    end
+
+    if detailOpen then setDetailOpen(false) end
+    nextPageToken = nil
+    
+    -- Render Sub-Categories for this Category
+    local catKey = CATEGORIES[idx].key
+    currentSubCategory = "All"
+    renderSubCategories(catKey)
+    
+    loadModels(searchInput.Text or "", false)
+end
+
+local function setActiveSubCategory(idx)
+    local catKey = CATEGORIES[currentCategoryIndex].key
+    local subs = SUBCATEGORIES[catKey] or {"All"}
+    local newSub = subs[idx]
+    
+    if currentSubCategory == newSub then return end
+    currentSubCategory = newSub
+
+    for i, btnData in ipairs(subCategoryButtons) do
+        local isActive = (i == idx)
+        btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
+    end
+
+    if detailOpen then setDetailOpen(false) end
+    nextPageToken = nil
+    loadModels(searchInput.Text or "", false)
+end
+
+-- Initialization of Sub-Categories
+renderSubCategories(CATEGORIES[currentCategoryIndex].key)
+for i, subData in ipairs(subCategoryButtons) do
+    subData.api.Face.Activated:Connect(function()
+        setActiveSubCategory(i)
+    end)
+end
+
+for i, btnData in ipairs(categoryButtons) do
+    btnData.api.Face.Activated:Connect(function()
+        setActiveCategory(i)
+    end)
+end
+
 -- EVENTS
 searchInput.FocusLost:Connect(function(enterPressed) if enterPressed then nextPageToken = nil; loadModels(searchInput.Text, false) end end)
 loadMoreBtn.Face.Activated:Connect(function()
@@ -1422,36 +1627,37 @@ debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Vi
 copyIdBtn.Face.Activated:Connect(function()
     if not selectedModel then return end
     if setclipboard then setclipboard(tostring(selectedModel.id)) end
-    local origTone = copyIdBtn.Tone
     copyIdBtn.SetTone(TONE_SUCCESS, WHITE)
     copyIdLabel.Text = "COPIED!"
     task.wait(1)
-    copyIdBtn.SetTone(origTone, TEXT_DARK)
+    copyIdBtn.SetTone(TONE_ON, TEXT_DARK)
     copyIdLabel.Text = "COPY ID"
 end)
 
 playBtn.Face.Activated:Connect(function()
     if not selectedModel then return end
-    if currentSound then stopAudio(); return end
+    if currentSound then 
+        stopAudio() 
+        return 
+    end
+    
     local snd = Instance.new("Sound")
     snd.SoundId = "rbxassetid://" .. tostring(selectedModel.id)
     snd.Volume = 1
     snd.Parent = SoundService
+    
     if pcall(function() snd:Play() end) then
         currentSound = snd
         playLabel.Text = "STOP"
-        local origTone = playBtn.Tone
         playBtn.SetTone(TONE_SUCCESS, WHITE)
+        
         snd.Ended:Connect(function()
-            playLabel.Text = "PLAY"
-            playBtn.SetTone(origTone, TEXT_LIGHT)
-            snd:Destroy()
-            if currentSound == snd then currentSound = nil end
+            stopAudio()
         end)
+        
         task.delay(60, function() 
             if currentSound == snd then 
                 stopAudio() 
-                playBtn.SetTone(origTone, TEXT_LIGHT)
             end 
         end)
     else
