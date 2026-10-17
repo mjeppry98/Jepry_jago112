@@ -1,8 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v38
-    - Removed "CATALOG" category
-    - Smart Category Memory intact
-    - Bigger & White Icons
+    Studio Lite Toolbox - Final v39
+    - Fixed Minimize button (Re-added Floating Toggle)
+    - Fixed Back button functionality
+    - Added Smooth View Transitions (Fade & Slide between Sub-Category and List)
 ]]
 
 local API_KEYS = {
@@ -26,7 +26,6 @@ local ICON = {
     MINIMIZE    = "rbxassetid://100624819703287"
 }
 
--- CATALOG removed
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
     { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
@@ -68,6 +67,8 @@ local currentCategoryIndex = 1
 local currentSubCategory = nil
 local currentQuery = ""
 local categoryHistory = {}
+local currentView = "subcat" -- "subcat" atau "list"
+local isTransitioning = false
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -626,7 +627,7 @@ for i, cat in ipairs(CATEGORIES) do
     categoryButtons[i] = { api = btn, category = cat, iconObj = iconImg }
 end
 
--- CONTENT
+-- CONTENT (ClipsDescendants untuk animasi slide)
 local content = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -PAD*2, 0, CONTENT_H),
@@ -637,10 +638,11 @@ local content = new("Frame", {
 -- ============================================================
 -- SUB-CATEGORY GRID (MASONRY LAYOUT)
 -- ============================================================
-local subCatContainer = new("Frame", {
+local subCatContainer = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, 0, 1, 0),
-    Visible = false
+    Visible = false,
+    GroupTransparency = 0
 }, content)
 
 local subCatScroll = new("ScrollingFrame", {
@@ -656,13 +658,14 @@ for _, c in ipairs(subCatScroll:GetChildren()) do
 end
 
 -- ============================================================
--- LEFT PANEL
+-- LEFT PANEL (LIST)
 -- ============================================================
 local leftPanel = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, 0, 1, 0),
     Position = UDim2.new(0, 0, 0, 0),
-    Visible = false
+    Visible = false,
+    GroupTransparency = 0
 }, content)
 surface(leftPanel, 12)
 leftPanel.ClipsDescendants = true
@@ -680,9 +683,6 @@ local backBtn = new("TextButton", {
 }, leftPanel)
 corner(backBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
-backBtn.MouseButton1Click:Connect(function() 
-    if showSubCategories then showSubCategories(currentCategoryIndex) end 
-end)
 
 local scrollList = new("ScrollingFrame", {
     BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -869,6 +869,75 @@ debugBox.Visible = false
 debugBox.ZIndex = 10
 
 -- ============================================================
+-- FLOATING TOGGLE BUTTON (MINIMIZE FIX)
+-- ============================================================
+local windowVisible = true
+local toggleSize = 54
+local toggleBtn = raised(gui, UDim2.fromOffset(toggleSize, toggleSize), UDim2.fromOffset(20, 200), TONE_OFF, 4, UDim.new(1, 0))
+toggleBtn.Holder.ZIndex = 100
+toggleBtn.Holder.Visible = false
+
+new("ImageLabel", {
+    BackgroundTransparency = 1, Image = ICON.MODEL_BOX, ImageColor3 = WHITE,
+    Size = UDim2.fromOffset(28, 28), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
+}, toggleBtn.Face)
+
+local toggleScale = new("UIScale", {Scale = 1}, toggleBtn.Face)
+
+local function setWindowVisible(v)
+    if windowVisible == v then return end
+    windowVisible = v
+    
+    tween(toggleScale, 0.09, {Scale = 0.72})
+    task.delay(0.09, function() if gui.Parent then tween(toggleScale, 0.35, {Scale = 1}, Enum.EasingStyle.Back) end end)
+    
+    if v then
+        toggleBtn.Holder.Visible = false
+        body.Visible = true
+        popIn(bodyScale, body)
+        tween(shadow, 0.35, {BackgroundTransparency = 0.55})
+    else
+        popOut(bodyScale, body)
+        tween(shadow, 0.26, {BackgroundTransparency = 1})
+        task.delay(0.45, function()
+            if not windowVisible then
+                body.Visible = false
+                toggleBtn.Holder.Visible = true
+            end
+        end)
+    end
+end
+
+local draggingToggle = false
+local toggleDragStart = nil
+local toggleStartPos = nil
+
+toggleBtn.Face.InputBegan:Connect(function(input)
+    if isPress(input) then
+        draggingToggle = true
+        toggleDragStart = input.Position
+        toggleStartPos = toggleBtn.Holder.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingToggle and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - toggleDragStart
+        toggleBtn.Holder.Position = UDim2.new(toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X, toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if isPress(input) and draggingToggle then
+        draggingToggle = false
+        local delta = input.Position - toggleDragStart
+        if delta.Magnitude < 8 then
+            setWindowVisible(true)
+        end
+    end
+end)
+
+-- ============================================================
 -- STATE & LOGIC
 -- ============================================================
 local detailOpen = false
@@ -892,6 +961,36 @@ local LEFT_OPEN    = UDim2.new(0.5, -6, 1, 0)
 local RIGHT_HIDDEN = UDim2.new(1.5, 0, 0, 0)
 local RIGHT_SHOWN  = UDim2.new(0.5, 6, 0, 0)
 local SLIDE_DURATION = 0.35
+
+-- ANIMASI TRANSISI VIEW
+local function transitionToView(targetView)
+    if currentView == targetView or isTransitioning then return end
+    isTransitioning = true
+
+    if targetView == "list" then
+        tween(subCatContainer, 0.2, {GroupTransparency = 1, Position = UDim2.fromOffset(0, 10)})
+        task.wait(0.2)
+        subCatContainer.Visible = false
+        
+        leftPanel.Visible = true
+        leftPanel.GroupTransparency = 1
+        leftPanel.Position = UDim2.fromOffset(0, 10)
+        tween(leftPanel, 0.25, {GroupTransparency = 0, Position = UDim2.fromOffset(0,0)})
+    else
+        tween(leftPanel, 0.2, {GroupTransparency = 1, Position = UDim2.fromOffset(0, 10)})
+        task.wait(0.2)
+        leftPanel.Visible = false
+        
+        subCatContainer.Visible = true
+        subCatContainer.GroupTransparency = 1
+        subCatContainer.Position = UDim2.fromOffset(0, 10)
+        tween(subCatContainer, 0.25, {GroupTransparency = 0, Position = UDim2.fromOffset(0,0)})
+    end
+    
+    task.wait(0.25)
+    currentView = targetView
+    isTransitioning = false
+end
 
 function stopAudio()
     if currentSound then
@@ -1341,7 +1440,7 @@ function loadModels(query, append)
 end
 
 -- ============================================================
--- CATEGORY LOGIC (WITH MEMORY)
+-- CATEGORY LOGIC
 -- ============================================================
 local function selectSubCategory(subName)
     currentSubCategory = subName
@@ -1349,9 +1448,7 @@ local function selectSubCategory(subName)
     
     categoryHistory[currentCategoryIndex] = subName
     
-    subCatContainer.Visible = false
-    leftPanel.Visible = true
-    
+    transitionToView("list")
     nextPageToken = nil
     loadModels(currentQuery, false)
 end
@@ -1360,9 +1457,9 @@ local function showSubCategories(catIndex)
     currentCategoryIndex = catIndex
     currentSubCategory = nil
     
-    leftPanel.Visible = false
-    rightPanel.Visible = false
-    subCatContainer.Visible = true
+    if detailOpen then setDetailOpen(false) end
+    transitionToView("subcat")
+    
     subCatScroll.CanvasPosition = Vector2.new(0, 0)
     
     for _, child in ipairs(subCatScroll:GetChildren()) do
@@ -1378,7 +1475,6 @@ local function showSubCategories(catIndex)
     local function getLayout(i)
         local gap = 8
         local h1 = 160
-        local h2 = 76 
 
         if count == 1 then
             return UDim2.new(1, 0, 0, h1 * 2), UDim2.new(0, 0, 0, 0)
@@ -1486,7 +1582,7 @@ local function showSubCategories(catIndex)
 end
 
 local function setActiveCategory(idx)
-    if currentCategoryIndex == idx and subCatContainer.Visible == false then return end
+    if currentCategoryIndex == idx and currentView == "subcat" then return end
     currentCategoryIndex = idx
 
     for i, btnData in ipairs(categoryButtons) do
@@ -1497,25 +1593,32 @@ local function setActiveCategory(idx)
         end
     end
 
-    if detailOpen then setDetailOpen(false) end
-    
     local savedSub = categoryHistory[idx]
     if savedSub then
+        -- Jika ada memori, langsung ke list
+        transitionToView("list")
         selectSubCategory(savedSub)
     else
+        -- Jika tidak ada memori, tampilkan sub-category
         showSubCategories(idx)
     end
 end
 
+-- ============================================================
+-- EVENT BINDINGS
+-- ============================================================
 for i, btnData in ipairs(categoryButtons) do
     btnData.api.Face.Activated:Connect(function() setActiveCategory(i) end)
 end
 
--- EVENTS
+backBtn.MouseButton1Click:Connect(function() 
+    if showSubCategories then showSubCategories(currentCategoryIndex) end 
+end)
+
 searchInput.FocusLost:Connect(function(enterPressed) 
     if enterPressed then 
-        if subCatContainer.Visible then
-            selectSubCategory("All")
+        if currentView == "subcat" then
+            transitionToView("list")
         end
         nextPageToken = nil
         currentQuery = searchInput.Text
