@@ -1,8 +1,8 @@
 --[[
     Studio Lite Toolbox - Final v30
-    - Added Sub-Categories for each main category
-    - Layout adjusted to fit Sub-Category bar
-    - Fully functional filtering (Toolbox uses query appending, Catalog uses Category ID)
+    - Completely redesigned Catalog UI (Grid Layout + 3D Avatar Preview)
+    - Matches the classic Roblox Catalog look
+    - Catalog API integrated properly
 ]]
 
 local API_KEYS = {
@@ -23,39 +23,19 @@ local ICON = {
     DESC        = "rbxassetid://98359085392262",
     SPEAKER     = "rbxassetid://87702826291744",
     ZOOM        = "rbxassetid://13321848320",
-    MINIMIZE    = "rbxassetid://100624819703287"
+    MINIMIZE    = "rbxassetid://100624819703287",
+    ROBUX       = "rbxassetid://10546897985"
 }
 
 local CATEGORIES = {
     { key = "Model",    label = "MODELS" },
-    { key = "Catalog",  label = "CATALOG" },
+    { key = "Catalog",  label = "CATALOG" }, -- Custom UI
     { key = "Plugin",   label = "PLUGINS" },
     { key = "Audio",    label = "AUDIO" },
     { key = "Decal",    label = "DECALS" },
     { key = "MeshPart", label = "MESHES" },
 }
 local currentCategoryIndex = 1
-local currentSubCategory = "All"
-
--- Sub-Categories Configuration
-local SUBCATEGORIES = {
-    Model = {"All", "Vehicles", "Buildings", "Weapons", "Tools", "Animals", "Nature"},
-    Catalog = {"All", "Hats", "Faces", "Shirts", "Pants", "Accessories"}, -- Maps to Category IDs internally
-    Plugin = {"All", "Building", "Scripting", "UI", "Animation"},
-    Audio = {"All", "Music", "Sound Effect", "Ambient", "Voice"},
-    Decal = {"All", "Signs", "Textures", "Posters"},
-    MeshPart = {"All", "Furniture", "Weapons", "Character", "Environment"}
-}
-
--- Catalog API Category Mapping
-local CATALOG_IDS = {
-    ["All"] = 1,
-    ["Hats"] = 11,
-    ["Faces"] = 10,
-    ["Shirts"] = 12,
-    ["Pants"] = 13,
-    ["Accessories"] = 14,
-}
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -133,7 +113,6 @@ local function measureText(text, size, font)
     return #text * (size * 0.6)
 end
 
--- Raised Button w/ optional static mode
 local function raised(parent, size, position, tone, depth, radius, isStatic)
     depth = depth or 3
     radius = radius or UDim.new(0, 8)
@@ -198,7 +177,6 @@ local function raised(parent, size, position, tone, depth, radius, isStatic)
             if tc then tween(label, 0.2, { TextColor3 = tc }) end
         end
     else
-        -- Static mode: no hover, no click animation.
         api.SetTone = function(c, tc)
             api.Tone = c
             face.BackgroundColor3 = c
@@ -345,7 +323,6 @@ local function httpGet(url, apiKey)
     return data, nil, res.Body
 end
 
--- Parser for Creator Store Assets
 local function parseToolboxModels(data, category)
     if not data then return {}, nil end
     local models = {}
@@ -376,7 +353,6 @@ local function parseToolboxModels(data, category)
     return models, data.data and data.data.nextPageToken or data.nextPageToken
 end
 
--- Parser for Catalog Items (Avatar items)
 local function parseCatalogModels(data)
     if not data then return {}, nil end
     local models = {}
@@ -389,9 +365,10 @@ local function parseCatalogModels(data)
                 local name = item.name or item.itemName or ("Item " .. tostring(id))
                 local desc = item.description or "No description available."
                 local creatorName = item.creatorName or "?"
+                local price = item.price or 0
                 table.insert(models, {
                     id = tostring(id), name = name, description = desc,
-                    creator = creatorName, category = "Catalog",
+                    creator = creatorName, category = "Catalog", price = price,
                     thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
                 })
             end
@@ -441,13 +418,11 @@ local INNER = 8
 local HEADER_H = 46
 local SEARCH_H = 38
 local CATEGORY_H = 32
-local SUBCATEGORY_H = 28
 local GAP_TOP = 10
 local GAP_MID = 8
 local STATUS_H = 18
 local BTN_H = 38
--- Adjusted Content Top to fit Sub-Category bar
-local CONTENT_TOP = HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID + SUBCATEGORY_H + GAP_MID
+local CONTENT_TOP = HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID
 local CONTENT_H = FRAME_H - CONTENT_TOP - STATUS_H - 4
 
 -- SHADOW
@@ -588,7 +563,7 @@ new("ImageLabel", {
     Position = UDim2.new(0, 14, 0.5, 0)
 }, searchBar)
 
--- MAIN CATEGORY TABS
+-- CATEGORY TABS
 local categoryBar = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -PAD*2, 0, CATEGORY_H),
@@ -609,59 +584,13 @@ for i, cat in ipairs(CATEGORIES) do
     local btn = raised(categoryBar,
         UDim2.fromOffset(btnW, CATEGORY_H - 4),
         UDim2.fromOffset(currentX, 2),
-        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
+        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true) -- isStatic=true
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
 
     categoryButtons[i] = { api = btn, category = cat, width = btnW }
     currentX = currentX + btnW + CAT_GAP
-end
-
--- SUB-CATEGORY TABS
-local subCategoryBar = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0,
-    Size = UDim2.new(1, -PAD*2, 0, SUBCATEGORY_H),
-    Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP + SEARCH_H + GAP_MID + CATEGORY_H + GAP_MID),
-    CanvasSize = UDim2.new(),
-    AutomaticCanvasSize = Enum.AutomaticSize.X,
-    ScrollingDirection = Enum.ScrollingDirection.X,
-    ScrollBarThickness = 0,
-    ElasticBehavior = Enum.ElasticBehavior.Always
-}, body)
-new("UIListLayout", {
-    FillDirection = Enum.FillDirection.Horizontal,
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 4)
-}, subCategoryBar)
-
-local subCategoryButtons = {}
-
-local function renderSubCategories(parentCatKey)
-    -- Clear old sub-categories
-    for _, btn in pairs(subCategoryButtons) do
-        btn.api.Holder:Destroy()
-    end
-    subCategoryButtons = {}
-
-    local subs = SUBCATEGORIES[parentCatKey] or {"All"}
-    
-    for i, subName in ipairs(subs) do
-        local isActive = (i == 1) -- Default to first subcategory
-        local textW = measureText(subName, 9, GOTHAM_B)
-        local btnW = textW + 20 -- padding 10 each side
-
-        local btn = raised(subCategoryBar,
-            UDim2.fromOffset(btnW, SUBCATEGORY_H - 2),
-            UDim2.new(),
-            isActive and TONE_ON or TONE_OFF, 1, UDim.new(0,6), true)
-        btn.Label.Text = subName
-        btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
-        btn.Label.TextSize = 9
-        btn.Holder.LayoutOrder = i
-
-        subCategoryButtons[i] = { api = btn, name = subName }
-    end
 end
 
 -- CONTENT
@@ -672,12 +601,21 @@ local content = new("Frame", {
     ClipsDescendants = true
 }, body)
 
+-- ============================================================
+-- STANDARD VIEW (Models, Plugins, Audio, etc.)
+-- ============================================================
+local standardView = new("Frame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.fromScale(1, 1),
+    Visible = true
+}, content)
+
 -- LEFT PANEL
 local leftPanel = new("CanvasGroup", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, 0, 1, 0),
     Position = UDim2.new(0, 0, 0, 0)
-}, content)
+}, standardView)
 surface(leftPanel, 12)
 leftPanel.ClipsDescendants = true
 
@@ -719,7 +657,7 @@ local rightPanel = new("CanvasGroup", {
     Size = UDim2.new(0.5, -6, 1, 0),
     Position = UDim2.new(1.5, 0, 0, 0),
     Visible = false
-}, content)
+}, standardView)
 surface(rightPanel, 12)
 rightPanel.ClipsDescendants = true
 
@@ -853,19 +791,117 @@ local detailDesc = txt(descRow, "", 10, TEXT_DIM, GOTHAM,
         AutomaticSize = Enum.AutomaticSize.Y
     })
 
--- STATUS BAR
-local statusLabel = txt(body, "Ready.", 9, TEXT_DIM, GOTHAM,
-    UDim2.new(1, -PAD*2, 0, 14), UDim2.new(0, PAD, 1, -16), LEFT)
+-- ============================================================
+-- CATALOG VIEW (Grid Layout + Avatar)
+-- ============================================================
+local catalogView = new("Frame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.fromScale(1, 1),
+    Visible = false
+}, content)
 
--- DEBUG BOX
-local debugBox = sunken(body, UDim2.new(0.9, 0, 0.5, 0), UDim2.new(0.05, 0, 0.25, 0))
-debugBox.Font = Enum.Font.Code
-debugBox.TextSize = 8
-debugBox.TextColor3 = rgb(0, 255, 0)
-debugBox.TextWrapped = true
-debugBox.Text = "RAW JSON..."
-debugBox.Visible = false
-debugBox.ZIndex = 10
+-- Left Side: Avatar Preview
+local avatarFrame = new("Frame", {
+    BackgroundColor3 = rgb(30, 30, 34),
+    Size = UDim2.new(0.35, -INNER, 1, 0),
+    Position = UDim2.new(0, 0, 0, 0)
+}, catalogView)
+surface(avatarFrame, 12)
+
+local catalogViewport = new("ViewportFrame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -10, 1, -10),
+    Position = UDim2.fromOffset(5, 5),
+    Ambient = Color3.new(0.7, 0.7, 0.7)
+}, avatarFrame)
+corner(catalogViewport, UDim.new(0, 10))
+
+local avCamera = new("Camera", {}, catalogViewport)
+catalogViewport.CurrentCamera = avCamera
+
+-- Clone player's avatar
+local function updateCatalogAvatar()
+    catalogViewport:ClearAllChildren()
+    catalogViewport.CurrentCamera = avCamera
+    avCamera.Parent = catalogViewport
+    
+    local char = Players.LocalPlayer.Character
+    if char then
+        local clone = char:Clone()
+        clone.Parent = catalogViewport
+        -- Position camera
+        local hrp = clone:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(0, 0, 0)
+            avCamera.CFrame = CFrame.new(0, 1, 6) * CFrame.Angles(0, math.rad(180), 0)
+        end
+    end
+end
+
+-- Right Side: Grid of Items
+local gridScroll = new("ScrollingFrame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(0.65, -INNER, 1, 0),
+    Position = UDim2.new(0.35, INNER, 0, 0),
+    ScrollBarThickness = 3,
+    ScrollBarImageColor3 = rgb(150, 150, 158),
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ClipsDescendants = true
+}, catalogView)
+new("UIGridLayout", {
+    CellSize = UDim2.new(0, 100, 0, 130),
+    CellPadding = UDim2.new(0, 8, 0, 8),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, gridScroll)
+
+-- Create Grid Item
+local function createCatalogItem(model, index)
+    local item = new("Frame", {
+        BackgroundColor3 = rgb(40, 40, 44),
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 1, 0),
+        LayoutOrder = index
+    }, gridScroll)
+    corner(item, UDim.new(0, 8))
+    new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
+    
+    local btn = new("TextButton", {
+        AutoButtonColor = false, Text = "", BackgroundTransparency = 1,
+        Size = UDim2.fromScale(1, 1), ZIndex = 2
+    }, item)
+    
+    local img = new("ImageLabel", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0.8, 0, 0.6, 0),
+        Position = UDim2.new(0.1, 0, 0.05, 0),
+        Image = model.thumbnail,
+        ScaleType = Enum.ScaleType.Fit
+    }, item)
+    
+    txt(item, model.name, 10, WHITE, GOTHAM_B, UDim2.new(1, -10, 0, 30), UDim2.fromOffset(5, 70), LEFT, {
+        TextWrapped = true, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
+    })
+    
+    -- Price
+    local priceRow = new("Frame", {
+        BackgroundTransparency = 1, Size = UDim2.new(1, -10, 0, 20), Position = UDim2.fromOffset(5, 100)
+    }, item)
+    new("ImageLabel", {
+        BackgroundTransparency = 1, Image = ICON.ROBUX,
+        Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(0, 3)
+    }, priceRow)
+    txt(priceRow, tostring(model.price), 10, rgb(255, 200, 100), GOTHAM_B, UDim2.new(1, -20, 0, 20), UDim2.fromOffset(18, 0), LEFT)
+    
+    btn.MouseButton1Click:Connect(function()
+        if setclipboard then setclipboard(model.id) end
+        local origColor = item.BackgroundColor3
+        item.BackgroundColor3 = TONE_SUCCESS
+        task.wait(0.5)
+        item.BackgroundColor3 = origColor
+    end)
+end
 
 -- ============================================================
 -- STATE & LOGIC
@@ -1006,22 +1042,6 @@ local function loadMeshToViewport(id)
         block.Color = Color3.fromRGB(100, 100, 100)
         block.Parent = viewportFrame
         vpModel = block
-        
-        local billboard = Instance.new("BillboardGui")
-        billboard.Size = UDim2.new(0, 150, 0, 50)
-        billboard.StudsOffset = Vector3.new(0, 3, 0)
-        billboard.AlwaysOnTop = true
-        billboard.Parent = block
-        
-        local warningTxt = Instance.new("TextLabel")
-        warningTxt.Size = UDim2.new(1, 0, 1, 0)
-        warningTxt.BackgroundTransparency = 1
-        warningTxt.Text = "Mesh Blocked by Roblox\n(Client Security Limit)"
-        warningTxt.TextColor3 = Color3.fromRGB(255, 100, 100)
-        warningTxt.TextStrokeTransparency = 0
-        warningTxt.TextScaled = true
-        warningTxt.Font = Enum.Font.GothamBold
-        warningTxt.Parent = billboard
     end
 
     currentRotX = 20
@@ -1233,7 +1253,6 @@ local function createListItem(model, index)
     corner(icon, UDim.new(0, 8))
     safeSetImage(icon, model.thumbnail)
 
-    -- Texts: Restricted width to leave space for the button (-96 offset)
     txt(item, model.name, 11, WHITE, GOTHAM_B,
         UDim2.new(1, -96, 0, 14), UDim2.fromOffset(60, 9), LEFT, {
             TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
@@ -1247,7 +1266,6 @@ local function createListItem(model, index)
             TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
         })
 
-    -- View Button: Anchored to the right side so it stays perfectly aligned and slides left with the panel
     local viewBtn = raised(item, UDim2.fromOffset(60, 30), UDim2.new(1, -12, 0.5, 0), TONE_ON, 2)
     viewBtn.Holder.AnchorPoint = Vector2.new(1, 0.5)
     viewBtn.Label.Text = "VIEW"
@@ -1257,7 +1275,6 @@ local function createListItem(model, index)
 
     viewBtn.Face.Activated:Connect(function() toggleDetail(model) end)
 
-    -- Item Hover Animations (Removed Scale to prevent button shifting right)
     item.MouseEnter:Connect(function()
         if not (selectedModel and selectedModel.id == model.id) then
             tween(item, 0.2, { BackgroundColor3 = TONE_HOVER })
@@ -1306,12 +1323,10 @@ end
 
 local function setStatus(text) statusLabel.Text = text end
 
--- Dual Load Models (Toolbox vs Catalog)
 function loadModels(query, append)
     if isLoading then return end
     isLoading = true
     local cat = CATEGORIES[currentCategoryIndex]
-    local sub = currentSubCategory
     setStatus(("Loading %s..."):format(cat.label:lower()))
     loadMoreBtn.Label.Text = append and "LOADING..." or "LOAD MORE"
 
@@ -1319,37 +1334,39 @@ function loadModels(query, append)
         local data, err, raw
         
         if cat.key == "Catalog" then
-            -- Catalog API uses 'Category' parameter for Sub-Categories
-            local catId = CATALOG_IDS[sub] or 1
-            local url = ("https://catalog.roblox.com/v1/search/items/details?Category=%d&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(catId, HttpService:UrlEncode(query or ""))
+            -- Catalog API
+            local url = ("https://catalog.roblox.com/v1/search/items/details?Category=1&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(HttpService:UrlEncode(query or ""))
             data, err, raw = httpGet(url)
-            local results, newToken
+            
             if data then
-                results, newToken = parseCatalogModels(data)
+                local results, newToken = parseCatalogModels(data)
                 nextPageToken = newToken
                 lastQuery = query
-                displayModels(results, append)
+                
+                -- Clear Grid
+                for _, c in ipairs(gridScroll:GetChildren()) do
+                    if c:IsA("Frame") then c:Destroy() end
+                end
+                
+                for i, item in ipairs(results) do
+                    createCatalogItem(item, i)
+                end
             end
         else
-            -- Creator Store API (append sub-category text to query if not All)
-            local finalQuery = query or ""
-            if sub ~= "All" then
-                finalQuery = (finalQuery .. " " .. sub):gsub("^%s+", "")
-            end
-            
+            -- Creator Store API
             local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
             local bodyReq = {
                 searchCategoryType = cat.key,
-                query = finalQuery,
+                query = query or "",
                 maxPageSize = 30
             }
             if append and nextPageToken then bodyReq.pageToken = nextPageToken end
             data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
-            local results, newToken
+            
             if data then
-                results, newToken = parseToolboxModels(data, cat.key)
+                local results, newToken = parseToolboxModels(data, cat.key)
                 nextPageToken = newToken
-                lastQuery = query -- Save original query without subcategory
+                lastQuery = query
                 displayModels(results, append)
             end
         end
@@ -1551,13 +1568,13 @@ closeZoomBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- CATEGORY & SUB-CATEGORY CLICK LOGIC
+-- CATEGORY CLICK LOGIC
 -- ============================================================
 local function setActiveCategory(idx)
     if currentCategoryIndex == idx then return end
     currentCategoryIndex = idx
 
-    -- Immediate visual reset to prevent Load More bleeding into new category
+    -- Immediate visual reset
     setLoadMoreVisible(false)
     setScrollShrunk(false)
     loadMoreState.shrunk = false
@@ -1573,38 +1590,18 @@ local function setActiveCategory(idx)
     if detailOpen then setDetailOpen(false) end
     nextPageToken = nil
     
-    -- Render Sub-Categories for this Category
-    local catKey = CATEGORIES[idx].key
-    currentSubCategory = "All"
-    renderSubCategories(catKey)
-    
-    loadModels(searchInput.Text or "", false)
-end
-
-local function setActiveSubCategory(idx)
-    local catKey = CATEGORIES[currentCategoryIndex].key
-    local subs = SUBCATEGORIES[catKey] or {"All"}
-    local newSub = subs[idx]
-    
-    if currentSubCategory == newSub then return end
-    currentSubCategory = newSub
-
-    for i, btnData in ipairs(subCategoryButtons) do
-        local isActive = (i == idx)
-        btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
+    -- Toggle UI Views
+    if CATEGORIES[idx].key == "Catalog" then
+        standardView.Visible = false
+        catalogView.Visible = true
+        updateCatalogAvatar()
+        task.wait(0.2) -- Small delay to let the viewport load
+        loadModels(searchInput.Text or "", false)
+    else
+        catalogView.Visible = false
+        standardView.Visible = true
+        loadModels(searchInput.Text or "", false)
     end
-
-    if detailOpen then setDetailOpen(false) end
-    nextPageToken = nil
-    loadModels(searchInput.Text or "", false)
-end
-
--- Initialization of Sub-Categories
-renderSubCategories(CATEGORIES[currentCategoryIndex].key)
-for i, subData in ipairs(subCategoryButtons) do
-    subData.api.Face.Activated:Connect(function()
-        setActiveSubCategory(i)
-    end)
 end
 
 for i, btnData in ipairs(categoryButtons) do
@@ -1614,7 +1611,19 @@ for i, btnData in ipairs(categoryButtons) do
 end
 
 -- EVENTS
-searchInput.FocusLost:Connect(function(enterPressed) if enterPressed then nextPageToken = nil; loadModels(searchInput.Text, false) end end)
+searchInput.FocusLost:Connect(function(enterPressed) 
+    if enterPressed then 
+        nextPageToken = nil
+        if CATEGORIES[currentCategoryIndex].key == "Catalog" then
+            -- Clear Grid before loading new
+            for _, c in ipairs(gridScroll:GetChildren()) do
+                if c:IsA("Frame") then c:Destroy() end
+            end
+        end
+        loadModels(searchInput.Text, false) 
+    end 
+end)
+
 loadMoreBtn.Face.Activated:Connect(function()
     if not nextPageToken or isLoading then return end
     setLoadMoreVisible(false)
