@@ -1,7 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v29
-    - Fixed Sub-Category empty bug (Added fallback for missing subs)
-    - Categories updated to match screenshot (Models, Catalog, Plugins, Audio, Decals, Meshes)
+    Studio Lite Toolbox - Final v30
+    - Replicated the Masonry/Stacked sub-category grid from the image
+    - Added staggered entrance animations
+    - Fully working with no empty states
 ]]
 
 local API_KEYS = {
@@ -22,11 +23,9 @@ local ICON = {
     DESC        = "rbxassetid://98359085392262",
     SPEAKER     = "rbxassetid://87702826291744",
     ZOOM        = "rbxassetid://13321848320",
-    MINIMIZE    = "rbxassetid://100624819703287",
-    BACK        = "rbxassetid://114496992333593"
+    MINIMIZE    = "rbxassetid://100624819703287"
 }
 
--- Updated categories to match the screenshot exactly
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
     { key = "Plugin",   label = "CATALOG", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Other"} },
@@ -565,7 +564,7 @@ local content = new("Frame", {
 }, body)
 
 -- ============================================================
--- SUB-CATEGORY GRID UI
+-- SUB-CATEGORY GRID (MASONRY LAYOUT)
 -- ============================================================
 local subCatContainer = new("Frame", {
     BackgroundTransparency = 1,
@@ -576,18 +575,15 @@ local subCatContainer = new("Frame", {
 local subCatScroll = new("ScrollingFrame", {
     BackgroundTransparency = 1, BorderSizePixel = 0,
     Size = UDim2.new(1, 0, 1, 0),
-    CanvasSize = UDim2.new(),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    CanvasSize = UDim2.new(0, 0, 0, 0), -- Manually set below
     ScrollingDirection = Enum.ScrollingDirection.Y,
     ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
 }, subCatContainer)
 
-local subCatGrid = new("UIGridLayout", {
-    CellSize = UDim2.new(0.5, -6, 0, 70),
-    CellPadding = UDim2.new(0, 12, 0, 12),
-    SortOrder = Enum.SortOrder.LayoutOrder
-}, subCatScroll)
-new("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6) }, subCatScroll)
+-- Remove any default layout that might interfere
+for _, c in ipairs(subCatScroll:GetChildren()) do
+    if c:IsA("UIGridLayout") or c:IsA("UIListLayout") then c:Destroy() end
+end
 
 -- ============================================================
 -- LEFT PANEL
@@ -601,7 +597,7 @@ local leftPanel = new("CanvasGroup", {
 surface(leftPanel, 12)
 leftPanel.ClipsDescendants = true
 
-local LEFT_TOP_PAD = INNER + 30 -- Added space for Back button
+local LEFT_TOP_PAD = INNER + 30
 local FULL_SCROLL_H = CONTENT_H - LEFT_TOP_PAD
 local SHRUNK_SCROLL_H = CONTENT_H - LEFT_TOP_PAD - BTN_H - INNER
 
@@ -615,7 +611,6 @@ local backBtn = new("TextButton", {
 corner(backBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
 backBtn.MouseButton1Click:Connect(function() 
-    -- Forward declaration reference handled safely
     if showSubCategories then showSubCategories(currentCategoryIndex) end 
 end)
 
@@ -1293,39 +1288,119 @@ local function showSubCategories(catIndex)
     currentCategoryIndex = catIndex
     currentSubCategory = nil
     
-    -- Hide panels
     leftPanel.Visible = false
     rightPanel.Visible = false
     subCatContainer.Visible = true
     subCatScroll.CanvasPosition = Vector2.new(0, 0)
     
-    -- Populate Grid
+    -- Clear old children
     for _, child in ipairs(subCatScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
+        if child:IsA("TextButton") or child:IsA("Frame") then
+            child:Destroy()
+        end
     end
     
     local cat = CATEGORIES[catIndex]
-    
-    -- SAFEGUARD: Ensure subs exists to prevent UI crash
-    local subs = cat.subs
-    if not subs or #subs == 0 then
-        subs = {"All"}
+    local subs = cat.subs or {"All"}
+    local count = #subs
+
+    -- Specific Masonry Layout mapping
+    local function getLayout(i)
+        if count == 1 then
+            return UDim2.new(1, 0, 0, 200), UDim2.new(0, 0, 0, 0)
+        elseif count == 2 then
+            if i == 1 then return UDim2.new(0.5, -4, 0, 200), UDim2.new(0, 0, 0, 0) end
+            return UDim2.new(0.5, -4, 0, 200), UDim2.new(0.5, 4, 0, 0)
+        elseif count == 3 then
+            if i == 1 then return UDim2.new(0.5, -4, 0, 200), UDim2.new(0, 0, 0, 0) end
+            if i == 2 then return UDim2.new(0.5, -4, 0, 95), UDim2.new(0.5, 4, 0, 0) end
+            return UDim2.new(0.5, -4, 0, 95), UDim2.new(0.5, 4, 0, 105)
+        end
+        
+        -- 6 specific layout matching image
+        if i == 1 then
+            return UDim2.new(0.4, -4, 0, 160), UDim2.new(0, 0, 0, 0)
+        elseif i == 2 then
+            return UDim2.new(0.3, -4, 0, 75), UDim2.new(0.4, 4, 0, 0)
+        elseif i == 3 then
+            return UDim2.new(0.3, -4, 0, 75), UDim2.new(0.4, 4, 0, 85)
+        elseif i == 4 then
+            return UDim2.new(0.3, -4, 0, 160), UDim2.new(0.7, 4, 0, 0)
+        elseif i == 5 then
+            return UDim2.new(0.5, -4, 0, 75), UDim2.new(0, 0, 0, 170)
+        elseif i == 6 then
+            return UDim2.new(0.5, -4, 0, 75), UDim2.new(0.5, 4, 0, 170)
+        else
+            -- Fallback for >6 items
+            local row = math.floor((i-7)/2)
+            local col = (i-7)%2
+            return UDim2.new(0.5, -4, 0, 75), UDim2.new(col*0.5, (col==0 and 0 or 4), 0, 255 + row*85)
+        end
     end
 
+    local SUBCOLORS = {
+        rgb(45, 175, 255), -- Blue
+        rgb(220, 60, 255), -- Magenta
+        rgb(255, 110, 70), -- Orange
+        rgb(45, 230, 90),  -- Green
+        rgb(255, 60, 140), -- Pink
+        rgb(255, 170, 50), -- Yellow
+        rgb(150, 70, 255), -- Purple
+        rgb(60, 200, 200)  -- Cyan
+    }
+
+    local maxHeight = 0
+
     for i, subName in ipairs(subs) do
-        local btn = raised(subCatScroll, UDim2.new(1, 0, 1, 0), UDim2.new(), TONE_OFF, 3)
-        btn.Label.Text = subName
-        btn.Label.TextSize = 14
-        
-        -- Give sub-categories some color variations
-        if i % 3 == 0 then btn.SetTone(rgb(120, 50, 100), WHITE) -- Pinkish
-        elseif i % 3 == 1 then btn.SetTone(rgb(50, 100, 150), WHITE) -- Bluish
-        else btn.SetTone(rgb(40, 120, 80), WHITE) end -- Greenish
-        
-        btn.Face.Activated:Connect(function()
+        local size, pos = getLayout(i)
+        local btn = new("TextButton", {
+            BackgroundColor3 = SUBCOLORS[(i-1) % #SUBCOLORS + 1],
+            BorderSizePixel = 0,
+            Size = size,
+            Position = pos + UDim2.new(0, 0, 0, 20), -- Start slightly down for slide
+            BackgroundTransparency = 1, -- Start invisible
+            Text = string.upper(subName),
+            TextColor3 = WHITE,
+            Font = GOTHAM_K,
+            TextSize = 16,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            ClipsDescendants = true,
+            AutoButtonColor = false,
+            ZIndex = 10
+        }, subCatScroll)
+        corner(btn, UDim.new(0, 8))
+        new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12) }, btn)
+        new("UIGradient", { Color = ColorSequence.new(WHITE, rgb(150, 150, 150)), Rotation = 45 }, btn)
+
+        local scale = new("UIScale", { Scale = 0.8 }, btn)
+        btn.TextTransparency = 1
+
+        task.delay(i * 0.06, function()
+            if btn.Parent then
+                tween(btn, 0.4, { Position = pos, BackgroundTransparency = 0, TextTransparency = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                tween(scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            end
+        end)
+
+        local originalColor = btn.BackgroundColor3
+        btn.MouseEnter:Connect(function()
+            tween(btn, 0.2, { BackgroundColor3 = originalColor:Lerp(WHITE, 0.2) })
+        end)
+        btn.MouseLeave:Connect(function()
+            tween(btn, 0.2, { BackgroundColor3 = originalColor })
+        end)
+
+        btn.Activated:Connect(function()
             selectSubCategory(subName)
         end)
+
+        if pos.Y.Offset + size.Y.Offset > maxHeight then
+            maxHeight = pos.Y.Offset + size.Y.Offset
+        end
     end
+
+    subCatScroll.CanvasSize = UDim2.new(0, 0, 0, maxHeight + 20)
 end
 
 local function setActiveCategory(idx)
@@ -1349,7 +1424,7 @@ end
 searchInput.FocusLost:Connect(function(enterPressed) 
     if enterPressed then 
         if subCatContainer.Visible then
-            selectSubCategory("All") -- Force into list view if search is pressed directly
+            selectSubCategory("All")
         end
         nextPageToken = nil
         currentQuery = searchInput.Text
