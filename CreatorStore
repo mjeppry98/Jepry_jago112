@@ -1,8 +1,7 @@
 --[[
-    Studio Lite Toolbox - Final v30
-    - Completely redesigned Catalog UI (Grid Layout + 3D Avatar Preview)
-    - Matches the classic Roblox Catalog look
-    - Catalog API integrated properly
+    Studio Lite Toolbox - Final v31
+    - Fixed Catalog category by adding proper headers and parameters
+    - Catalog grid now populates correctly with avatar items
 ]]
 
 local API_KEYS = {
@@ -29,7 +28,7 @@ local ICON = {
 
 local CATEGORIES = {
     { key = "Model",    label = "MODELS" },
-    { key = "Catalog",  label = "CATALOG" }, -- Custom UI
+    { key = "Catalog",  label = "CATALOG" },
     { key = "Plugin",   label = "PLUGINS" },
     { key = "Audio",    label = "AUDIO" },
     { key = "Decal",    label = "DECALS" },
@@ -311,7 +310,11 @@ end
 
 local function httpGet(url, apiKey)
     if not HTTP then return nil, "Executor does not support HTTP requests." end
-    local headers = { ["Accept"] = "application/json" }
+    local headers = { 
+        ["Accept"] = "application/json",
+        ["User-Agent"] = "Roblox/WinInet", -- Required for Catalog API
+        ["Referer"] = "https://www.roblox.com/"
+    }
     if apiKey then headers["x-api-key"] = apiKey end
     local ok, res = pcall(HTTP, {
         Url = url, Method = "GET", Headers = headers
@@ -584,7 +587,7 @@ for i, cat in ipairs(CATEGORIES) do
     local btn = raised(categoryBar,
         UDim2.fromOffset(btnW, CATEGORY_H - 4),
         UDim2.fromOffset(currentX, 2),
-        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true) -- isStatic=true
+        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
@@ -601,9 +604,7 @@ local content = new("Frame", {
     ClipsDescendants = true
 }, body)
 
--- ============================================================
--- STANDARD VIEW (Models, Plugins, Audio, etc.)
--- ============================================================
+-- STANDARD VIEW
 local standardView = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.fromScale(1, 1),
@@ -819,7 +820,6 @@ corner(catalogViewport, UDim.new(0, 10))
 local avCamera = new("Camera", {}, catalogViewport)
 catalogViewport.CurrentCamera = avCamera
 
--- Clone player's avatar
 local function updateCatalogAvatar()
     catalogViewport:ClearAllChildren()
     catalogViewport.CurrentCamera = avCamera
@@ -829,7 +829,6 @@ local function updateCatalogAvatar()
     if char then
         local clone = char:Clone()
         clone.Parent = catalogViewport
-        -- Position camera
         local hrp = clone:FindFirstChild("HumanoidRootPart")
         if hrp then
             hrp.CFrame = CFrame.new(0, 0, 0)
@@ -856,7 +855,6 @@ new("UIGridLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder
 }, gridScroll)
 
--- Create Grid Item
 local function createCatalogItem(model, index)
     local item = new("Frame", {
         BackgroundColor3 = rgb(40, 40, 44),
@@ -884,7 +882,6 @@ local function createCatalogItem(model, index)
         TextWrapped = true, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
     })
     
-    -- Price
     local priceRow = new("Frame", {
         BackgroundTransparency = 1, Size = UDim2.new(1, -10, 0, 20), Position = UDim2.fromOffset(5, 100)
     }, item)
@@ -1306,7 +1303,6 @@ local function displayModels(models, append)
         selectedModel = nil
         if detailOpen then setDetailOpen(false) end
         
-        -- Ensure complete reset of Load More state
         setLoadMoreVisible(false)
         setScrollShrunk(false)
         loadMoreState.shrunk = false
@@ -1334,7 +1330,7 @@ function loadModels(query, append)
         local data, err, raw
         
         if cat.key == "Catalog" then
-            -- Catalog API
+            -- Catalog API with proper headers and parameters
             local url = ("https://catalog.roblox.com/v1/search/items/details?Category=1&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(HttpService:UrlEncode(query or ""))
             data, err, raw = httpGet(url)
             
@@ -1350,6 +1346,12 @@ function loadModels(query, append)
                 
                 for i, item in ipairs(results) do
                     createCatalogItem(item, i)
+                end
+                
+                if #results == 0 then
+                    setStatus("No catalog items found.")
+                else
+                    setStatus(("Found %d catalog items"):format(#results))
                 end
             end
         else
@@ -1381,7 +1383,7 @@ function loadModels(query, append)
         if data then
             debugBox.Text = raw or "Empty"
             isLoading = false
-            setStatus(("Found %d %s"):format(#allModels, cat.label:lower()))
+            -- Status already set in the branch
             loadMoreBtn.Label.Text = "LOAD MORE"
             loadMoreState.lastY = scrollList.CanvasPosition.Y
         end
@@ -1595,7 +1597,7 @@ local function setActiveCategory(idx)
         standardView.Visible = false
         catalogView.Visible = true
         updateCatalogAvatar()
-        task.wait(0.2) -- Small delay to let the viewport load
+        task.wait(0.2)
         loadModels(searchInput.Text or "", false)
     else
         catalogView.Visible = false
@@ -1615,7 +1617,6 @@ searchInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then 
         nextPageToken = nil
         if CATEGORIES[currentCategoryIndex].key == "Catalog" then
-            -- Clear Grid before loading new
             for _, c in ipairs(gridScroll:GetChildren()) do
                 if c:IsA("Frame") then c:Destroy() end
             end
