@@ -1,21 +1,16 @@
 --[[
-    Studio Lite Toolbox - Final v41 (Executable)
-    - Fully working out-of-the-box
-    - Robust error handling (won't crash on API failure)
-    - Safe UI parent (CoreGui / gethui)
-    - Custom Vercel Proxy for Catalog API integration
+    Studio Lite Toolbox - Final v38
+    - Removed "CATALOG" category
+    - Smart Category Memory intact
+    - Bigger & White Icons
 ]]
-
--- ============================================================
--- ⚠️ PENTING: GANTI URL DI BAWAH INI DENGAN URL VERCEL KAMU ⚠️
--- ============================================================
-local CATALOG_API_URL = "https://project-kamu.vercel.app/api/catalog" 
 
 local API_KEYS = {
     main = {
         store = "HDeecbzlHUuJ8dljbWkQIMF5rSTOEOzuB8cvxtxog2xzKM/uZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluTnBaeTB5TURJeExUQTNMVEV6VkRFNE9qVXhPalE1V2lJc0luUjVjQ0k2SWtwWFZDSjkuZXlKaGRXUWlPaUpTYjJKc2IzaEpiblJsY201aGJDSXNJbWx6Y3lJNklrTnNiM1ZrUVhWMGFHVnVkR2xqWVhScGIyNVRaWEoyYVdObElpd2lZbUZ6WlVGd2FVdGxlU0k2SWtoRVpXVmpZbnBzU0ZWMVNqaGtiR3BpVjJ0UlNVMUdOWEpUVkU5RlQzcDFRamhqZG5oMGVHOW5Nbmg2UzAwdmRTSXNJbTkzYm1WeVNXUWlPaUl4TURFeE1qRTVOelE0TnlJc0ltVjRjQ0k2TVRjNU1qRTBPVEU1T1N3aWFXRjBJam94TnpreU1UUTFOVGs1TENKdVltWWlPakUzT1RJeE5EVTFPVGw5LmlBNENZZDcwUG95QUZjVTM0VU01MWpicTRJVEJjSDdCeG1BOUZhSXlSZUpHcHJFZGtzU2E5Zkc3c1FRT2FzVkdiN2k2VDM5UzV5bFdNX1pXM1hIN0FaQmdjcFdncVhFVFZIMWd0V1dmXzRHMXl4X0ttVzFTQ0NianNnclpqMlplVTBlaHI5THdDMXJXbVRwaGVIQjZ6eGxKTTl5dmllSW5oQmRQSHY0QnE3S252WVBnQzJKcUtJNVM2VzhyWWNDQ1V0TDU4ZkdiUXpOWkxQSU5uSXptNU8tYVJqTHQzRW56Z0Z2Z3J0dldoTUVHeTFxS3hfX1pHRXdlV2dXSkJVdGtiWmkxV1RPcE0yWmVoMHk2NENiOC1oZG5tOFhiVWpRVEZBWDI0WldkRTJSYkhWbU1paUpPNV9ZVVhzRFpvbVlRdWQ4elBoYWc3OVVDT2tiQWZDbW5vdw=="
     }
 }
+local currentKeyMode = "main"
 
 local ICON = {
     SEARCH      = "rbxassetid://118685771787843",
@@ -31,35 +26,42 @@ local ICON = {
     MINIMIZE    = "rbxassetid://100624819703287"
 }
 
+-- CATALOG removed
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "Catalog",  label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animations", "Emotes"} },
     { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
     { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
     { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
     { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
 }
 
-local CATEGORY_IDS = {
-    ["All"] = 1, ["Clothing"] = 3, ["Accessories"] = 11, 
-    ["Body Parts"] = 4, ["Animations"] = 12, ["Emotes"] = 2
-}
-
 local SUB_ICONS = {
-    ["All"] = "rbxassetid://15567843390", ["Building"] = "rbxassetid://102384750306029",
-    ["Nature"] = "rbxassetid://114717328431686", ["Props"] = "rbxassetid://106218455818049",
-    ["Weapons"] = "rbxassetid://7485051715", ["Vehicles"] = "rbxassetid://101646918234834",
-    ["Characters"] = "rbxassetid://13285615740", ["Clothing"] = "rbxassetid://11955919597",
-    ["Accessories"] = "rbxassetid://94785180212209", ["Body Parts"] = "rbxassetid://126499349331034",
-    ["Animals"] = "rbxassetid://6938215837", ["Utility"] = "rbxassetid://113364344425009",
-    ["Scripting"] = "rbxassetid://9405930424", ["UI/UX"] = "rbxassetid://96780656997191",
-    ["Animation"] = "rbxassetid://8370845871", ["Animations"] = "rbxassetid://8370845871",
-    ["Emotes"] = "rbxassetid://8370845871", ["Music"] = "rbxassetid://7059338404",
-    ["SFX"] = "rbxassetid://4773247666", ["Ambient"] = "rbxassetid://16149050754",
-    ["Voice"] = "rbxassetid://14333877451", ["Podcasts"] = "rbxassetid://14802853867",
-    ["Textures"] = "rbxassetid://93167896407815", ["Signs"] = "rbxassetid://92559495578198",
-    ["Logos"] = "rbxassetid://138880939782808", ["Patterns"] = "rbxassetid://121662510907526",
-    ["Faces"] = "rbxassetid://17784562207", ["Visuals"] = "rbxassetid://17415917290"
+    ["All"] = "rbxassetid://15567843390",
+    ["Building"] = "rbxassetid://102384750306029",
+    ["Nature"] = "rbxassetid://114717328431686",
+    ["Props"] = "rbxassetid://106218455818049",
+    ["Weapons"] = "rbxassetid://7485051715",
+    ["Vehicles"] = "rbxassetid://101646918234834",
+    ["Characters"] = "rbxassetid://13285615740",
+    ["Clothing"] = "rbxassetid://11955919597",
+    ["Accessories"] = "rbxassetid://94785180212209",
+    ["Body Parts"] = "rbxassetid://126499349331034",
+    ["Animals"] = "rbxassetid://6938215837",
+    ["Utility"] = "rbxassetid://113364344425009",
+    ["Scripting"] = "rbxassetid://9405930424",
+    ["UI/UX"] = "rbxassetid://96780656997191",
+    ["Animation"] = "rbxassetid://8370845871",
+    ["Music"] = "rbxassetid://7059338404",
+    ["SFX"] = "rbxassetid://4773247666",
+    ["Ambient"] = "rbxassetid://16149050754",
+    ["Voice"] = "rbxassetid://14333877451",
+    ["Podcasts"] = "rbxassetid://14802853867",
+    ["Textures"] = "rbxassetid://93167896407815",
+    ["Signs"] = "rbxassetid://92559495578198",
+    ["Logos"] = "rbxassetid://138880939782808",
+    ["Patterns"] = "rbxassetid://121662510907526",
+    ["Faces"] = "rbxassetid://17784562207",
+    ["Visuals"] = "rbxassetid://17415917290"
 }
 
 local currentCategoryIndex = 1
@@ -133,6 +135,14 @@ local function txt(parent, text, size, color, font, boxSize, pos, alignX, extra)
     }, parent)
     if extra then for k, v in pairs(extra) do t[k] = v end end
     return t
+end
+
+local function measureText(text, size, font)
+    local ok, result = pcall(function()
+        return TextService:GetTextSize(text, size, font, Vector2.new(10000, 100))
+    end)
+    if ok and result then return result.X end
+    return #text * (size * 0.6)
 end
 
 local function raised(parent, size, position, tone, depth, radius, isStatic, customGradient)
@@ -317,9 +327,6 @@ local function getHttpFunc()
 end
 local HTTP = getHttpFunc()
 
--- ============================================================
--- HTTP WRAPPERS
--- ============================================================
 local function httpPost(url, apiKey, bodyTable)
     if not HTTP then return nil, "Executor does not support HTTP requests." end
     local ok, res = pcall(HTTP, {
@@ -338,25 +345,7 @@ local function httpPost(url, apiKey, bodyTable)
     return data, nil, res.Body
 end
 
-local function httpGet(url, apiKey)
-    if not HTTP then return nil, "Executor does not support HTTP requests." end
-    local headers = { ["Accept"] = "application/json" }
-    if apiKey then headers["x-api-key"] = apiKey end
-    
-    local ok, res = pcall(HTTP, {
-        Url = url, Method = "GET", Headers = headers
-    })
-    if not ok then return nil, tostring(res) end
-    if not res or not res.Body then return nil, "Empty response" end
-    local decodeOk, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-    if not decodeOk then return nil, "Invalid JSON" end
-    return data, nil, res.Body
-end
-
--- ============================================================
--- PARSERS
--- ============================================================
-local function parseToolboxResponse(data, category)
+local function parseModelsFromResponse(data, category)
     if not data then return {}, nil end
     local models = {}
     local list = data.creatorStoreAssets or {}
@@ -386,40 +375,16 @@ local function parseToolboxResponse(data, category)
     return models, data.data and data.data.nextPageToken or data.nextPageToken
 end
 
-local function parseCatalogResponse(data, category)
-    if not data then return {}, nil end
-    local models = {}
-    local list = data.data or {}
-    if type(list) ~= "table" then list = {} end
-    for _, entry in ipairs(list) do
-        if type(entry) == "table" then
-            local id = entry.id or entry.assetId or entry.itemId
-            if id then
-                local name = entry.name or entry.itemName or ("Asset " .. tostring(id))
-                local desc = entry.description or "No description available."
-                local creatorName = entry.creatorName or entry.creator or "?"
-                table.insert(models, {
-                    id = tostring(id), name = name, description = desc,
-                    creator = creatorName, category = category,
-                    thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
-                })
-            end
-        end
-    end
-    return models, data.nextPageCursor
+local function safeSetImage(elm, iconId, color)
+    pcall(function()
+        elm.Image = iconId
+        elm.ImageColor3 = color or WHITE
+    end)
 end
 
 -- ============================================================
--- BUILD GUI (SAFE PARENT)
+-- BUILD GUI
 -- ============================================================
-local function getSafeGuiParent()
-    if gethui then
-        local ok, ui = pcall(gethui)
-        if ok and ui then return ui end
-    end
-    return CoreGui
-end
-
 if CoreGui:FindFirstChild("StudioLiteToolbox") then CoreGui.StudioLiteToolbox:Destroy() end
 
 local gui = new("ScreenGui", {
@@ -428,7 +393,7 @@ local gui = new("ScreenGui", {
     IgnoreGuiInset = true,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     DisplayOrder = 100
-}, getSafeGuiParent())
+}, CoreGui)
 
 local screenSize = Vector2.new(0, 0)
 for _ = 1, 30 do
@@ -444,7 +409,9 @@ if screenSize.X < 100 then screenSize = Vector2.new(800, 600) end
 local FRAME_W = math.min(820, screenSize.X - 24)
 local FRAME_H = math.min(640, screenSize.Y - 40)
 
-local PAD = 12
+local IS_NARROW = FRAME_W < 480
+
+local PAD = IS_NARROW and 8 or 12
 local INNER = 8
 local HEADER_H = 46
 local SEARCH_H = 38
@@ -485,10 +452,11 @@ new("ImageLabel", {
     Size = UDim2.fromOffset(22, 22), Position = UDim2.fromOffset(PAD, 12)
 }, header)
 
+local titleRightMargin = IS_NARROW and 130 or 180
 txt(header, "ASSET STORE", 13, WHITE, GOTHAM_K,
-    UDim2.new(1, -180, 0, 18), UDim2.fromOffset(PAD + 30, 8))
+    UDim2.new(1, -titleRightMargin, 0, 18), UDim2.fromOffset(PAD + 30, 8))
 txt(header, "Roblox Creator Store", 9, TEXT_DIM, GOTHAM,
-    UDim2.new(1, -180, 0, 12), UDim2.fromOffset(PAD + 30, 26))
+    UDim2.new(1, -titleRightMargin, 0, 12), UDim2.fromOffset(PAD + 30, 26))
 
 local statusDot = new("Frame", {
     BackgroundColor3 = rgb(90, 90, 96), BorderSizePixel = 0,
@@ -498,6 +466,7 @@ local statusDot = new("Frame", {
 }, header)
 corner(statusDot, UDim.new(1, 0))
 
+-- DEBUG BUTTON
 local debugBtn = new("TextButton", {
     AutoButtonColor = false, Text = "?",
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
@@ -512,6 +481,7 @@ local dbgScale = new("UIScale", {Scale = 1}, debugBtn)
 debugBtn.MouseEnter:Connect(function() tween(dbgScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
 debugBtn.MouseLeave:Connect(function() tween(dbgScale, 0.15, {Scale=1}) end)
 
+-- MINIMIZE BUTTON
 local minimizeBtn = new("TextButton", {
     AutoButtonColor = false, Text = "",
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
@@ -531,6 +501,7 @@ local minScale = new("UIScale", {Scale = 1}, minimizeBtn)
 minimizeBtn.MouseEnter:Connect(function() tween(minScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
 minimizeBtn.MouseLeave:Connect(function() tween(minScale, 0.15, {Scale=1}) end)
 
+-- CLOSE BUTTON
 local closeBtn = new("TextButton", {
     AutoButtonColor = false, Text = "",
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
@@ -557,7 +528,9 @@ local divider = new("Frame", {
 }, body)
 new("UIGradient", {
     Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.7), NumberSequenceKeypoint.new(1, 1)
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0.7),
+        NumberSequenceKeypoint.new(1, 1)
     })
 }, divider)
 
@@ -594,31 +567,46 @@ local categoryBar = new("ScrollingFrame", {
     Size = UDim2.new(1, -PAD*2, 0, CATEGORY_H),
     Position = UDim2.fromOffset(PAD, HEADER_H + GAP_TOP + SEARCH_H + GAP_MID),
     ScrollingDirection = Enum.ScrollingDirection.X,
-    ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X
+    ScrollBarThickness = 0,
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.X
 }, body)
 
 new("UIListLayout", {
     FillDirection = Enum.FillDirection.Horizontal,
     SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center
+    Padding = UDim.new(0, 6),
+    VerticalAlignment = Enum.VerticalAlignment.Center
 }, categoryBar)
 
 local categoryButtons = {}
 
 for i, cat in ipairs(CATEGORIES) do
     local isActive = (i == currentCategoryIndex)
-    local btn = raised(categoryBar, UDim2.new(0, 0, 1, -4), UDim2.new(), isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
+    
+    local btn = raised(categoryBar,
+        UDim2.new(0, 0, 1, -4),
+        UDim2.new(), 
+        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
+    
     btn.Holder.AutomaticSize = Enum.AutomaticSize.X
     btn.Holder.LayoutOrder = i
     
     local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, btn.Face)
     new("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 8)
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Padding = UDim.new(0, 8)
     }, row)
     
+    -- MAIN CATEGORY ICON (Bigger & White)
     local iconImg = new("ImageLabel", {
-        BackgroundTransparency = 1, Image = cat.icon, ImageColor3 = WHITE, Size = UDim2.fromOffset(20, 20), LayoutOrder = 1
+        BackgroundTransparency = 1,
+        Image = cat.icon,
+        ImageColor3 = WHITE,
+        Size = UDim2.fromOffset(20, 20),
+        LayoutOrder = 1
     }, row)
     
     btn.Label.Parent = row
@@ -630,24 +618,52 @@ for i, cat in ipairs(CATEGORIES) do
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
     
-    new("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12) }, btn.Face)
+    new("UIPadding", {
+        PaddingLeft = UDim.new(0, 12),
+        PaddingRight = UDim.new(0, 12)
+    }, btn.Face)
+
     categoryButtons[i] = { api = btn, category = cat, iconObj = iconImg }
 end
 
 -- CONTENT
 local content = new("Frame", {
-    BackgroundTransparency = 1, Size = UDim2.new(1, -PAD*2, 0, CONTENT_H), Position = UDim2.fromOffset(PAD, CONTENT_TOP), ClipsDescendants = true
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -PAD*2, 0, CONTENT_H),
+    Position = UDim2.fromOffset(PAD, CONTENT_TOP),
+    ClipsDescendants = true
 }, body)
 
--- SUB-CATEGORY
-local subCatContainer = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false }, content)
+-- ============================================================
+-- SUB-CATEGORY GRID (MASONRY LAYOUT)
+-- ============================================================
+local subCatContainer = new("Frame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 1, 0),
+    Visible = false
+}, content)
+
 local subCatScroll = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 1, 0), CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    Size = UDim2.new(1, 0, 1, 0),
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
 }, subCatContainer)
 
+for _, c in ipairs(subCatScroll:GetChildren()) do
+    if c:IsA("UIGridLayout") or c:IsA("UIListLayout") then c:Destroy() end
+end
+
+-- ============================================================
 -- LEFT PANEL
-local leftPanel = new("CanvasGroup", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0), Visible = false }, content)
+-- ============================================================
+local leftPanel = new("CanvasGroup", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 1, 0),
+    Position = UDim2.new(0, 0, 0, 0),
+    Visible = false
+}, content)
 surface(leftPanel, 12)
 leftPanel.ClipsDescendants = true
 
@@ -655,8 +671,11 @@ local LEFT_TOP_PAD = INNER + 30
 local FULL_SCROLL_H = CONTENT_H - LEFT_TOP_PAD
 local SHRUNK_SCROLL_H = CONTENT_H - LEFT_TOP_PAD - BTN_H - INNER
 
+-- BACK BUTTON
 local backBtn = new("TextButton", {
-    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0, Size = UDim2.fromOffset(60, 22), Position = UDim2.fromOffset(INNER, INNER),
+    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
+    Size = UDim2.fromOffset(60, 22),
+    Position = UDim2.fromOffset(INNER, INNER),
     Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT
 }, leftPanel)
 corner(backBtn, UDim.new(0, 4))
@@ -666,86 +685,191 @@ backBtn.MouseButton1Click:Connect(function()
 end)
 
 local scrollList = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(INNER, LEFT_TOP_PAD),
-    Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H), ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
-    CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y,
-    ElasticBehavior = Enum.ElasticBehavior.Always, ClipsDescendants = true
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    Position = UDim2.fromOffset(INNER, LEFT_TOP_PAD),
+    Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H),
+    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ElasticBehavior = Enum.ElasticBehavior.Always,
+    ClipsDescendants = true
 }, leftPanel)
-new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }, scrollList)
+new("UIListLayout", {
+    SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)
+}, scrollList)
 
-local loadMoreBtn = raised(leftPanel, UDim2.new(1, -INNER*2, 0, BTN_H), UDim2.new(0, INNER, 1, -INNER - BTN_H), TONE_OFF, 3)
+-- LOAD MORE BUTTON
+local loadMoreBtn = raised(leftPanel,
+    UDim2.new(1, -INNER*2, 0, BTN_H),
+    UDim2.new(0, INNER, 1, -INNER - BTN_H),
+    TONE_OFF, 3)
 loadMoreBtn.Label.Text = "LOAD MORE"
+
 loadMoreBtn.Holder.Visible = false
 loadMoreBtn.Face.BackgroundTransparency = 1
 loadMoreBtn.Base.BackgroundTransparency = 1
 loadMoreBtn.Stroke.Transparency = 1
 loadMoreBtn.Label.TextTransparency = 1
 
+-- ============================================================
 -- RIGHT PANEL
-local rightPanel = new("CanvasGroup", { BackgroundTransparency = 1, Size = UDim2.new(0.5, -6, 1, 0), Position = UDim2.new(1.5, 0, 0, 0), Visible = false }, content)
+-- ============================================================
+local rightPanel = new("CanvasGroup", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(0.5, -6, 1, 0),
+    Position = UDim2.new(1.5, 0, 0, 0),
+    Visible = false
+}, content)
 surface(rightPanel, 12)
 rightPanel.ClipsDescendants = true
 
 local btnRowY = CONTENT_H - INNER - BTN_H
-local btnRow = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -INNER*2, 0, BTN_H), Position = UDim2.fromOffset(INNER, btnRowY) }, rightPanel)
+local btnRow = new("Frame", {
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, -INNER*2, 0, BTN_H),
+    Position = UDim2.fromOffset(INNER, btnRowY)
+}, rightPanel)
 
-local copyIdBtn, copyIdLabel = raisedIconBtn(btnRow, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0), TONE_ON, "COPY ID", ICON.COPY, TEXT_DARK, 3, 14)
-local playBtn, playLabel = raisedIconBtn(btnRow, UDim2.new(0.5, -3, 1, 0), UDim2.new(0.5, 3, 0, 0), TONE_OFF, "PLAY", ICON.SPEAKER, TEXT_LIGHT, 3, 14)
+-- BUTTONS
+local copyIdBtn, copyIdLabel = raisedIconBtn(
+    btnRow, UDim2.new(1, 0, 1, 0), UDim2.new(0, 0, 0, 0),
+    TONE_ON, "COPY ID", ICON.COPY, TEXT_DARK, 3, 14
+)
+local playBtn, playLabel = raisedIconBtn(
+    btnRow, UDim2.new(0.5, -3, 1, 0), UDim2.new(0.5, 3, 0, 0),
+    TONE_OFF, "PLAY", ICON.SPEAKER, TEXT_LIGHT, 3, 14
+)
 playBtn.Holder.Visible = false
 
+-- RIGHT SCROLL
 local rightScroll = new("ScrollingFrame", {
-    BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.fromOffset(0, INNER), Size = UDim2.new(1, 0, 0, btnRowY - INNER*2),
-    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158), CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ScrollingDirection = Enum.ScrollingDirection.Y, ElasticBehavior = Enum.ElasticBehavior.Always, ClipsDescendants = true
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    Position = UDim2.fromOffset(0, INNER),
+    Size = UDim2.new(1, 0, 0, btnRowY - INNER*2),
+    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ElasticBehavior = Enum.ElasticBehavior.Always,
+    ClipsDescendants = true
 }, rightPanel)
-new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }, rightScroll)
-new("UIPadding", { PaddingLeft = UDim.new(0, INNER), PaddingRight = UDim.new(0, INNER), PaddingTop = UDim.new(0, 0), PaddingBottom = UDim.new(0, INNER) }, rightScroll)
+new("UIListLayout", {
+    SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8)
+}, rightScroll)
+new("UIPadding", {
+    PaddingLeft = UDim.new(0, INNER), PaddingRight = UDim.new(0, INNER),
+    PaddingTop = UDim.new(0, 0), PaddingBottom = UDim.new(0, INNER)
+}, rightScroll)
 
-local thumbFrame = new("Frame", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 140), LayoutOrder = 1 }, rightScroll)
+local thumbFrame = new("Frame", {
+    BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0,
+    Size = UDim2.new(1, 0, 0, math.min(140, math.floor(CONTENT_H * 0.34))), LayoutOrder = 1
+}, rightScroll)
 corner(thumbFrame, UDim.new(0, 10))
 new("UIGradient", { Color = SHADE_INV, Rotation = 90 }, thumbFrame)
-local thumbStroke = new("UIStroke", { ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = WHITE, Thickness = 1 }, thumbFrame)
+local thumbStroke = new("UIStroke", {
+    ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = WHITE, Thickness = 1
+}, thumbFrame)
 new("UIGradient", { Color = BEVEL_INV, Rotation = 90 }, thumbStroke)
 
-local thumbImg = new("ImageLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ScaleType = Enum.ScaleType.Fit }, thumbFrame)
+local thumbImg = new("ImageLabel", {
+    BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
+    ScaleType = Enum.ScaleType.Fit
+}, thumbFrame)
 corner(thumbImg, UDim.new(0, 10))
 safeSetImage(thumbImg, ICON.PLACEHOLDER)
 
--- VIEWPORT 3D
-local viewportFrame = new("ViewportFrame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false }, thumbFrame)
+-- ViewportFrame (3D Mode)
+local viewportFrame = new("ViewportFrame", {
+    BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
+    Visible = false
+}, thumbFrame)
 corner(viewportFrame, UDim.new(0, 10))
+
 local vpCamera = new("Camera", {}, viewportFrame)
 viewportFrame.CurrentCamera = vpCamera
 vpCamera.CFrame = CFrame.new(Vector3.new(0, 5, 15), Vector3.new(0, 0, 0))
-new("PointLight", { Brightness = 2, Range = 30, Color = Color3.new(1, 1, 1) }, vpCamera)
+
+local vpLight = new("PointLight", {
+    Brightness = 2, Range = 30, Color = Color3.new(1, 1, 1)
+}, vpCamera)
 
 local toggle3DBtn = new("TextButton", {
-    Text = "3D VIEW", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT, BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
-    Size = UDim2.fromOffset(60, 22), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -6, 0, 6), Visible = false, ZIndex = 5
+    Text = "3D VIEW", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT,
+    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
+    Size = UDim2.fromOffset(60, 22),
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, -6, 0, 6),
+    Visible = false, ZIndex = 5
 }, thumbFrame)
 corner(toggle3DBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, toggle3DBtn)
+local t3dScale = new("UIScale", {Scale = 1}, toggle3DBtn)
+toggle3DBtn.MouseEnter:Connect(function() tween(t3dScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
+toggle3DBtn.MouseLeave:Connect(function() tween(t3dScale, 0.15, {Scale=1}) end)
 
-local detailTitle = txt(rightScroll, "Select an asset...", 12, WHITE, GOTHAM_B, UDim2.new(1, 0, 0, 0), UDim2.new(), LEFT, {
-    AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, TextWrapped = true, TextTruncate = Enum.TextTruncate.None
-})
-local creatorRow = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 3 }, rightScroll)
-new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.CREATOR, ImageColor3 = TEXT_DIM, Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(0, 2) }, creatorRow)
-local detailCreator = txt(creatorRow, "", 10, TEXT_DIM, GOTHAM, UDim2.new(1, -18, 1, 0), UDim2.fromOffset(18, 0), LEFT, { TextTruncate = Enum.TextTruncate.AtEnd })
+local zoomBtn = new("ImageButton", {
+    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
+    Image = ICON.ZOOM, ImageColor3 = TEXT_LIGHT,
+    Size = UDim2.fromOffset(22, 22),
+    AnchorPoint = Vector2.new(1, 0),
+    Position = UDim2.new(1, -70, 0, 6),
+    Visible = false, ZIndex = 5,
+    BackgroundTransparency = 1, ImageTransparency = 1
+}, thumbFrame)
+corner(zoomBtn, UDim.new(0, 4))
+new("UIGradient", { Color = SHADE, Rotation = 90 }, zoomBtn)
 
-local descRow = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), LayoutOrder = 4, AutomaticSize = Enum.AutomaticSize.Y }, rightScroll)
-new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.DESC, ImageColor3 = TEXT_DIM, Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(0, 2) }, descRow)
-local detailDesc = txt(descRow, "", 10, TEXT_DIM, GOTHAM, UDim2.new(1, -18, 0, 0), UDim2.fromOffset(18, 0), LEFT, {
-    TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, TextTruncate = Enum.TextTruncate.None, AutomaticSize = Enum.AutomaticSize.Y
-})
+local detailTitle = txt(rightScroll, "Select an asset...", 12, WHITE, GOTHAM_B,
+    UDim2.new(1, 0, 0, 0), UDim2.new(), LEFT, {
+        AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2,
+        TextWrapped = true, TextTruncate = Enum.TextTruncate.None
+    })
 
-local statusLabel = txt(body, "Ready.", 9, TEXT_DIM, GOTHAM, UDim2.new(1, -PAD*2, 0, 14), UDim2.new(0, PAD, 1, -16), LEFT)
+local creatorRow = new("Frame", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 3
+}, rightScroll)
+new("ImageLabel", {
+    BackgroundTransparency = 1, Image = ICON.CREATOR, ImageColor3 = TEXT_DIM,
+    Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(0, 2)
+}, creatorRow)
+local detailCreator = txt(creatorRow, "", 10, TEXT_DIM, GOTHAM,
+    UDim2.new(1, -18, 1, 0), UDim2.fromOffset(18, 0), LEFT, {
+        TextTruncate = Enum.TextTruncate.AtEnd
+    })
+
+local descRow = new("Frame", {
+    BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), LayoutOrder = 4,
+    AutomaticSize = Enum.AutomaticSize.Y
+}, rightScroll)
+new("ImageLabel", {
+    BackgroundTransparency = 1, Image = ICON.DESC, ImageColor3 = TEXT_DIM,
+    Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(0, 2)
+}, descRow)
+local detailDesc = txt(descRow, "", 10, TEXT_DIM, GOTHAM,
+    UDim2.new(1, -18, 0, 0), UDim2.fromOffset(18, 0), LEFT, {
+        TextYAlignment = Enum.TextYAlignment.Top,
+        TextWrapped = true, TextTruncate = Enum.TextTruncate.None,
+        AutomaticSize = Enum.AutomaticSize.Y
+    })
+
+-- STATUS BAR
+local statusLabel = txt(body, "Ready.", 9, TEXT_DIM, GOTHAM,
+    UDim2.new(1, -PAD*2, 0, 14), UDim2.new(0, PAD, 1, -16), LEFT)
+
+-- DEBUG BOX
 local debugBox = sunken(body, UDim2.new(0.9, 0, 0.5, 0), UDim2.new(0.05, 0, 0.25, 0))
-debugBox.Font = Enum.Font.Code; debugBox.TextSize = 8; debugBox.TextColor3 = rgb(0, 255, 0)
-debugBox.TextWrapped = true; debugBox.Text = "RAW JSON..."; debugBox.Visible = false; debugBox.ZIndex = 10
+debugBox.Font = Enum.Font.Code
+debugBox.TextSize = 8
+debugBox.TextColor3 = rgb(0, 255, 0)
+debugBox.TextWrapped = true
+debugBox.Text = "RAW JSON..."
+debugBox.Visible = false
+debugBox.ZIndex = 10
 
 -- ============================================================
--- LOGIC & STATE
+-- STATE & LOGIC
 -- ============================================================
 local detailOpen = false
 local selectedModel = nil
@@ -755,6 +879,8 @@ local nextPageToken = nil
 local lastQuery = ""
 local isLoading = false
 local currentSound = nil
+
+-- 3D State
 local is3D = false
 local vpModel = nil
 local currentRotX = 0
@@ -768,7 +894,10 @@ local RIGHT_SHOWN  = UDim2.new(0.5, 6, 0, 0)
 local SLIDE_DURATION = 0.35
 
 function stopAudio()
-    if currentSound then currentSound:Destroy(); currentSound = nil end
+    if currentSound then
+        currentSound:Destroy()
+        currentSound = nil
+    end
     playLabel.Text = "PLAY"
     playBtn.SetTone(TONE_OFF, TEXT_LIGHT) 
 end
@@ -783,42 +912,194 @@ function setDetailOpen(open)
     else
         local tw = tween(rightPanel, SLIDE_DURATION, { Position = RIGHT_HIDDEN }, Enum.EasingStyle.Quart)
         tween(leftPanel, SLIDE_DURATION, { Size = LEFT_CLOSED }, Enum.EasingStyle.Quart)
-        stopAudio(); is3D = false
-        tw.Completed:Connect(function() if not detailOpen then rightPanel.Visible = false end end)
+        stopAudio()
+        is3D = false
+        
+        tw.Completed:Connect(function()
+            if not detailOpen then
+                rightPanel.Visible = false
+            end
+        end)
     end
 end
 
+-- ============================================================
+-- 3D MESH LOGIC
+-- ============================================================
+local function updateViewportTransform()
+    if not vpModel then return end
+    local rot = CFrame.fromEulerAnglesYXZ(math.rad(currentRotX), math.rad(currentRotY), 0)
+    local dist = 15
+    local targetPos = Vector3.new(0, 0, 0)
+    
+    if vpModel:IsA("Model") then
+        local cf, size = vpModel:GetBoundingBox()
+        targetPos = cf.Position
+        dist = math.max(size.X, size.Y, size.Z) * 3.5
+    else
+        local size = vpModel.Size
+        dist = math.max(size.X, size.Y, size.Z) * 3.5
+    end
+
+    local camPos = targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist))
+    vpCamera.CFrame = CFrame.new(camPos, targetPos)
+end
+
+local function loadMeshToViewport(id)
+    for _, child in ipairs(viewportFrame:GetChildren()) do
+        if child:IsA("BasePart") or child:IsA("Model") then
+            child:Destroy()
+        end
+    end
+    
+    vpModel = nil
+    local loaded = false
+
+    if not loaded then
+        local success = pcall(function()
+            local mesh = AssetService:CreateMeshPartAsync("rbxassetid://"..tostring(id))
+            mesh.Anchored = true
+            mesh.Parent = viewportFrame
+            vpModel = mesh
+            loaded = true
+        end)
+    end
+
+    if not loaded then
+        pcall(function()
+            local model = InsertService:LoadAsset(tonumber(id))
+            if model then
+                model.Parent = viewportFrame
+                vpModel = model
+                for _, p in ipairs(model:GetDescendants()) do
+                    if p:IsA("BasePart") then p.Anchored = true end
+                end
+                loaded = true
+            end
+        end)
+    end
+
+    if not loaded then
+        pcall(function()
+            local objs = game:GetObjects("rbxassetid://"..tostring(id))
+            if objs and #objs > 0 then
+                local obj = objs[1]
+                obj.Parent = viewportFrame
+                vpModel = obj
+                if obj:IsA("Model") then
+                    for _, p in ipairs(obj:GetDescendants()) do
+                        if p:IsA("BasePart") then p.Anchored = true end
+                    end
+                elseif obj:IsA("BasePart") then
+                    obj.Anchored = true
+                end
+                loaded = true
+            end
+        end)
+    end
+
+    if not vpModel then
+        local block = Instance.new("Part")
+        block.Shape = Enum.PartType.Block
+        block.Size = Vector3.new(4, 4, 4)
+        block.Anchored = true
+        block.Material = Enum.Material.SmoothPlastic
+        block.Color = Color3.fromRGB(100, 100, 100)
+        block.Parent = viewportFrame
+        vpModel = block
+        
+        local billboard = Instance.new("BillboardGui")
+        billboard.Size = UDim2.new(0, 150, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = block
+        
+        local warningTxt = Instance.new("TextLabel")
+        warningTxt.Size = UDim2.new(1, 0, 1, 0)
+        warningTxt.BackgroundTransparency = 1
+        warningTxt.Text = "Mesh Blocked by Roblox\n(Client Security Limit)"
+        warningTxt.TextColor3 = Color3.fromRGB(255, 100, 100)
+        warningTxt.TextStrokeTransparency = 0
+        warningTxt.TextScaled = true
+        warningTxt.Font = Enum.Font.GothamBold
+        warningTxt.Parent = billboard
+    end
+
+    currentRotX = 20
+    currentRotY = -30
+    updateViewportTransform()
+end
+
+local draggingThumb = false
+viewportFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingThumb = true
+        lastMousePos = input.Position
+    end
+end)
+viewportFrame.InputChanged:Connect(function(input)
+    if draggingThumb and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - lastMousePos
+        currentRotY = currentRotY + (delta.X * 0.5)
+        currentRotX = currentRotX - (delta.Y * 0.5)
+        updateViewportTransform()
+        lastMousePos = input.Position
+    end
+end)
+viewportFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingThumb = false
+    end
+end)
+
+-- ============================================================
+-- BUTTON LAYOUT UPDATER
+-- ============================================================
 local function updateBtnLayout()
     local catKey = CATEGORIES[currentCategoryIndex].key
     local isAudio = (catKey == "Audio")
     local isMesh = (catKey == "MeshPart")
+
     toggle3DBtn.Visible = isMesh
     
     if not isMesh and is3D then
-        is3D = false; thumbImg.Visible = true; viewportFrame.Visible = false
+        is3D = false
+        thumbImg.Visible = true
+        viewportFrame.Visible = false
+        toggle3DBtn.Text = "3D VIEW"
+        zoomBtn.Visible = false
+        zoomBtn.ImageTransparency = 1
+        zoomBtn.BackgroundTransparency = 1
     end
     
     if isAudio then
         tween(copyIdBtn.Holder, 0.3, { Size = UDim2.new(0.5, -3, 1, 0), Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quart)
         tween(playBtn.Holder, 0.3, { Size = UDim2.new(0.5, -3, 1, 0), Position = UDim2.new(0.5, 3, 0, 0) }, Enum.EasingStyle.Quart)
+        
         playBtn.Holder.Visible = true
+        playBtn.Face.BackgroundTransparency = 1
         tween(playBtn.Face, 0.2, { BackgroundTransparency = 0 })
         tween(playBtn.Label, 0.2, { TextTransparency = 0 })
     else
         tween(copyIdBtn.Holder, 0.3, { Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(0, 0, 0, 0) }, Enum.EasingStyle.Quart)
+        
         tween(playBtn.Face, 0.2, { BackgroundTransparency = 1 })
         tween(playBtn.Label, 0.2, { TextTransparency = 1 })
         task.delay(0.2, function() if not (CATEGORIES[currentCategoryIndex].key == "Audio") then playBtn.Holder.Visible = false end end)
     end
 end
 
+-- ============================================================
+-- LOAD MORE STATE MACHINE
+-- ============================================================
 local loadMoreState = { visible = false, shrunk = false, lastY = 0 }
 local LOAD_MORE_FADE = 0.28
 
 local function setScrollShrunk(shrunk)
     if loadMoreState.shrunk == shrunk then return end
     loadMoreState.shrunk = shrunk
-    tween(scrollList, LOAD_MORE_FADE, { Size = UDim2.new(1, -INNER*2, 0, shrunk and SHRUNK_SCROLL_H or FULL_SCROLL_H) }, Enum.EasingStyle.Quart)
+    local targetSize = UDim2.new(1, -INNER*2, 0, shrunk and SHRUNK_SCROLL_H or FULL_SCROLL_H)
+    tween(scrollList, LOAD_MORE_FADE, { Size = targetSize }, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 end
 
 local function setLoadMoreVisible(visible)
@@ -830,12 +1111,17 @@ local function setLoadMoreVisible(visible)
         tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 0 })
         tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 0 })
         tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 0 })
+        loadMoreBtn.Scale.Scale = 0.8
+        tween(loadMoreBtn.Scale, 0.3, {Scale = 1}, Enum.EasingStyle.Back)
     else
         tween(loadMoreBtn.Face, LOAD_MORE_FADE, { BackgroundTransparency = 1 })
         tween(loadMoreBtn.Base, LOAD_MORE_FADE, { BackgroundTransparency = 1 })
         tween(loadMoreBtn.Stroke, LOAD_MORE_FADE, { Transparency = 1 })
         tween(loadMoreBtn.Label, LOAD_MORE_FADE, { TextTransparency = 1 })
-        task.delay(LOAD_MORE_FADE + 0.02, function() if not loadMoreState.visible then loadMoreBtn.Holder.Visible = false end end)
+        tween(loadMoreBtn.Scale, 0.2, {Scale = 0.8})
+        task.delay(LOAD_MORE_FADE + 0.02, function()
+            if not loadMoreState.visible then loadMoreBtn.Holder.Visible = false end
+        end)
     end
 end
 
@@ -845,25 +1131,44 @@ scrollList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
     scrollDebounce = true
     task.defer(function()
         scrollDebounce = false
+        
         if isLoading or not nextPageToken then
             if loadMoreState.visible then setLoadMoreVisible(false) end
             if loadMoreState.shrunk then setScrollShrunk(false) end
             return
         end
-        local y, cH, wH = scrollList.CanvasPosition.Y, scrollList.AbsoluteCanvasSize.Y, scrollList.AbsoluteWindowSize.Y
-        if (y + wH) >= (cH - 15) and not loadMoreState.shrunk then
+
+        local y = scrollList.CanvasPosition.Y
+        local cH = scrollList.AbsoluteCanvasSize.Y
+        local wH = scrollList.AbsoluteWindowSize.Y
+        
+        local isAtBottom = (y + wH) >= (cH - 15)
+        
+        if isAtBottom and not loadMoreState.shrunk then
             loadMoreState.lastY = y
-            setScrollShrunk(true); setLoadMoreVisible(true)
-        elseif loadMoreState.shrunk and y < loadMoreState.lastY - 20 then
-            setScrollShrunk(false); setLoadMoreVisible(false)
+            setScrollShrunk(true)
+            setLoadMoreVisible(true)
+        elseif not isAtBottom and loadMoreState.shrunk then
+            if y < loadMoreState.lastY - 20 then
+                setScrollShrunk(false)
+                setLoadMoreVisible(false)
+            end
         end
     end)
 end)
 
+-- ============================================================
+-- DETAIL PANEL & LIST
+-- ============================================================
 local function updateDetailPanel(model)
     if not model then return end
-    stopAudio(); selectedModel = model
-    tween(detailTitle, 0.15, { TextTransparency = 1 }).Completed:Connect(function()
+    stopAudio()
+    selectedModel = model
+    
+    local fadeOutTween = tween(detailTitle, 0.15, { TextTransparency = 1 })
+    tween(detailCreator, 0.15, { TextTransparency = 1 })
+    tween(detailDesc, 0.15, { TextTransparency = 1 })
+    fadeOutTween.Completed:Connect(function()
         detailTitle.Text = model.name
         detailCreator.Text = "By " .. model.creator .. "  •  ID " .. model.id
         detailDesc.Text = model.description
@@ -871,64 +1176,133 @@ local function updateDetailPanel(model)
         tween(detailCreator, 0.15, { TextTransparency = 0 })
         tween(detailDesc, 0.15, { TextTransparency = 0 })
     end)
-    tween(thumbImg, 0.15, { ImageTransparency = 1 }).Completed:Connect(function()
+    
+    local imgFade = tween(thumbImg, 0.15, { ImageTransparency = 1 })
+    imgFade.Completed:Connect(function()
         safeSetImage(thumbImg, model.thumbnail)
         tween(thumbImg, 0.2, { ImageTransparency = 0 })
     end)
+
+    if is3D then
+        loadMeshToViewport(model.id)
+    end
+
     updateBtnLayout()
+
     for id, card in pairs(itemCards) do
-        if id == model.id then tween(card.Frame, 0.15, { BackgroundColor3 = rgb(58, 58, 66) })
-        else tween(card.Frame, 0.15, { BackgroundColor3 = rgb(40, 40, 44) }) end
+        if id == model.id then
+            tween(card.Frame, 0.15, { BackgroundColor3 = rgb(58, 58, 66) })
+        else
+            tween(card.Frame, 0.15, { BackgroundColor3 = rgb(40, 40, 44) })
+        end
     end
 end
 
 local function toggleDetail(model)
     if detailOpen and selectedModel and selectedModel.id == model.id then
         selectedModel = nil
-        for _, card in pairs(itemCards) do tween(card.Frame, 0.15, { BackgroundColor3 = rgb(40, 40, 44) }) end
+        for _, card in pairs(itemCards) do
+            tween(card.Frame, 0.15, { BackgroundColor3 = rgb(40, 40, 44) })
+        end
         setDetailOpen(false)
     else
-        updateDetailPanel(model); setDetailOpen(true)
+        updateDetailPanel(model)
+        setDetailOpen(true)
     end
 end
 
 local function createListItem(model, index)
-    local item = new("Frame", { BackgroundColor3 = rgb(40, 40, 44), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 60), ClipsDescendants = true }, scrollList)
+    local item = new("Frame", {
+        BackgroundColor3 = rgb(40, 40, 44), BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 60),
+        Position = UDim2.new(0, -30, 0, 0), BackgroundTransparency = 1,
+        ClipsDescendants = true
+    }, scrollList)
     corner(item, UDim.new(0, 8))
     new("UIGradient", { Color = SHADE, Rotation = 90 }, item)
-    local hit = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 1 }, item)
-    local icon = new("ImageLabel", { BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0, Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(8, 8), ZIndex = 2 }, item)
-    corner(icon, UDim.new(0, 8)); safeSetImage(icon, model.thumbnail)
-    txt(item, model.name, 11, WHITE, GOTHAM_B, UDim2.new(1, -96, 0, 14), UDim2.fromOffset(60, 9), LEFT, { TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2 })
-    txt(item, "By " .. model.creator, 9, TEXT_DIM, GOTHAM, UDim2.new(1, -96, 0, 12), UDim2.fromOffset(60, 27), LEFT, { TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2 })
-    txt(item, "ID: " .. model.id, 8, rgb(200, 200, 206), GOTHAM, UDim2.new(1, -96, 0, 10), UDim2.fromOffset(60, 44), LEFT, { TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2 })
+
+    local hit = new("TextButton", {
+        AutoButtonColor = false, Text = "", BackgroundTransparency = 1,
+        Size = UDim2.fromScale(1, 1), ZIndex = 1
+    }, item)
+
+    local icon = new("ImageLabel", {
+        BackgroundColor3 = rgb(16, 16, 18), BorderSizePixel = 0,
+        Size = UDim2.fromOffset(44, 44),
+        Position = UDim2.fromOffset(8, 8), ZIndex = 2
+    }, item)
+    corner(icon, UDim.new(0, 8))
+    safeSetImage(icon, model.thumbnail)
+
+    txt(item, model.name, 11, WHITE, GOTHAM_B,
+        UDim2.new(1, -96, 0, 14), UDim2.fromOffset(60, 9), LEFT, {
+            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
+        })
+    txt(item, "By " .. model.creator, 9, TEXT_DIM, GOTHAM,
+        UDim2.new(1, -96, 0, 12), UDim2.fromOffset(60, 27), LEFT, {
+            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
+        })
+    txt(item, "ID: " .. model.id, 8, rgb(200, 200, 206), GOTHAM,
+        UDim2.new(1, -96, 0, 10), UDim2.fromOffset(60, 44), LEFT, {
+            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2
+        })
+
     local viewBtn = raised(item, UDim2.fromOffset(60, 30), UDim2.new(1, -12, 0.5, 0), TONE_ON, 2)
-    viewBtn.Holder.AnchorPoint = Vector2.new(1, 0.5); viewBtn.Label.Text = "VIEW"; viewBtn.Label.TextColor3 = TEXT_DARK; viewBtn.Label.TextSize = 10; viewBtn.Face.ZIndex = 3
+    viewBtn.Holder.AnchorPoint = Vector2.new(1, 0.5)
+    viewBtn.Label.Text = "VIEW"
+    viewBtn.Label.TextColor3 = TEXT_DARK
+    viewBtn.Label.TextSize = 10
+    viewBtn.Face.ZIndex = 3
+
     viewBtn.Face.Activated:Connect(function() toggleDetail(model) end)
-    item.MouseEnter:Connect(function() if not (selectedModel and selectedModel.id == model.id) then tween(item, 0.2, { BackgroundColor3 = TONE_HOVER }) end end)
-    item.MouseLeave:Connect(function() if not (selectedModel and selectedModel.id == model.id) then tween(item, 0.2, { BackgroundColor3 = rgb(40, 40, 44) }) end end)
+
+    item.MouseEnter:Connect(function()
+        if not (selectedModel and selectedModel.id == model.id) then
+            tween(item, 0.2, { BackgroundColor3 = TONE_HOVER })
+        end
+    end)
+    item.MouseLeave:Connect(function()
+        if not (selectedModel and selectedModel.id == model.id) then
+            tween(item, 0.2, { BackgroundColor3 = rgb(40, 40, 44) })
+        end
+    end)
+
     hit.Activated:Connect(function() toggleDetail(model) end)
     itemCards[model.id] = { Frame = item, Model = model }
-    task.delay((index % 10) * 0.04, function() if item.Parent then tween(item, 0.35, { Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0 }, Enum.EasingStyle.Quint) end end)
+    
+    task.delay((index % 10) * 0.04, function()
+        if item.Parent then
+            tween(item, 0.35, { Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 0 }, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        end
+    end)
 end
 
 local function displayModels(models, append)
     if not append then
-        for _, c in ipairs(scrollList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-        allModels, itemCards, selectedModel = {}, {}, nil
+        for _, c in ipairs(scrollList:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
+        end
+        allModels = {}
+        itemCards = {}
+        selectedModel = nil
         if detailOpen then setDetailOpen(false) end
-        setLoadMoreVisible(false); setScrollShrunk(false)
-        loadMoreState.shrunk, loadMoreState.visible = false, false
-        scrollList.CanvasPosition = Vector2.new(0, 0); scrollList.Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H)
+        
+        setLoadMoreVisible(false)
+        setScrollShrunk(false)
+        loadMoreState.shrunk = false
+        loadMoreState.visible = false
+        
+        scrollList.CanvasPosition = Vector2.new(0, 0)
+        scrollList.Size = UDim2.new(1, -INNER*2, 0, FULL_SCROLL_H)
     end
-    for _, model in ipairs(models) do table.insert(allModels, model); createListItem(model, #allModels) end
+    for _, model in ipairs(models) do
+        table.insert(allModels, model)
+        createListItem(model, #allModels)
+    end
 end
 
 local function setStatus(text) statusLabel.Text = text end
 
--- ============================================================
--- API FETCHING
--- ============================================================
 function loadModels(query, append)
     if isLoading then return end
     isLoading = true
@@ -937,129 +1311,200 @@ function loadModels(query, append)
     loadMoreBtn.Label.Text = append and "LOADING..." or "LOAD MORE"
 
     task.spawn(function()
-        local results, newToken, data, err, raw
+        local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
+        local bodyReq = {
+            searchCategoryType = cat.key,
+            query = query or "",
+            maxPageSize = 30
+        }
+        if append and nextPageToken then bodyReq.pageToken = nextPageToken end
 
-        if cat.key == "Catalog" then
-            if string.find(CATALOG_API_URL, "project-kamu") then
-                isLoading = false
-                setStatus("ERROR: Ganti CATALOG_API_URL di script dengan link Vercel kamu!")
-                loadMoreBtn.Label.Text = "LOAD MORE"
-                return
-            end
-            local catId = CATEGORY_IDS[query] or 1
-            local url = CATALOG_API_URL .. "?limit=30&category=" .. catId
-            if query ~= "All" and query ~= "" then url = url .. "&keyword=" .. HttpService:UrlEncode(query) end
-            data, err, raw = httpGet(url)
-            if not err then results, newToken = parseCatalogResponse(data, cat.key) end
-        else
-            local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
-            local bodyReq = { searchCategoryType = cat.key, query = query or "", maxPageSize = 30 }
-            if append and nextPageToken then bodyReq.pageToken = nextPageToken end
-            data, err, raw = httpPost(url, API_KEYS.main.store, bodyReq)
-            if not err then results, newToken = parseToolboxResponse(data, cat.key) end
-        end
-
+        local data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
         if err then
-            isLoading = false; setStatus("Failed: " .. tostring(err)); loadMoreBtn.Label.Text = "LOAD MORE"
+            isLoading = false
+            setStatus("Failed: " .. tostring(err))
+            loadMoreBtn.Label.Text = "LOAD MORE"
             return
         end
 
         debugBox.Text = raw or "Empty"
-        nextPageToken, lastQuery = newToken, query
+        local results, newToken = parseModelsFromResponse(data, cat.key)
+        nextPageToken = newToken
+        lastQuery = query
         displayModels(results, append)
         isLoading = false
         setStatus(("Found %d %s"):format(#results, cat.label:lower()))
         loadMoreBtn.Label.Text = "LOAD MORE"
+
         loadMoreState.lastY = scrollList.CanvasPosition.Y
     end)
 end
 
+-- ============================================================
+-- CATEGORY LOGIC (WITH MEMORY)
+-- ============================================================
 local function selectSubCategory(subName)
     currentSubCategory = subName
     currentQuery = (subName == "All") and "" or subName
+    
     categoryHistory[currentCategoryIndex] = subName
-    subCatContainer.Visible = false; leftPanel.Visible = true
-    nextPageToken = nil; loadModels(currentQuery, false)
+    
+    subCatContainer.Visible = false
+    leftPanel.Visible = true
+    
+    nextPageToken = nil
+    loadModels(currentQuery, false)
 end
 
 local function showSubCategories(catIndex)
-    currentCategoryIndex = catIndex; currentSubCategory = nil
-    leftPanel.Visible = false; rightPanel.Visible = false; subCatContainer.Visible = true
+    currentCategoryIndex = catIndex
+    currentSubCategory = nil
+    
+    leftPanel.Visible = false
+    rightPanel.Visible = false
+    subCatContainer.Visible = true
     subCatScroll.CanvasPosition = Vector2.new(0, 0)
-    for _, child in ipairs(subCatScroll:GetChildren()) do if child:IsA("Frame") or child:IsA("TextButton") then child:Destroy() end end
+    
+    for _, child in ipairs(subCatScroll:GetChildren()) do
+        if child:IsA("Frame") or child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
     
     local cat = CATEGORIES[catIndex]
     local subs = cat.subs or {"All"}
     local count = #subs
 
     local function getLayout(i)
-        local gap = 8; local h1 = 160; local h2 = 76 
-        if count == 1 then return UDim2.new(1, 0, 0, h1 * 2), UDim2.new(0, 0, 0, 0)
+        local gap = 8
+        local h1 = 160
+        local h2 = 76 
+
+        if count == 1 then
+            return UDim2.new(1, 0, 0, h1 * 2), UDim2.new(0, 0, 0, 0)
         elseif count == 2 then
             if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
             return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0.5, gap/2, 0, 0)
         elseif count == 3 then
             if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
             if i == 2 then return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, 0) end
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1+gap) end
-        if i == 1 then return UDim2.new(0.4, -gap*2/3, 0, h1*2+gap), UDim2.new(0, 0, 0, 0)
-        elseif i == 2 then return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, 0)
-        elseif i == 3 then return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, h1+gap)
-        elseif i == 4 then return UDim2.new(0.3, 0, 0, h1*2+gap), UDim2.new(0.7, gap, 0, 0)
-        elseif i == 5 then return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0, 0, 0, h1*2+gap*2)
-        elseif i == 6 then return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1*2+gap*2)
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1+gap)
+        end
+        
+        if i == 1 then
+            return UDim2.new(0.4, -gap*2/3, 0, h1*2+gap), UDim2.new(0, 0, 0, 0)
+        elseif i == 2 then
+            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, 0)
+        elseif i == 3 then
+            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, h1+gap)
+        elseif i == 4 then
+            return UDim2.new(0.3, 0, 0, h1*2+gap), UDim2.new(0.7, gap, 0, 0)
+        elseif i == 5 then
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0, 0, 0, h1*2+gap*2)
+        elseif i == 6 then
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1*2+gap*2)
         else
-            local row = math.floor((i-7)/2); local col = (i-7)%2
-            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(col*0.5, (col==0 and 0 or gap/2), 0, (h1*3) + gap*3 + row*(h1+gap)) end
+            local row = math.floor((i-7)/2)
+            local col = (i-7)%2
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(col*0.5, (col==0 and 0 or gap/2), 0, (h1*3) + gap*3 + row*(h1+gap))
+        end
     end
 
-    local SUBCOLORS = { rgb(45, 175, 255), rgb(220, 60, 255), rgb(255, 110, 70), rgb(45, 230, 90), rgb(255, 60, 140), rgb(255, 170, 50), rgb(150, 70, 255), rgb(60, 200, 200) }
+    local SUBCOLORS = {
+        rgb(45, 175, 255), rgb(220, 60, 255), rgb(255, 110, 70), rgb(45, 230, 90),
+        rgb(255, 60, 140), rgb(255, 170, 50), rgb(150, 70, 255), rgb(60, 200, 200)
+    }
+
     local maxHeight = 0
 
     for i, subName in ipairs(subs) do
         local size, pos = getLayout(i)
         local baseColor = SUBCOLORS[(i-1)%#SUBCOLORS+1]
         local gradColor = ColorSequence.new(baseColor:Lerp(WHITE, 0.35), baseColor:Lerp(rgb(0,0,0), 0.25))
+
         local btn = raised(subCatScroll, size, pos + UDim2.new(0,0,0,20), baseColor, 4, UDim.new(0, 12), false, gradColor)
-        btn.Holder.ZIndex = 10; btn.Label.Text = string.upper(subName); btn.Label.TextColor3 = WHITE; btn.Label.Font = GOTHAM_K; btn.Label.TextScaled = true
+        
+        btn.Holder.ZIndex = 10
+        btn.Label.Text = string.upper(subName)
+        btn.Label.TextColor3 = WHITE
+        btn.Label.Font = GOTHAM_K
+        
+        btn.Label.TextScaled = true
         new("UITextSizeConstraint", { MaxTextSize = 20, MinTextSize = 10 }, btn.Label)
-        btn.Label.TextXAlignment = Enum.TextXAlignment.Center; btn.Label.TextYAlignment = Enum.TextYAlignment.Center
+        
+        btn.Label.TextXAlignment = Enum.TextXAlignment.Center
+        btn.Label.TextYAlignment = Enum.TextYAlignment.Center
+        
         new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }, btn.Face)
         
         local iconId = SUB_ICONS[subName]
         if iconId then
-            local icn = new("ImageLabel", { BackgroundTransparency = 1, Image = iconId, ImageColor3 = WHITE, Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(12, 12), ZIndex = 15, ImageTransparency = 1 }, btn.Face)
-            task.delay(i * 0.06 + 0.1, function() if icn.Parent then tween(icn, 0.4, { ImageTransparency = 0 }) end end)
+            local icn = new("ImageLabel", {
+                BackgroundTransparency = 1,
+                Image = iconId,
+                ImageColor3 = WHITE,
+                Size = UDim2.fromOffset(44, 44),
+                Position = UDim2.fromOffset(12, 12),
+                ZIndex = 15,
+                ImageTransparency = 1
+            }, btn.Face)
+            
+            task.delay(i * 0.06 + 0.1, function()
+                if icn.Parent then
+                    tween(icn, 0.4, { ImageTransparency = 0 })
+                end
+            end)
         end
         
-        btn.Scale.Scale = 0.8; btn.Face.BackgroundTransparency = 1; btn.Base.BackgroundTransparency = 1; btn.Stroke.Transparency = 1; btn.Label.TextTransparency = 1
+        btn.Scale.Scale = 0.8
+        btn.Face.BackgroundTransparency = 1
+        btn.Base.BackgroundTransparency = 1
+        btn.Stroke.Transparency = 1
+        btn.Label.TextTransparency = 1
         
         task.delay(i * 0.06, function()
             if btn.Holder.Parent then
                 tween(btn.Holder, 0.4, { Position = pos }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-                tween(btn.Face, 0.4, { BackgroundTransparency = 0 }); tween(btn.Base, 0.4, { BackgroundTransparency = 0 })
-                tween(btn.Stroke, 0.4, { Transparency = 0 }); tween(btn.Label, 0.4, { TextTransparency = 0 })
+                tween(btn.Face, 0.4, { BackgroundTransparency = 0 })
+                tween(btn.Base, 0.4, { BackgroundTransparency = 0 })
+                tween(btn.Stroke, 0.4, { Transparency = 0 })
+                tween(btn.Label, 0.4, { TextTransparency = 0 })
                 tween(btn.Scale, 0.4, { Scale = 1 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
             end
         end)
 
-        btn.Face.Activated:Connect(function() selectSubCategory(subName) end)
-        if pos.Y.Offset + size.Y.Offset > maxHeight then maxHeight = pos.Y.Offset + size.Y.Offset end
+        btn.Face.Activated:Connect(function()
+            selectSubCategory(subName)
+        end)
+
+        if pos.Y.Offset + size.Y.Offset > maxHeight then
+            maxHeight = pos.Y.Offset + size.Y.Offset
+        end
     end
+
     subCatScroll.CanvasSize = UDim2.new(0, 0, 0, maxHeight + 20)
 end
 
 local function setActiveCategory(idx)
     if currentCategoryIndex == idx and subCatContainer.Visible == false then return end
     currentCategoryIndex = idx
+
     for i, btnData in ipairs(categoryButtons) do
         local isActive = (i == idx)
         btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
-        if btnData.iconObj then btnData.iconObj.ImageColor3 = WHITE end
+        if btnData.iconObj then
+            btnData.iconObj.ImageColor3 = WHITE
+        end
     end
+
     if detailOpen then setDetailOpen(false) end
+    
     local savedSub = categoryHistory[idx]
-    if savedSub then selectSubCategory(savedSub) else showSubCategories(idx) end
+    if savedSub then
+        selectSubCategory(savedSub)
+    else
+        showSubCategories(idx)
+    end
 end
 
 for i, btnData in ipairs(categoryButtons) do
@@ -1069,14 +1514,20 @@ end
 -- EVENTS
 searchInput.FocusLost:Connect(function(enterPressed) 
     if enterPressed then 
-        if subCatContainer.Visible then selectSubCategory("All") end
-        nextPageToken = nil; currentQuery = searchInput.Text; loadModels(currentQuery, false) 
+        if subCatContainer.Visible then
+            selectSubCategory("All")
+        end
+        nextPageToken = nil
+        currentQuery = searchInput.Text
+        loadModels(currentQuery, false) 
     end 
 end)
 
 loadMoreBtn.Face.Activated:Connect(function()
     if not nextPageToken or isLoading then return end
-    setLoadMoreVisible(false); setScrollShrunk(false); loadModels(currentQuery, true)
+    setLoadMoreVisible(false)
+    setScrollShrunk(false)
+    loadModels(currentQuery, true)
 end)
 
 debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Visible end)
@@ -1084,19 +1535,42 @@ debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Vi
 copyIdBtn.Face.Activated:Connect(function()
     if not selectedModel then return end
     if setclipboard then setclipboard(tostring(selectedModel.id)) end
-    copyIdBtn.SetTone(TONE_SUCCESS, WHITE); copyIdLabel.Text = "COPIED!"
-    task.wait(1); copyIdBtn.SetTone(TONE_ON, TEXT_DARK); copyIdLabel.Text = "COPY ID"
+    copyIdBtn.SetTone(TONE_SUCCESS, WHITE)
+    copyIdLabel.Text = "COPIED!"
+    task.wait(1)
+    copyIdBtn.SetTone(TONE_ON, TEXT_DARK)
+    copyIdLabel.Text = "COPY ID"
 end)
 
 playBtn.Face.Activated:Connect(function()
     if not selectedModel then return end
-    if currentSound then stopAudio(); return end
-    local snd = Instance.new("Sound"); snd.SoundId = "rbxassetid://" .. tostring(selectedModel.id); snd.Volume = 1; snd.Parent = SoundService
+    if currentSound then 
+        stopAudio() 
+        return 
+    end
+    
+    local snd = Instance.new("Sound")
+    snd.SoundId = "rbxassetid://" .. tostring(selectedModel.id)
+    snd.Volume = 1
+    snd.Parent = SoundService
+    
     if pcall(function() snd:Play() end) then
-        currentSound = snd; playLabel.Text = "STOP"; playBtn.SetTone(TONE_SUCCESS, WHITE)
-        snd.Ended:Connect(function() stopAudio() end)
-        task.delay(60, function() if currentSound == snd then stopAudio() end end)
-    else snd:Destroy() end
+        currentSound = snd
+        playLabel.Text = "STOP"
+        playBtn.SetTone(TONE_SUCCESS, WHITE)
+        
+        snd.Ended:Connect(function()
+            stopAudio()
+        end)
+        
+        task.delay(60, function() 
+            if currentSound == snd then 
+                stopAudio() 
+            end 
+        end)
+    else
+        snd:Destroy()
+    end
 end)
 
 local function showCloseConfirm()
@@ -1118,7 +1592,8 @@ local function showCloseConfirm()
         if dismissed then return end
         dismissed = true
         tween(cardScale, 0.15, { Scale = 0.85 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-        tween(card, 0.2, { GroupTransparency = 1 }); tween(backdrop, 0.2, { BackgroundTransparency = 1 })
+        tween(card, 0.2, { GroupTransparency = 1 })
+        tween(backdrop, 0.2, { BackgroundTransparency = 1 })
         task.delay(0.22, function() backdrop:Destroy(); if cb then cb() end end)
     end
     noBtn.Face.Activated:Connect(function() dismiss() end)
@@ -1127,7 +1602,8 @@ local function showCloseConfirm()
         dismiss(function()
             stopAudio()
             local t1 = tween(body, 0.25, { GroupTransparency = 1, Size = UDim2.fromOffset(FRAME_W*0.85, FRAME_H*0.85) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-            tween(shadow, 0.25, { BackgroundTransparency = 1 }); t1.Completed:Connect(function() gui:Destroy() end)
+            tween(shadow, 0.25, { BackgroundTransparency = 1 })
+            t1.Completed:Connect(function() gui:Destroy() end)
         end)
     end)
 end
@@ -1141,4 +1617,4 @@ popIn(bodyScale, body)
 tween(shadow, 0.4, { BackgroundTransparency = 0.55 })
 
 task.wait(0.3)
-showSubCategories(1) -- Show Models on startup
+showSubCategories(1) -- Show subcategories for the first category (Models) on startup
