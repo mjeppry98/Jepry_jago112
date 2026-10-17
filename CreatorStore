@@ -1,9 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v30
-    - Added Sub-Category selection screen (vibrant color grid)
-    - Clicking a main category shows sub-categories first
-    - Clicking a sub-category reveals the left and right panels
-    - Fully mapped to Roblox Toolbox & Catalog APIs
+    Studio Lite Toolbox - Final v28
+    - Added Sub-Category Grid Selection system
+    - Main Category -> Sub Category -> Asset List
+    - Added Back button to return to Sub Categories
 ]]
 
 local API_KEYS = {
@@ -24,69 +23,21 @@ local ICON = {
     DESC        = "rbxassetid://98359085392262",
     SPEAKER     = "rbxassetid://87702826291744",
     ZOOM        = "rbxassetid://13321848320",
-    MINIMIZE    = "rbxassetid://100624819703287"
+    MINIMIZE    = "rbxassetid://100624819703287",
+    BACK        = "rbxassetid://114496992333593"
 }
 
--- Sub-Category Definitions (Mapped to APIs)
+-- Added Sub Categories
 local CATEGORIES = {
-    { 
-        key = "Model", label = "MODELS", 
-        subs = {
-            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
-            { label = "BUILDINGS", query = "building", color = Color3.fromRGB(255, 100, 150) },
-            { label = "VEHICLES", query = "vehicle", color = Color3.fromRGB(100, 255, 150) },
-            { label = "WEAPONS", query = "weapon", color = Color3.fromRGB(255, 150, 100) },
-            { label = "NATURE", query = "tree", color = Color3.fromRGB(150, 100, 255) },
-            { label = "TOOLS", query = "tool", color = Color3.fromRGB(255, 200, 50) },
-        }
-    },
-    { 
-        key = "Catalog", label = "CATALOG", 
-        subs = {
-            { label = "FEATURED", query = "", catId = 1, color = Color3.fromRGB(80, 120, 255) },
-            { label = "ACCESSORIES", query = "", catId = 3, color = Color3.fromRGB(255, 100, 150) },
-            { label = "HAIR", query = "", catId = 4, color = Color3.fromRGB(150, 100, 255) },
-            { label = "CLOTHING", query = "", catId = 5, color = Color3.fromRGB(100, 255, 150) },
-            { label = "ANIMATIONS", query = "", catId = 12, color = Color3.fromRGB(255, 200, 50) },
-        }
-    },
-    { 
-        key = "Plugin", label = "PLUGINS", 
-        subs = {
-            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
-            { label = "BUILDING", query = "building", color = Color3.fromRGB(100, 255, 150) },
-            { label = "UTILITY", query = "utility", color = Color3.fromRGB(255, 150, 100) },
-            { label = "LIGHTING", query = "lighting", color = Color3.fromRGB(255, 200, 50) },
-        }
-    },
-    { 
-        key = "Audio", label = "AUDIO", 
-        subs = {
-            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
-            { label = "SFX", query = "sfx", color = Color3.fromRGB(255, 100, 150) },
-            { label = "MUSIC", query = "music", color = Color3.fromRGB(150, 100, 255) },
-            { label = "AMBIENT", query = "ambient", color = Color3.fromRGB(100, 255, 150) },
-        }
-    },
-    { 
-        key = "Decal", label = "DECALS", 
-        subs = {
-            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
-            { label = "TEXTURES", query = "texture", color = Color3.fromRGB(255, 100, 150) },
-            { label = "SIGNS", query = "sign", color = Color3.fromRGB(255, 150, 100) },
-        }
-    },
-    { 
-        key = "MeshPart", label = "MESHES", 
-        subs = {
-            { label = "ALL", query = "", color = Color3.fromRGB(80, 120, 255) },
-            { label = "CHARACTERS", query = "character", color = Color3.fromRGB(150, 100, 255) },
-            { label = "PROPS", query = "prop", color = Color3.fromRGB(255, 200, 50) },
-        }
-    },
+    { key = "Model",    label = "MODELS",  subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
+    { key = "Plugin",   label = "PLUGINS", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Other"} },
+    { key = "Audio",    label = "AUDIO",   subs = {"All", "SFX", "Music", "Ambient", "Voice"} },
+    { key = "Decal",    label = "DECALS",  subs = {"All", "Textures", "Signs", "Logos", "Patterns"} },
+    { key = "MeshPart", label = "MESHES",  subs = {"All", "Clothing", "Accessories", "Body Parts", "Animals"} },
 }
 local currentCategoryIndex = 1
 local currentSubCategory = nil
+local currentQuery = ""
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -360,21 +311,7 @@ local function httpPost(url, apiKey, bodyTable)
     return data, nil, res.Body
 end
 
-local function httpGet(url, apiKey)
-    if not HTTP then return nil, "Executor does not support HTTP requests." end
-    local headers = { ["Accept"] = "application/json" }
-    if apiKey then headers["x-api-key"] = apiKey end
-    local ok, res = pcall(HTTP, {
-        Url = url, Method = "GET", Headers = headers
-    })
-    if not ok then return nil, tostring(res) end
-    if not res or not res.Body then return nil, "Empty response" end
-    local decodeOk, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
-    if not decodeOk then return nil, "Invalid JSON" end
-    return data, nil, res.Body
-end
-
-local function parseToolboxModels(data, category)
+local function parseModelsFromResponse(data, category)
     if not data then return {}, nil end
     local models = {}
     local list = data.creatorStoreAssets or {}
@@ -402,29 +339,6 @@ local function parseToolboxModels(data, category)
         end
     end
     return models, data.data and data.data.nextPageToken or data.nextPageToken
-end
-
-local function parseCatalogModels(data)
-    if not data then return {}, nil end
-    local models = {}
-    local list = data.data or {}
-    if type(list) ~= "table" then list = {} end
-    for _, item in ipairs(list) do
-        if type(item) == "table" then
-            local id = item.id or item.assetId
-            if id then
-                local name = item.name or item.itemName or ("Item " .. tostring(id))
-                local desc = item.description or "No description available."
-                local creatorName = item.creatorName or "?"
-                table.insert(models, {
-                    id = tostring(id), name = name, description = desc,
-                    creator = creatorName, category = "Catalog",
-                    thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
-                })
-            end
-        end
-    end
-    return models, data.nextPageCursor
 end
 
 local function safeSetImage(elm, iconId, color)
@@ -621,7 +535,6 @@ local categoryBar = new("Frame", {
 }, body)
 
 local categoryButtons = {}
-
 local currentX = 0
 local CAT_PAD_X = 12
 local CAT_GAP = 6
@@ -634,7 +547,7 @@ for i, cat in ipairs(CATEGORIES) do
     local btn = raised(categoryBar,
         UDim2.fromOffset(btnW, CATEGORY_H - 4),
         UDim2.fromOffset(currentX, 2),
-        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true) -- isStatic=true
+        isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
@@ -643,7 +556,7 @@ for i, cat in ipairs(CATEGORIES) do
     currentX = currentX + btnW + CAT_GAP
 end
 
--- CONTENT CONTAINER
+-- CONTENT (Base area for panels & subcategories)
 local content = new("Frame", {
     BackgroundTransparency = 1,
     Size = UDim2.new(1, -PAD*2, 0, CONTENT_H),
@@ -652,23 +565,61 @@ local content = new("Frame", {
 }, body)
 
 -- ============================================================
--- SUB-CATEGORY SELECTION SCREEN
+-- SUB-CATEGORY GRID UI
 -- ============================================================
-local subCategoryFrame = new("CanvasGroup", {
+local subCatContainer = new("Frame", {
     BackgroundTransparency = 1,
-    Size = UDim2.fromScale(1, 1),
-    Visible = false,
-    GroupTransparency = 1
+    Size = UDim2.new(1, 0, 1, 0),
+    Visible = false
 }, content)
-surface(subCategoryFrame, 12)
 
-local subCatTitle = txt(subCategoryFrame, "SELECT A CATEGORY", 16, WHITE, GOTHAM_K, UDim2.new(1, 0, 0, 30), UDim2.fromOffset(0, 15), CENTER)
-local subCatGrid = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, -20, 1, -60), Position = UDim2.fromOffset(10, 50) }, subCategoryFrame)
-new("UIGridLayout", {
-    CellSize = UDim2.new(0.33, -8, 0, 80),
-    CellPadding = UDim2.new(0, 8, 0, 8),
+local subCatScroll = new("ScrollingFrame", {
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    Size = UDim2.new(1, 0, 1, 0),
+    CanvasSize = UDim2.new(),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    ScrollBarThickness = 3, ScrollBarImageColor3 = rgb(150, 150, 158),
+}, subCatContainer)
+
+local subCatGrid = new("UIGridLayout", {
+    CellSize = UDim2.new(0.5, -6, 0, 70),
+    CellPadding = UDim2.new(0, 12, 0, 12),
     SortOrder = Enum.SortOrder.LayoutOrder
-}, subCatGrid)
+}, subCatScroll)
+new("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6) }, subCatScroll)
+
+local function showSubCategories(catIndex)
+    currentCategoryIndex = catIndex
+    currentSubCategory = nil
+    
+    -- Hide panels
+    leftPanel.Visible = false
+    rightPanel.Visible = false
+    subCatContainer.Visible = true
+    subCatScroll.CanvasPosition = Vector2.new(0, 0)
+    
+    -- Populate Grid
+    for _, child in ipairs(subCatScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    
+    local cat = CATEGORIES[catIndex]
+    for i, subName in ipairs(cat.subs) do
+        local btn = raised(subCatScroll, UDim2.new(1, 0, 1, 0), UDim2.new(), TONE_OFF, 3)
+        btn.Label.Text = subName
+        btn.Label.TextSize = 14
+        
+        -- Add a hint of color to sub-categories
+        if i % 3 == 0 then btn.SetTone(rgb(120, 50, 100), WHITE) -- Pinkish
+        elseif i % 3 == 1 then btn.SetTone(rgb(50, 100, 150), WHITE) -- Bluish
+        else btn.SetTone(rgb(40, 120, 80), WHITE) end -- Greenish
+        
+        btn.Face.Activated:Connect(function()
+            selectSubCategory(subName)
+        end)
+    end
+end
 
 -- ============================================================
 -- LEFT PANEL
@@ -682,9 +633,20 @@ local leftPanel = new("CanvasGroup", {
 surface(leftPanel, 12)
 leftPanel.ClipsDescendants = true
 
-local LEFT_TOP_PAD = INNER
+local LEFT_TOP_PAD = INNER + 30 -- Added space for Back button
 local FULL_SCROLL_H = CONTENT_H - LEFT_TOP_PAD
 local SHRUNK_SCROLL_H = CONTENT_H - LEFT_TOP_PAD - BTN_H - INNER
+
+-- BACK BUTTON
+local backBtn = new("TextButton", {
+    BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
+    Size = UDim2.fromOffset(60, 22),
+    Position = UDim2.fromOffset(INNER, INNER),
+    Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT
+}, leftPanel)
+corner(backBtn, UDim.new(0, 4))
+new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
+backBtn.MouseButton1Click:Connect(function() showSubCategories(currentCategoryIndex) end)
 
 local scrollList = new("ScrollingFrame", {
     BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -879,8 +841,6 @@ local itemCards = {}
 local allModels = {}
 local nextPageToken = nil
 local lastQuery = ""
-local lastSubCategoryQuery = ""
-local lastSubCategoryId = nil
 local isLoading = false
 local currentSound = nil
 
@@ -1307,7 +1267,7 @@ end
 
 local function setStatus(text) statusLabel.Text = text end
 
-function loadModels(append)
+function loadModels(query, append)
     if isLoading then return end
     isLoading = true
     local cat = CATEGORIES[currentCategoryIndex]
@@ -1315,36 +1275,15 @@ function loadModels(append)
     loadMoreBtn.Label.Text = append and "LOADING..." or "LOAD MORE"
 
     task.spawn(function()
-        local data, err, raw
-        
-        if cat.key == "Catalog" then
-            local url = ("https://catalog.roblox.com/v1/search/items/details?Category=%d&Keyword=%s&Limit=30&SortType=0&SortAggregation=5"):format(lastSubCategoryId or 1, HttpService:UrlEncode(lastQuery or ""))
-            if append and nextPageToken then url = url .. "&Cursor=" .. nextPageToken end
-            data, err, raw = httpGet(url)
-            local results, newToken
-            if data then
-                results, newToken = parseCatalogModels(data)
-                nextPageToken = newToken
-                displayModels(results, append)
-            end
-        else
-            local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
-            local searchQuery = (lastSubCategoryQuery ~= "" and (lastSubCategoryQuery .. " " .. lastQuery) or lastQuery)
-            local bodyReq = {
-                searchCategoryType = cat.key,
-                query = searchQuery or "",
-                maxPageSize = 30
-            }
-            if append and nextPageToken then bodyReq.pageToken = nextPageToken end
-            data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
-            local results, newToken
-            if data then
-                results, newToken = parseToolboxModels(data, cat.key)
-                nextPageToken = newToken
-                displayModels(results, append)
-            end
-        end
+        local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
+        local bodyReq = {
+            searchCategoryType = cat.key,
+            query = query or "",
+            maxPageSize = 30
+        }
+        if append and nextPageToken then bodyReq.pageToken = nextPageToken end
 
+        local data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
         if err then
             isLoading = false
             setStatus("Failed: " .. tostring(err))
@@ -1352,272 +1291,35 @@ function loadModels(append)
             return
         end
 
-        if data then
-            debugBox.Text = raw or "Empty"
-            isLoading = false
-            setStatus(("Found %d assets"):format(#allModels))
-            loadMoreBtn.Label.Text = "LOAD MORE"
-            loadMoreState.lastY = scrollList.CanvasPosition.Y
-        end
+        debugBox.Text = raw or "Empty"
+        local results, newToken = parseModelsFromResponse(data, cat.key)
+        nextPageToken = newToken
+        lastQuery = query
+        displayModels(results, append)
+        isLoading = false
+        setStatus(("Found %d %s"):format(#results, cat.label:lower()))
+        loadMoreBtn.Label.Text = "LOAD MORE"
+
+        loadMoreState.lastY = scrollList.CanvasPosition.Y
     end)
 end
 
 -- ============================================================
--- SUB-CATEGORY RENDERER & TRANSITIONS
+-- CATEGORY LOGIC
 -- ============================================================
-local function renderSubCategories()
-    for _, c in ipairs(subCatGrid:GetChildren()) do
-        if c:IsA("TextButton") or c:IsA("Frame") then c:Destroy() end
-    end
-    local cat = CATEGORIES[currentCategoryIndex]
-    subCatTitle.Text = "SELECT A " .. cat.label .. " CATEGORY"
-
-    for _, sub in ipairs(cat.subs) do
-        local btn = new("TextButton", {
-            BackgroundColor3 = sub.color,
-            BorderSizePixel = 0,
-            Text = "",
-            AutoButtonColor = false
-        }, subCatGrid)
-        corner(btn, UDim.new(0, 10))
-        local stroke = new("UIStroke", { Color = WHITE, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, btn)
-        
-        txt(btn, sub.label, 14, WHITE, GOTHAM_B, UDim2.fromScale(1,1), UDim2.new(), CENTER, {
-            TextWrapped = true
-        })
-
-        local s = new("UIScale", {Scale = 1}, btn)
-        btn.MouseEnter:Connect(function() tween(s, 0.2, {Scale = 1.05}, Enum.EasingStyle.Back) end)
-        btn.MouseLeave:Connect(function() tween(s, 0.2, {Scale = 1}, Enum.EasingStyle.Quart) end)
-        
-        btn.Activated:Connect(function()
-            lastSubCategoryQuery = sub.query
-            lastSubCategoryId = sub.catId
-            lastQuery = searchInput.Text
-
-            -- Transition to list view
-            tween(subCategoryFrame, 0.25, {GroupTransparency = 1})
-            tween(leftPanel, 0.3, {Visible = true, Size = UDim2.new(1, 0, 1, 0)}, Enum.EasingStyle.Quart)
-            
-            -- If we wanted a fade-in for the left panel:
-            leftPanel.GroupTransparency = 1
-            tween(leftPanel, 0.3, {GroupTransparency = 0})
-            task.delay(0.25, function() subCategoryFrame.Visible = false end)
-            
-            loadModels(false)
-        end)
-    end
+local function selectSubCategory(subName)
+    currentSubCategory = subName
+    currentQuery = (subName == "All") and "" or subName
+    
+    subCatContainer.Visible = false
+    leftPanel.Visible = true
+    
+    nextPageToken = nil
+    loadModels(currentQuery, false)
 end
 
-local function showSubCategoryScreen()
-    setLoadMoreVisible(false)
-    setScrollShrunk(false)
-    if detailOpen then setDetailOpen(false) end
-    rightPanel.Visible = false
-    
-    for _, c in ipairs(scrollList:GetChildren()) do
-        if c:IsA("Frame") then c:Destroy() end
-    end
-    allModels = {}
-    itemCards = {}
-
-    renderSubCategories()
-    subCategoryFrame.Visible = true
-    subCategoryFrame.GroupTransparency = 1
-    tween(subCategoryFrame, 0.25, {GroupTransparency = 0})
-    
-    leftPanel.Visible = false
-end
-
--- ============================================================
--- FLOATING TOGGLE BUTTON
--- ============================================================
-local windowVisible = true
-local toggleSize = 54
-local toggleBtn = raised(gui, UDim2.fromOffset(toggleSize, toggleSize), UDim2.fromOffset(20, 200), TONE_OFF, 4, UDim.new(1, 0))
-toggleBtn.Holder.ZIndex = 100
-toggleBtn.Holder.Visible = false
-
-new("ImageLabel", {
-    BackgroundTransparency = 1, Image = ICON.MODEL_BOX, ImageColor3 = WHITE,
-    Size = UDim2.fromOffset(28, 28), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5)
-}, toggleBtn.Face)
-
-local toggleScale = new("UIScale", {Scale = 1}, toggleBtn.Face)
-
-local function setWindowVisible(v)
-    if windowVisible == v then return end
-    windowVisible = v
-    
-    tween(toggleScale, 0.09, {Scale = 0.72})
-    task.delay(0.09, function() if gui.Parent then tween(toggleScale, 0.35, {Scale = 1}, Enum.EasingStyle.Back) end end)
-    
-    if v then
-        toggleBtn.Holder.Visible = false
-        body.Visible = true
-        popIn(bodyScale, body)
-        tween(shadow, 0.35, {BackgroundTransparency = 0.55})
-    else
-        popOut(bodyScale, body)
-        tween(shadow, 0.26, {BackgroundTransparency = 1})
-        task.delay(0.45, function()
-            if not windowVisible then
-                body.Visible = false
-                toggleBtn.Holder.Visible = true
-            end
-        end)
-    end
-end
-
-local draggingToggle = false
-local toggleDragStart = nil
-local toggleStartPos = nil
-
-toggleBtn.Face.InputBegan:Connect(function(input)
-    if isPress(input) then
-        draggingToggle = true
-        toggleDragStart = input.Position
-        toggleStartPos = toggleBtn.Holder.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if draggingToggle and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - toggleDragStart
-        toggleBtn.Holder.Position = UDim2.new(toggleStartPos.X.Scale, toggleStartPos.X.Offset + delta.X, toggleStartPos.Y.Scale, toggleStartPos.Y.Offset + delta.Y)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if isPress(input) and draggingToggle then
-        draggingToggle = false
-        local delta = input.Position - toggleDragStart
-        if delta.Magnitude < 8 then
-            setWindowVisible(true)
-        end
-    end
-end)
-
--- ============================================================
--- INTERACTION EVENTS
--- ============================================================
-toggle3DBtn.MouseButton1Click:Connect(function()
-    is3D = not is3D
-    local textFade = tween(toggle3DBtn, 0.15, { TextTransparency = 1 })
-    textFade.Completed:Connect(function()
-        toggle3DBtn.Text = is3D and "2D VIEW" or "3D VIEW"
-        tween(toggle3DBtn, 0.15, { TextTransparency = 0 })
-    end)
-    
-    if is3D then
-        thumbImg.Visible = false
-        viewportFrame.Visible = true
-        if selectedModel then loadMeshToViewport(selectedModel.id) end
-        zoomBtn.Visible = true
-        zoomBtn.Position = UDim2.new(1, -10, 0, 6)
-        zoomBtn.BackgroundTransparency = 1
-        zoomBtn.ImageTransparency = 1
-        tween(zoomBtn, 0.3, { Position = UDim2.new(1, -72, 0, 6), BackgroundTransparency = 0, ImageTransparency = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-    else
-        thumbImg.Visible = true
-        viewportFrame.Visible = false
-        local slideBack = tween(zoomBtn, 0.25, { Position = UDim2.new(1, -10, 0, 6), BackgroundTransparency = 1, ImageTransparency = 1 }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-        slideBack.Completed:Connect(function() zoomBtn.Visible = false end)
-    end
-end)
-
--- ZOOM OVERLAY
-local zoomOverlay = new("Frame", { BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.5, Size = UDim2.fromScale(1, 1), Visible = false, ZIndex = 150 }, gui)
-local zoomBaseW = math.min(600, FRAME_W - 40)
-local zoomBaseH = math.min(500, FRAME_H - 40)
-local zoomCard = new("CanvasGroup", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(zoomBaseW, zoomBaseH), BackgroundTransparency = 1, Active = true, ZIndex = 151 }, zoomOverlay)
-surface(zoomCard, 14)
-local zoomScale = new("UIScale", { Scale = 0.001 }, zoomCard)
-
-txt(zoomCard, "3D MESH VIEWER", 13, WHITE, GOTHAM_K, UDim2.new(1, -40, 0, 24), UDim2.fromOffset(20, 12), LEFT)
-
-local closeZoomBtn = new("TextButton", { AutoButtonColor = false, Text = "", BackgroundColor3 = TONE_OFF, BorderSizePixel = 0, Size = UDim2.fromOffset(30, 30), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -20, 0, 12), ZIndex = 155 }, zoomCard)
-corner(closeZoomBtn, UDim.new(0, 6))
-new("UIGradient", { Color = SHADE, Rotation = 90 }, closeZoomBtn)
-local zclsScale = new("UIScale", {Scale = 1}, closeZoomBtn)
-closeZoomBtn.MouseEnter:Connect(function() tween(zclsScale, 0.15, {Scale=1.1}, Enum.EasingStyle.Back) end)
-closeZoomBtn.MouseLeave:Connect(function() tween(zclsScale, 0.15, {Scale=1}) end)
-
-new("ImageLabel", { BackgroundTransparency = 1, Image = ICON.CLOSE, ImageColor3 = WHITE, Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5) }, closeZoomBtn)
-
-local zoomViewport = new("ViewportFrame", { BackgroundColor3 = rgb(16, 16, 18), Size = UDim2.new(1, -40, 1, -60), Position = UDim2.fromOffset(20, 44), ZIndex = 152 }, zoomCard)
-corner(zoomViewport, UDim.new(0, 10))
-
-local zoomCam = new("Camera", {}, zoomViewport)
-zoomViewport.CurrentCamera = zoomCam
-local zoomLight = new("PointLight", { Brightness = 2, Range = 50 }, zoomCam)
-
-local zoomDrag = false
-local zoomLastPos = Vector2.new()
-zoomViewport.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then zoomDrag = true; zoomLastPos = i.Position end end)
-zoomViewport.InputChanged:Connect(function(i)
-    if zoomDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-        local d = i.Position - zoomLastPos
-        currentRotY = currentRotY + (d.X * 0.6)
-        currentRotX = currentRotX - (d.Y * 0.6)
-        local zoomClone = zoomViewport:FindFirstChildOfClass("MeshPart") or zoomViewport:FindFirstChildOfClass("Part") or zoomViewport:FindFirstChildWhichIsA("Model")
-        if zoomClone then
-            local rot = CFrame.fromEulerAnglesYXZ(math.rad(currentRotX), math.rad(currentRotY), 0)
-            local targetPos, dist = Vector3.new(0,0,0), 15
-            if zoomClone:IsA("Model") then
-                local cf, size = zoomClone:GetBoundingBox()
-                targetPos = cf.Position
-                dist = math.max(size.X, size.Y, size.Z) * 1.8
-            else
-                local size = zoomClone.Size
-                dist = math.max(size.X, size.Y, size.Z) * 1.8
-            end
-            zoomCam.CFrame = CFrame.new(targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist)), targetPos)
-        end
-        zoomLastPos = i.Position
-    end
-end)
-zoomViewport.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then zoomDrag = false end end)
-
-zoomBtn.MouseButton1Click:Connect(function()
-    if not selectedModel then return end
-    for _, child in ipairs(zoomViewport:GetChildren()) do if child:IsA("BasePart") or child:IsA("Model") then child:Destroy() end end
-    if vpModel then
-        local clone = vpModel:Clone()
-        clone.Parent = zoomViewport
-        local targetPos, dist = Vector3.new(0,0,0), 15
-        if clone:IsA("Model") then
-            local cf, size = clone:GetBoundingBox()
-            targetPos = cf.Position
-            dist = math.max(size.X, size.Y, size.Z) * 1.8
-        else
-            local size = clone.Size
-            dist = math.max(size.X, size.Y, size.Z) * 1.8
-        end
-        local rot = CFrame.fromEulerAnglesYXZ(math.rad(currentRotX), math.rad(currentRotY), 0)
-        zoomCam.CFrame = CFrame.new(targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, dist)), targetPos)
-    end
-    zoomOverlay.Visible = true
-    tween(zoomOverlay, 0.2, { BackgroundTransparency = 0.5 })
-    popIn(zoomScale, zoomCard)
-end)
-
-closeZoomBtn.MouseButton1Click:Connect(function()
-    local t1 = tween(zoomCard, 0.25, { GroupTransparency = 1, Size = UDim2.fromOffset(zoomBaseW * 0.85, zoomBaseH * 0.85) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    tween(zoomOverlay, 0.25, { BackgroundTransparency = 1 })
-    t1.Completed:Connect(function() zoomOverlay.Visible = false; zoomCard.GroupTransparency = 0; zoomCard.Size = UDim2.fromOffset(zoomBaseW, zoomBaseH) end)
-end)
-
--- ============================================================
--- CATEGORY CLICK LOGIC
--- ============================================================
 local function setActiveCategory(idx)
-    if currentCategoryIndex == idx then 
-        if not subCategoryFrame.Visible and not leftPanel.Visible then
-            showSubCategoryScreen()
-        end
-        return 
-    end
+    if currentCategoryIndex == idx and subCatContainer.Visible == false then return end
     currentCategoryIndex = idx
 
     for i, btnData in ipairs(categoryButtons) do
@@ -1625,23 +1327,23 @@ local function setActiveCategory(idx)
         btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
     end
 
-    showSubCategoryScreen()
+    if detailOpen then setDetailOpen(false) end
+    showSubCategories(idx)
 end
 
 for i, btnData in ipairs(categoryButtons) do
-    btnData.api.Face.Activated:Connect(function()
-        setActiveCategory(i)
-    end)
+    btnData.api.Face.Activated:Connect(function() setActiveCategory(i) end)
 end
 
 -- EVENTS
 searchInput.FocusLost:Connect(function(enterPressed) 
     if enterPressed then 
-        nextPageToken = nil
-        lastQuery = searchInput.Text
-        if not subCategoryFrame.Visible then
-            loadModels(false) 
+        if subCatContainer.Visible then
+            selectSubCategory("All") -- Force into list view if search is pressed directly
         end
+        nextPageToken = nil
+        currentQuery = searchInput.Text
+        loadModels(currentQuery, false) 
     end 
 end)
 
@@ -1649,7 +1351,7 @@ loadMoreBtn.Face.Activated:Connect(function()
     if not nextPageToken or isLoading then return end
     setLoadMoreVisible(false)
     setScrollShrunk(false)
-    loadModels(true)
+    loadModels(currentQuery, true)
 end)
 
 debugBtn.MouseButton1Click:Connect(function() debugBox.Visible = not debugBox.Visible end)
@@ -1733,9 +1435,10 @@ end
 closeBtn.MouseButton1Click:Connect(showCloseConfirm)
 minimizeBtn.MouseButton1Click:Connect(function() setWindowVisible(false) end)
 
+-- INIT
 task.wait(0.1)
 popIn(bodyScale, body)
 tween(shadow, 0.4, { BackgroundTransparency = 0.55 })
 
 task.wait(0.3)
-setActiveCategory(1) -- Trigger initial sub-category screen
+showSubCategories(1) -- Show subcategories for the first category (Models) on startup
