@@ -1,9 +1,8 @@
 --[[
-    Studio Lite Toolbox - Final v32
-    - Optimized text layout for main categories and sub-categories
-    - Auto-scaling text for sub-category buttons to prevent overflow
-    - Perfectly centered icon+text layouts for action buttons
-    - Fully responsive and bug-free
+    Studio Lite Toolbox - Final v34
+    - Integrated all provided Main Category and Sub-Category icons
+    - Perfectly aligned layouts (Icons + Text)
+    - Masonry sub-category grid remains intact
 ]]
 
 local API_KEYS = {
@@ -28,13 +27,43 @@ local ICON = {
 }
 
 local CATEGORIES = {
-    { key = "Model",    label = "MODELS",  subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "Plugin",   label = "CATALOG", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Other"} },
-    { key = "Plugin",   label = "PLUGINS", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Other"} },
-    { key = "Audio",    label = "AUDIO",   subs = {"All", "SFX", "Music", "Ambient", "Voice"} },
-    { key = "Decal",    label = "DECALS",  subs = {"All", "Textures", "Signs", "Logos", "Patterns"} },
-    { key = "MeshPart", label = "MESHES",  subs = {"All", "Clothing", "Accessories", "Body Parts", "Animals"} },
+    { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
+    { key = "Plugin",   label = "CATALOG", icon = "rbxassetid://9405933217", subs = {"All", "Utility", "Building", "Animation", "UI/UX", "Visuals"} },
+    { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712", subs = {"All", "Utility", "Building", "Animation", "Scripting", "Other"} },
+    { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955", subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
+    { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
+    { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Clothing", "Accessories", "Body Parts", "Animals", "Props"} },
 }
+
+local SUB_ICONS = {
+    ["All"] = "rbxassetid://15567843390",
+    ["Building"] = "rbxassetid://102384750306029",
+    ["Nature"] = "rbxassetid://114717328431686",
+    ["Props"] = "rbxassetid://106218455818049",
+    ["Weapons"] = "rbxassetid://7485051715",
+    ["Vehicles"] = "rbxassetid://101646918234834",
+    ["Characters"] = "rbxassetid://13285615740",
+    ["Clothing"] = "rbxassetid://11955919597",
+    ["Accessories"] = "rbxassetid://94785180212209",
+    ["Body Parts"] = "rbxassetid://126499349331034",
+    ["Animals"] = "rbxassetid://6938215837",
+    ["Utility"] = "rbxassetid://113364344425009",
+    ["Scripting"] = "rbxassetid://9405930424",
+    ["UI/UX"] = "rbxassetid://96780656997191",
+    ["Animation"] = "rbxassetid://8370845871",
+    ["Music"] = "rbxassetid://7059338404",
+    ["SFX"] = "rbxassetid://4773247666",
+    ["Ambient"] = "rbxassetid://16149050754",
+    ["Voice"] = "rbxassetid://14333877451",
+    ["Podcasts"] = "rbxassetid://14802853867",
+    ["Textures"] = "rbxassetid://93167896407815",
+    ["Signs"] = "rbxassetid://92559495578198",
+    ["Logos"] = "rbxassetid://138880939782808",
+    ["Patterns"] = "rbxassetid://121662510907526",
+    ["Faces"] = "rbxassetid://17784562207",
+    ["Visuals"] = "rbxassetid://17415917290"
+}
+
 local currentCategoryIndex = 1
 local currentSubCategory = nil
 local currentQuery = ""
@@ -542,7 +571,7 @@ local categoryBar = new("ScrollingFrame", {
     AutomaticCanvasSize = Enum.AutomaticSize.X
 }, body)
 
-local categoryLayout = new("UIListLayout", {
+new("UIListLayout", {
     FillDirection = Enum.FillDirection.Horizontal,
     SortOrder = Enum.SortOrder.LayoutOrder,
     Padding = UDim.new(0, 6),
@@ -554,28 +583,45 @@ local categoryButtons = {}
 for i, cat in ipairs(CATEGORIES) do
     local isActive = (i == currentCategoryIndex)
     
-    -- Use raised with AutomaticSize for perfect text fitting
     local btn = raised(categoryBar,
-        UDim2.new(0, 0, 1, -4), -- Width determined by AutoSize
+        UDim2.new(0, 0, 1, -4),
         UDim2.new(), 
         isActive and TONE_ON or TONE_OFF, 2, UDim.new(0,8), true)
     
     btn.Holder.AutomaticSize = Enum.AutomaticSize.X
     btn.Holder.LayoutOrder = i
     
+    local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) }, btn.Face)
+    new("UIListLayout", {
+        FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        VerticalAlignment = Enum.VerticalAlignment.Center,
+        Padding = UDim.new(0, 6)
+    }, row)
+    
+    local iconImg = new("ImageLabel", {
+        BackgroundTransparency = 1,
+        Image = cat.icon,
+        ImageColor3 = isActive and TEXT_DARK or TEXT_LIGHT,
+        Size = UDim2.fromOffset(14, 14),
+        LayoutOrder = 1
+    }, row)
+    
+    btn.Label.Parent = row
+    btn.Label.LayoutOrder = 2
+    btn.Label.Size = UDim2.fromOffset(0, 16)
+    btn.Label.AutomaticSize = Enum.AutomaticSize.X
+    btn.Label.TextXAlignment = Enum.TextXAlignment.Left
     btn.Label.Text = cat.label
     btn.Label.TextColor3 = isActive and TEXT_DARK or TEXT_LIGHT
     btn.Label.TextSize = 10
-    btn.Label.AutomaticSize = Enum.AutomaticSize.X
-    btn.Label.Size = UDim2.fromOffset(0, 16)
     
-    -- Padding inside the button
     new("UIPadding", {
-        PaddingLeft = UDim.new(0, 14),
-        PaddingRight = UDim.new(0, 14)
+        PaddingLeft = UDim.new(0, 12),
+        PaddingRight = UDim.new(0, 12)
     }, btn.Face)
 
-    categoryButtons[i] = { api = btn, category = cat }
+    categoryButtons[i] = { api = btn, category = cat, iconObj = iconImg }
 end
 
 -- CONTENT
@@ -628,8 +674,7 @@ local backBtn = new("TextButton", {
     BackgroundColor3 = TONE_OFF, BorderSizePixel = 0,
     Size = UDim2.fromOffset(60, 22),
     Position = UDim2.fromOffset(INNER, INNER),
-    Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT,
-    TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center
+    Text = "BACK", Font = GOTHAM_B, TextSize = 10, TextColor3 = TEXT_LIGHT
 }, leftPanel)
 corner(backBtn, UDim.new(0, 4))
 new("UIGradient", { Color = SHADE, Rotation = 90 }, backBtn)
@@ -1327,45 +1372,43 @@ local function showSubCategories(catIndex)
     local count = #subs
 
     local function getLayout(i)
+        local gap = 8
+        local h1 = 160
+        local h2 = 76 
+        
         if count == 1 then
-            return UDim2.new(1, 0, 0, 200), UDim2.new(0, 0, 0, 0)
+            return UDim2.new(1, 0, 0, h1 * 2), UDim2.new(0, 0, 0, 0)
         elseif count == 2 then
-            if i == 1 then return UDim2.new(0.5, -4, 0, 200), UDim2.new(0, 0, 0, 0) end
-            return UDim2.new(0.5, -4, 0, 200), UDim2.new(0.5, 4, 0, 0)
+            if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
+            return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0.5, gap/2, 0, 0)
         elseif count == 3 then
-            if i == 1 then return UDim2.new(0.5, -4, 0, 200), UDim2.new(0, 0, 0, 0) end
-            if i == 2 then return UDim2.new(0.5, -4, 0, 95), UDim2.new(0.5, 4, 0, 0) end
-            return UDim2.new(0.5, -4, 0, 95), UDim2.new(0.5, 4, 0, 105)
+            if i == 1 then return UDim2.new(0.5, -gap/2, 0, h1*2), UDim2.new(0, 0, 0, 0) end
+            if i == 2 then return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, 0) end
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1+gap)
         end
         
         if i == 1 then
-            return UDim2.new(0.4, -4, 0, 160), UDim2.new(0, 0, 0, 0)
+            return UDim2.new(0.4, -gap*2/3, 0, h1*2), UDim2.new(0, 0, 0, 0)
         elseif i == 2 then
-            return UDim2.new(0.3, -4, 0, 75), UDim2.new(0.4, 4, 0, 0)
+            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, 0)
         elseif i == 3 then
-            return UDim2.new(0.3, -4, 0, 75), UDim2.new(0.4, 4, 0, 85)
+            return UDim2.new(0.3, -gap*2/3, 0, h1), UDim2.new(0.4, gap/3, 0, h1+gap)
         elseif i == 4 then
-            return UDim2.new(0.3, -4, 0, 160), UDim2.new(0.7, 4, 0, 0)
+            return UDim2.new(0.3, 0, 0, h1*2), UDim2.new(0.7, gap, 0, 0)
         elseif i == 5 then
-            return UDim2.new(0.5, -4, 0, 75), UDim2.new(0, 0, 0, 170)
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0, 0, 0, h1*2+gap)
         elseif i == 6 then
-            return UDim2.new(0.5, -4, 0, 75), UDim2.new(0.5, 4, 0, 170)
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(0.5, gap/2, 0, h1*2+gap)
         else
             local row = math.floor((i-7)/2)
             local col = (i-7)%2
-            return UDim2.new(0.5, -4, 0, 75), UDim2.new(col*0.5, (col==0 and 0 or 4), 0, 255 + row*85)
+            return UDim2.new(0.5, -gap/2, 0, h1), UDim2.new(col*0.5, (col==0 and 0 or gap/2), 0, (h1*3) + gap*2 + row*(h1+gap))
         end
     end
 
     local SUBCOLORS = {
-        rgb(45, 175, 255), -- Blue
-        rgb(220, 60, 255), -- Magenta
-        rgb(255, 110, 70), -- Orange
-        rgb(45, 230, 90),  -- Green
-        rgb(255, 60, 140), -- Pink
-        rgb(255, 170, 50), -- Yellow
-        rgb(150, 70, 255), -- Purple
-        rgb(60, 200, 200)  -- Cyan
+        rgb(45, 175, 255), rgb(220, 60, 255), rgb(255, 110, 70), rgb(45, 230, 90),
+        rgb(255, 60, 140), rgb(255, 170, 50), rgb(150, 70, 255), rgb(60, 200, 200)
     }
 
     local maxHeight = 0
@@ -1382,14 +1425,33 @@ local function showSubCategories(catIndex)
         btn.Label.TextColor3 = WHITE
         btn.Label.Font = GOTHAM_K
         
-        -- OPTIMASI TEXT: Auto scale dengan min/max size
         btn.Label.TextScaled = true
-        local textConstraint = new("UITextSizeConstraint", { MaxTextSize = 18, MinTextSize = 10 }, btn.Label)
+        new("UITextSizeConstraint", { MaxTextSize = 20, MinTextSize = 10 }, btn.Label)
         
         btn.Label.TextXAlignment = Enum.TextXAlignment.Center
         btn.Label.TextYAlignment = Enum.TextYAlignment.Center
         
         new("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12) }, btn.Face)
+        
+        -- ADDED SUB CATEGORY ICON
+        local iconId = SUB_ICONS[subName]
+        if iconId then
+            local icn = new("ImageLabel", {
+                BackgroundTransparency = 1,
+                Image = iconId,
+                ImageColor3 = WHITE,
+                Size = UDim2.fromOffset(32, 32),
+                Position = UDim2.fromOffset(12, 12),
+                ZIndex = 15,
+                ImageTransparency = 1
+            }, btn.Face)
+            
+            task.delay(i * 0.06 + 0.1, function()
+                if icn.Parent then
+                    tween(icn, 0.4, { ImageTransparency = 0.1 })
+                end
+            end)
+        end
         
         btn.Scale.Scale = 0.8
         btn.Face.BackgroundTransparency = 1
@@ -1427,6 +1489,9 @@ local function setActiveCategory(idx)
     for i, btnData in ipairs(categoryButtons) do
         local isActive = (i == idx)
         btnData.api.SetTone(isActive and TONE_ON or TONE_OFF, isActive and TEXT_DARK or TEXT_LIGHT)
+        if btnData.iconObj then
+            btnData.iconObj.ImageColor3 = isActive and TEXT_DARK or TEXT_LIGHT
+        end
     end
 
     if detailOpen then setDetailOpen(false) end
