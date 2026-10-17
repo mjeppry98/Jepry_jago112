@@ -1,16 +1,22 @@
 --[[
     Studio Lite Toolbox - Final v40
-    - Removed unsupported "CATALOG" category
-    - Replaced with a valid second "MODELS" category (Parts/Tools)
-    - All other features (Memory, Masonry, Icons) remain intact
+    - Full support for Roblox Catalog API (Avatar Shop) via Custom Proxy
+    - Fixed CATALOG tab (No longer empty!)
+    - Smart Category Memory
+    - Bigger & White Icons
 ]]
+
+-- ============================================================
+-- KONFIGURASI
+-- ============================================================
+-- GANTI URL INI DENGAN URL VERCEL KAMU
+local CATALOG_API_URL = "https://project-kamu.vercel.app/api/catalog" 
 
 local API_KEYS = {
     main = {
         store = "HDeecbzlHUuJ8dljbWkQIMF5rSTOEOzuB8cvxtxog2xzKM/uZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluTnBaeTB5TURJeExUQTNMVEV6VkRFNE9qVXhPalE1V2lJc0luUjVjQ0k2SWtwWFZDSjkuZXlKaGRXUWlPaUpTYjJKc2IzaEpiblJsY201aGJDSXNJbWx6Y3lJNklrTnNiM1ZrUVhWMGFHVnVkR2xqWVhScGIyNVRaWEoyYVdObElpd2lZbUZ6WlVGd2FVdGxlU0k2SWtoRVpXVmpZbnBzU0ZWMVNqaGtiR3BpVjJ0UlNVMUdOWEpUVkU5RlQzcDFRamhqZG5oMGVHOW5Nbmg2UzAwdmRTSXNJbTkzYm1WeVNXUWlPaUl4TURFeE1qRTVOelE0TnlJc0ltVjRjQ0k2TVRjNU1qRTBPVEU1T1N3aWFXRjBJam94TnpreU1UUTFOVGs1TENKdVltWWlPakUzT1RJeE5EVTFPVGw5LmlBNENZZDcwUG95QUZjVTM0VU01MWpicTRJVEJjSDdCeG1BOUZhSXlSZUpHcHJFZGtzU2E5Zkc3c1FRT2FzVkdiN2k2VDM5UzV5bFdNX1pXM1hIN0FaQmdjcFdncVhFVFZIMWd0V1dmXzRHMXl4X0ttVzFTQ0NianNnclpqMlplVTBlaHI5THdDMXJXbVRwaGVIQjZ6eGxKTTl5dmllSW5oQmRQSHY0QnE3S252WVBnQzJKcUtJNVM2VzhyWWNDQ1V0TDU4ZkdiUXpOWkxQSU5uSXptNU8tYVJqTHQzRW56Z0Z2Z3J0dldoTUVHeTFxS3hfX1pHRXdlV2dXSkJVdGtiWmkxV1RPcE0yWmVoMHk2NENiOC1oZG5tOFhiVWpRVEZBWDI0WldkRTJSYkhWbU1paUpPNV9ZVVhzRFpvbVlRdWQ4elBoYWc3OVVDT2tiQWZDbW5vdw=="
     }
 }
-local currentKeyMode = "main"
 
 local ICON = {
     SEARCH      = "rbxassetid://118685771787843",
@@ -26,14 +32,24 @@ local ICON = {
     MINIMIZE    = "rbxassetid://100624819703287"
 }
 
--- Kategori CATALOG dihapus dan diganti menjadi "PARTS" (Model) agar valid
+-- Sub-kategori disesuaikan dengan kategori Catalog API (Category ID)
+-- 1=Featured, 3=Clothing, 11=Accessories, 4=BodyParts, 12=Animations, 2=Emotes
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
-    { key = "Model",    label = "PARTS",   icon = "rbxassetid://9405933217",    subs = {"All", "Tools", "Decals", "Meshes", "UI", "Misc"} },
+    { key = "Catalog",  label = "CATALOG", icon = "rbxassetid://9405933217",    subs = {"All", "Clothing", "Accessories", "Body Parts", "Animations", "Emotes"} },
     { key = "Plugin",   label = "PLUGINS", icon = "rbxassetid://7245838712",    subs = {"All", "Utility", "Scripting", "UI/UX", "Building", "Visuals"} },
     { key = "Audio",    label = "AUDIO",   icon = "rbxassetid://6824924955",    subs = {"All", "Music", "SFX", "Ambient", "Voice", "Podcasts"} },
     { key = "Decal",    label = "DECALS",  icon = "rbxassetid://89926149384354", subs = {"All", "Textures", "Signs", "Logos", "Patterns", "Faces"} },
     { key = "MeshPart", label = "MESHES",  icon = "rbxassetid://71902649824205", subs = {"All", "Props", "Nature", "Building", "Body Parts", "Accessories"} },
+}
+
+local CATEGORY_IDS = {
+    ["All"] = 1,
+    ["Clothing"] = 3,
+    ["Accessories"] = 11,
+    ["Body Parts"] = 4,
+    ["Animations"] = 12,
+    ["Emotes"] = 2
 }
 
 local SUB_ICONS = {
@@ -62,12 +78,7 @@ local SUB_ICONS = {
     ["Logos"] = "rbxassetid://138880939782808",
     ["Patterns"] = "rbxassetid://121662510907526",
     ["Faces"] = "rbxassetid://17784562207",
-    ["Visuals"] = "rbxassetid://17415917290",
-    ["Tools"] = "rbxassetid://7485051715",
-    ["Decals"] = "rbxassetid://93167896407815",
-    ["Meshes"] = "rbxassetid://71902649824205",
-    ["UI"] = "rbxassetid://96780656997191",
-    ["Misc"] = "rbxassetid://15567843390"
+    ["Visuals"] = "rbxassetid://17415917290"
 }
 
 local currentCategoryIndex = 1
@@ -333,6 +344,9 @@ local function getHttpFunc()
 end
 local HTTP = getHttpFunc()
 
+-- ============================================================
+-- HTTP REQUEST WRAPPER
+-- ============================================================
 local function httpPost(url, apiKey, bodyTable)
     if not HTTP then return nil, "Executor does not support HTTP requests." end
     local ok, res = pcall(HTTP, {
@@ -351,7 +365,24 @@ local function httpPost(url, apiKey, bodyTable)
     return data, nil, res.Body
 end
 
-local function parseModelsFromResponse(data, category)
+local function httpGet(url)
+    if not HTTP then return nil, "Executor does not support HTTP requests." end
+    local ok, res = pcall(HTTP, {
+        Url = url, Method = "GET",
+        Headers = { ["Accept"] = "application/json" }
+    })
+    if not ok then return nil, tostring(res) end
+    if not res or not res.Body then return nil, "Empty response" end
+    local decodeOk, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
+    if not decodeOk then return nil, "Invalid JSON" end
+    return data, nil, res.Body
+end
+
+-- ============================================================
+-- PARSERS
+-- ============================================================
+-- Parser untuk Toolbox API (Models, Plugins, Audio, dll)
+local function parseToolboxResponse(data, category)
     if not data then return {}, nil end
     local models = {}
     local list = data.creatorStoreAssets or {}
@@ -381,11 +412,28 @@ local function parseModelsFromResponse(data, category)
     return models, data.data and data.data.nextPageToken or data.nextPageToken
 end
 
-local function safeSetImage(elm, iconId, color)
-    pcall(function()
-        elm.Image = iconId
-        elm.ImageColor3 = color or WHITE
-    end)
+-- Parser untuk Catalog API (Avatar Shop)
+local function parseCatalogResponse(data, category)
+    if not data then return {}, nil end
+    local models = {}
+    local list = data.data or {} -- Catalog API returns data in "data" array
+    if type(list) ~= "table" then list = {} end
+    for _, entry in ipairs(list) do
+        if type(entry) == "table" then
+            local id = entry.id or entry.assetId or entry.itemId
+            if id then
+                local name = entry.name or entry.itemName or ("Asset " .. tostring(id))
+                local desc = entry.description or "No description available."
+                local creatorName = entry.creatorName or entry.creator or "?"
+                table.insert(models, {
+                    id = tostring(id), name = name, description = desc,
+                    creator = creatorName, category = category,
+                    thumbnail = "rbxthumb://type=Asset&id=" .. tostring(id) .. "&w=150&h=150"
+                })
+            end
+        end
+    end
+    return models, data.nextPageCursor
 end
 
 -- ============================================================
@@ -1309,6 +1357,9 @@ end
 
 local function setStatus(text) statusLabel.Text = text end
 
+-- ============================================================
+-- LOAD MODELS (INTEGRATED WITH CATALOG API)
+-- ============================================================
 function loadModels(query, append)
     if isLoading then return end
     isLoading = true
@@ -1317,15 +1368,37 @@ function loadModels(query, append)
     loadMoreBtn.Label.Text = append and "LOADING..." or "LOAD MORE"
 
     task.spawn(function()
-        local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
-        local bodyReq = {
-            searchCategoryType = cat.key,
-            query = query or "",
-            maxPageSize = 30
-        }
-        if append and nextPageToken then bodyReq.pageToken = nextPageToken end
+        local results, newToken
+        local data, err, raw
 
-        local data, err, raw = httpPost(url, API_KEYS[currentKeyMode].store, bodyReq)
+        if cat.key == "Catalog" then
+            -- GUNAKAN CUSTOM API PROXY (VERCEL) UNTUK CATALOG
+            local catId = CATEGORY_IDS[query] or 1
+            local url = CATALOG_API_URL .. "?limit=30&category=" .. catId
+            if query ~= "All" and query ~= "" then
+                url = url .. "&keyword=" .. HttpService:UrlEncode(query)
+            end
+            
+            data, err, raw = httpGet(url)
+            if not err then
+                results, newToken = parseCatalogResponse(data, cat.key)
+            end
+        else
+            -- GUNAKAN TOOLBOX API UNTUK KATEGORI LAIN
+            local url = "https://apis.roblox.com/toolbox-service/v2/assets:search"
+            local bodyReq = {
+                searchCategoryType = cat.key,
+                query = query or "",
+                maxPageSize = 30
+            }
+            if append and nextPageToken then bodyReq.pageToken = nextPageToken end
+
+            data, err, raw = httpPost(url, API_KEYS.main.store, bodyReq)
+            if not err then
+                results, newToken = parseToolboxResponse(data, cat.key)
+            end
+        end
+
         if err then
             isLoading = false
             setStatus("Failed: " .. tostring(err))
@@ -1334,7 +1407,6 @@ function loadModels(query, append)
         end
 
         debugBox.Text = raw or "Empty"
-        local results, newToken = parseModelsFromResponse(data, cat.key)
         nextPageToken = newToken
         lastQuery = query
         displayModels(results, append)
@@ -1353,7 +1425,6 @@ local function selectSubCategory(subName)
     currentSubCategory = subName
     currentQuery = (subName == "All") and "" or subName
     
-    -- Simpan ke memori berdasarkan index kategori
     categoryHistory[currentCategoryIndex] = subName
     
     subCatContainer.Visible = false
@@ -1506,7 +1577,6 @@ local function setActiveCategory(idx)
 
     if detailOpen then setDetailOpen(false) end
     
-    -- CEK MEMORI: Jika kategori ini pernah dibuka dan punya sub-kategori terakhir, langsung ke sana
     local savedSub = categoryHistory[idx]
     if savedSub then
         selectSubCategory(savedSub)
