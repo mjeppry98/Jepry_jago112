@@ -1,7 +1,7 @@
 --[[
-    Studio Lite Toolbox - Final v39
-    - Removed unsupported "CATALOG" category (Avatar Shop)
-    - Replaced with a second "MODELS" category (for Parts, Tools, etc.)
+    Studio Lite Toolbox - Final v40
+    - Removed unsupported "CATALOG" category
+    - Replaced with a valid second "MODELS" category (Parts/Tools)
     - All other features (Memory, Masonry, Icons) remain intact
 ]]
 
@@ -26,7 +26,7 @@ local ICON = {
     MINIMIZE    = "rbxassetid://100624819703287"
 }
 
--- Perubahan: "CATALOG" diganti menjadi "MODELS" (Parts/Tools) agar valid
+-- Kategori CATALOG dihapus dan diganti menjadi "PARTS" (Model) agar valid
 local CATEGORIES = {
     { key = "Model",    label = "MODELS",  icon = "rbxassetid://94108074565091", subs = {"All", "Building", "Weapons", "Vehicles", "Characters", "Nature"} },
     { key = "Model",    label = "PARTS",   icon = "rbxassetid://9405933217",    subs = {"All", "Tools", "Decals", "Meshes", "UI", "Misc"} },
